@@ -31,6 +31,14 @@ use App\Http\Controllers\Api\V1\ProfileController;
 
 Route::prefix('v1')->group(function () {
 
+    Route::get('/health', function () {
+    return response()->json([
+        'ok' => true,
+        'service' => 'Kore Backend',
+        'version' => 'v1',
+    ]);
+});
+
     // Registro empresa (público)
     Route::post('/empresa/register', [EmpresaController::class, 'register']);
 
