@@ -1,5 +1,8 @@
 <?php
 
+use App\Models\User;
+use Illuminate\Support\Facades\Hash;
+
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\EmpresaController;
@@ -30,6 +33,28 @@ use App\Http\Controllers\Api\V1\ProfileController;
 //use App\Http\Controllers\Api\V1\TaskReviewsController;
 
 Route::prefix('v1')->group(function () {
+
+
+    //temporal
+    Route::get('/setup-admin', function () {
+    $user = User::firstOrCreate(
+        ['email' => 'admin@admin.com'],
+        [
+            'name' => 'Admin',
+            'password' => Hash::make('12345678'),
+        ]
+    );
+
+    return response()->json([
+        'ok' => true,
+        'message' => 'Admin listo',
+        'user' => [
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+        ]
+    ]);
+});
 
     Route::get('/health', function () {
     return response()->json([
