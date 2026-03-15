@@ -36,15 +36,24 @@ Route::prefix('v1')->group(function () {
 
 
     //temporal
-  Route::get('/setup-admin', function () {
-    $user = User::updateOrCreate(
-        ['email' => 'admin@admin.com'],
+  Route::post('/setup-admin', function (\Illuminate\Http\Request $request) {
+    $data = $request->validate([
+        'email' => ['required', 'email'],
+        'password' => ['required', 'string'],
+        'name' => ['nullable', 'string'],
+        'role' => ['nullable', 'string'],
+        'is_active' => ['nullable', 'boolean'],
+        'empresa_id' => ['nullable'],
+    ]);
+
+    $user = \App\Models\User::updateOrCreate(
+        ['email' => $data['email']],
         [
-            'name' => 'Admin',
-            'password' => Hash::make('12345678'),
-            'is_active' => true,
-            'role' => 'admin',
-            'empresa_id' => null,
+            'name' => $data['name'] ?? 'Admin',
+            'password' => \Illuminate\Support\Facades\Hash::make($data['password']),
+            'is_active' => $data['is_active'] ?? true,
+            'role' => $data['role'] ?? 'admin',
+            'empresa_id' => $data['empresa_id'] ?? null,
         ]
     );
 
@@ -53,8 +62,8 @@ Route::prefix('v1')->group(function () {
         'message' => 'Admin creado o actualizado',
         'user' => [
             'id' => $user->id,
-            'name' => $user->name,
             'email' => $user->email,
+            'name' => $user->name,
             'is_active' => $user->is_active,
             'role' => $user->role,
             'empresa_id' => $user->empresa_id,
