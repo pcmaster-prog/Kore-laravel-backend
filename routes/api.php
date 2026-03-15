@@ -1,8 +1,6 @@
 <?php
 
 use Illuminate\Http\Request;
-use App\Models\Modulo;
-use App\Models\EmpresaModulo;
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\V1\AuthController;
@@ -34,71 +32,6 @@ use App\Http\Controllers\Api\V1\ProfileController;
 //use App\Http\Controllers\Api\V1\TaskReviewsController;
 
 Route::prefix('v1')->group(function () {
-
-    //temporalmodulos:
- 
-
-Route::get('/ping-routes', function () {
-    return response()->json([
-        'ok' => true,
-        'message' => 'routes updated'
-    ]);
-});
-
-Route::post('/seed-modules', function () {
-    $modules = [
-        ['key' => 'employees', 'name' => 'Empleados'],
-        ['key' => 'attendance', 'name' => 'Asistencia'],
-        ['key' => 'tasks', 'name' => 'Tareas'],
-        ['key' => 'evidences', 'name' => 'Evidencias'],
-        ['key' => 'reports_basic', 'name' => 'Reportes Básicos'],
-    ];
-
-    foreach ($modules as $module) {
-        \App\Models\Modulo::updateOrCreate(
-            ['key' => $module['key']],
-            ['name' => $module['name']]
-        );
-    }
-
-    return response()->json([
-        'ok' => true,
-        'message' => 'Módulos sembrados correctamente'
-    ]);
-});
-
-Route::post('/assign-base-modules', function (\Illuminate\Http\Request $request) {
-    $data = $request->validate([
-        'empresa_id' => ['required', 'string'],
-    ]);
-
-    $baseKeys = ['employees', 'attendance', 'tasks', 'evidences', 'reports_basic'];
-
-    $mods = \App\Models\Modulo::whereIn('key', $baseKeys)->get();
-
-    foreach ($mods as $m) {
-        \App\Models\EmpresaModulo::updateOrCreate(
-            [
-                'empresa_id' => $data['empresa_id'],
-                'modulo_id' => $m->id,
-            ],
-            [
-                'enabled' => true,
-                'settings' => null,
-            ]
-        );
-    }
-
-    return response()->json([
-        'ok' => true,
-        'message' => 'Módulos base asignados correctamente',
-        'empresa_id' => $data['empresa_id'],
-    ]);
-});
-
-
-
-
 
     // Registro empresa (público)
     Route::post('/empresa/register', [EmpresaController::class, 'register']);
