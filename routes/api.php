@@ -1,13 +1,8 @@
 <?php
 
+use Illuminate\Http\Request;
 use App\Models\Modulo;
 use App\Models\EmpresaModulo;
-
-use App\Models\User;
-use Illuminate\Support\Facades\Hash;
-
- use Illuminate\Http\Request;
-use Laravel\Sanctum\PersonalAccessToken;
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\V1\AuthController;
