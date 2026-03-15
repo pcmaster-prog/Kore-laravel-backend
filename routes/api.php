@@ -38,6 +38,13 @@ Route::prefix('v1')->group(function () {
     //temporalmodulos:
  
 
+Route::get('/ping-routes', function () {
+    return response()->json([
+        'ok' => true,
+        'message' => 'routes updated'
+    ]);
+});
+
 Route::post('/seed-modules', function () {
     $modules = [
         ['key' => 'employees', 'name' => 'Empleados'],
@@ -48,7 +55,7 @@ Route::post('/seed-modules', function () {
     ];
 
     foreach ($modules as $module) {
-        Modulo::updateOrCreate(
+        \App\Models\Modulo::updateOrCreate(
             ['key' => $module['key']],
             ['name' => $module['name']]
         );
@@ -60,17 +67,17 @@ Route::post('/seed-modules', function () {
     ]);
 });
 
-Route::post('/assign-base-modules', function (Request $request) {
+Route::post('/assign-base-modules', function (\Illuminate\Http\Request $request) {
     $data = $request->validate([
         'empresa_id' => ['required', 'string'],
     ]);
 
     $baseKeys = ['employees', 'attendance', 'tasks', 'evidences', 'reports_basic'];
 
-    $mods = Modulo::whereIn('key', $baseKeys)->get();
+    $mods = \App\Models\Modulo::whereIn('key', $baseKeys)->get();
 
     foreach ($mods as $m) {
-        EmpresaModulo::updateOrCreate(
+        \App\Models\EmpresaModulo::updateOrCreate(
             [
                 'empresa_id' => $data['empresa_id'],
                 'modulo_id' => $m->id,
