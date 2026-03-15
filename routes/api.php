@@ -3,6 +3,9 @@
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 
+ use Illuminate\Http\Request;
+use Laravel\Sanctum\PersonalAccessToken;
+
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\EmpresaController;
@@ -33,6 +36,24 @@ use App\Http\Controllers\Api\V1\ProfileController;
 //use App\Http\Controllers\Api\V1\TaskReviewsController;
 
 Route::prefix('v1')->group(function () {
+
+    //temp
+   
+
+Route::get('/debug-token', function (Request $request) {
+    $rawHeader = $request->header('Authorization');
+    $bearer = $request->bearerToken();
+    $token = $bearer ? PersonalAccessToken::findToken($bearer) : null;
+
+    return response()->json([
+        'ok' => true,
+        'authorization_header' => $rawHeader,
+        'bearer_token' => $bearer,
+        'token_found' => (bool) $token,
+        'tokenable_type' => $token?->tokenable_type,
+        'tokenable_id' => $token?->tokenable_id,
+    ]);
+});
 
 
     //temporal
