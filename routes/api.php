@@ -37,106 +37,10 @@ use App\Http\Controllers\Api\V1\ProfileController;
 
 Route::prefix('v1')->group(function () {
 
-    //temp
-    Route::get('/debug-pats', function () {
-    return response()->json([
-        'ok' => true,
-        'count' => PersonalAccessToken::count(),
-        'rows' => PersonalAccessToken::query()
-            ->latest('id')
-            ->limit(10)
-            ->get([
-                'id',
-                'tokenable_type',
-                'tokenable_id',
-                'name',
-                'created_at',
-            ]),
-    ]);
-});
-
-Route::post('/debug-token-match', function (Request $request) {
-    $data = $request->validate([
-        'token' => ['required', 'string'],
-    ]);
-
-    $full = $data['token'];
-
-    if (!str_contains($full, '|')) {
-        return response()->json([
-            'ok' => false,
-            'message' => 'El token no tiene formato id|token'
-        ]);
-    }
-
-    [$id, $plain] = explode('|', $full, 2);
-
-    $row = PersonalAccessToken::find($id);
-
-    return response()->json([
-        'ok' => true,
-        'token_id' => $id,
-        'row_exists' => (bool) $row,
-        'incoming_hash' => hash('sha256', $plain),
-        'stored_hash' => $row?->token,
-        'matches' => $row ? hash_equals($row->token, hash('sha256', $plain)) : false,
-        'tokenable_type' => $row?->tokenable_type,
-        'tokenable_id' => $row?->tokenable_id,
-    ]);
-});
-   
-
-Route::get('/debug-token', function (Request $request) {
-    $rawHeader = $request->header('Authorization');
-    $bearer = $request->bearerToken();
-    $token = $bearer ? PersonalAccessToken::findToken($bearer) : null;
-
-    return response()->json([
-        'ok' => true,
-        'authorization_header' => $rawHeader,
-        'bearer_token' => $bearer,
-        'token_found' => (bool) $token,
-        'tokenable_type' => $token?->tokenable_type,
-        'tokenable_id' => $token?->tokenable_id,
-    ]);
-});
+    
 
 
-    //temporal
-  Route::post('/setup-admin', function (\Illuminate\Http\Request $request) {
-    $data = $request->validate([
-        'email' => ['required', 'email'],
-        'password' => ['required', 'string'],
-        'name' => ['nullable', 'string'],
-        'role' => ['nullable', 'string'],
-        'is_active' => ['nullable', 'boolean'],
-        'empresa_id' => ['nullable'],
-    ]);
 
-    $user = \App\Models\User::updateOrCreate(
-        ['email' => $data['email']],
-        [
-            'name' => $data['name'] ?? 'Admin',
-            'password' => \Illuminate\Support\Facades\Hash::make($data['password']),
-            'is_active' => $data['is_active'] ?? true,
-            'role' => $data['role'] ?? 'admin',
-            'empresa_id' => $data['empresa_id'] ?? null,
-        ]
-    );
-
-    return response()->json([
-        'ok' => true,
-        'message' => 'Admin creado o actualizado',
-        'user' => [
-            'id' => $user->id,
-            'email' => $user->email,
-            'name' => $user->name,
-            'is_active' => $user->is_active,
-            'role' => $user->role,
-            'empresa_id' => $user->empresa_id,
-        ]
-    ]);
-});
 
 
     // Registro empresa (público)
