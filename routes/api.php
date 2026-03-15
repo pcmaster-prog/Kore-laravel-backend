@@ -38,6 +38,52 @@ use App\Http\Controllers\Api\V1\ProfileController;
 Route::prefix('v1')->group(function () {
 
     //temp
+    Route::get('/debug-pats', function () {
+    return response()->json([
+        'ok' => true,
+        'count' => PersonalAccessToken::count(),
+        'rows' => PersonalAccessToken::query()
+            ->latest('id')
+            ->limit(10)
+            ->get([
+                'id',
+                'tokenable_type',
+                'tokenable_id',
+                'name',
+                'created_at',
+            ]),
+    ]);
+});
+
+Route::post('/debug-token-match', function (Request $request) {
+    $data = $request->validate([
+        'token' => ['required', 'string'],
+    ]);
+
+    $full = $data['token'];
+
+    if (!str_contains($full, '|')) {
+        return response()->json([
+            'ok' => false,
+            'message' => 'El token no tiene formato id|token'
+        ]);
+    }
+
+    [$id, $plain] = explode('|', $full, 2);
+
+    $row = PersonalAccessToken::find($id);
+
+    return response()->json([
+        'ok' => true,
+        'token_id' => $id,
+        'row_exists' => (bool) $row,
+        'incoming_hash' => hash('sha256', $plain),
+        'stored_hash' => $row?->token,
+        'matches' => $row ? hash_equals($row->token, hash('sha256', $plain)) : false,
+        'tokenable_type' => $row?->tokenable_type,
+        'tokenable_id' => $row?->tokenable_id,
+    ]);
+});
    
 
 Route::get('/debug-token', function (Request $request) {
