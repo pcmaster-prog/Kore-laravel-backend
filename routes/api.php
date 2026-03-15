@@ -36,33 +36,32 @@ Route::prefix('v1')->group(function () {
 
 
     //temporal
-    Route::get('/setup-admin', function () {
-    $user = User::firstOrCreate(
+  Route::get('/setup-admin', function () {
+    $user = User::updateOrCreate(
         ['email' => 'admin@admin.com'],
         [
             'name' => 'Admin',
             'password' => Hash::make('12345678'),
+            'is_active' => true,
+            'role' => 'admin',
+            'empresa_id' => null,
         ]
     );
 
     return response()->json([
         'ok' => true,
-        'message' => 'Admin listo',
+        'message' => 'Admin creado o actualizado',
         'user' => [
             'id' => $user->id,
             'name' => $user->name,
             'email' => $user->email,
+            'is_active' => $user->is_active,
+            'role' => $user->role,
+            'empresa_id' => $user->empresa_id,
         ]
     ]);
 });
 
-    Route::get('/health', function () {
-    return response()->json([
-        'ok' => true,
-        'service' => 'Kore Backend',
-        'version' => 'v1',
-    ]);
-});
 
     // Registro empresa (público)
     Route::post('/empresa/register', [EmpresaController::class, 'register']);
