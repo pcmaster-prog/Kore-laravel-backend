@@ -164,4 +164,37 @@ class EmpresaController extends Controller
 
         return response()->json(['message' => 'Configuración actualizada', 'empresa' => $empresa]);
     }
+
+    public function getRed(Request $request)
+    {
+        $u = $request->user();
+        $empresa = Empresa::find($u->empresa_id);
+
+        return response()->json([
+            'allowed_ip' => $empresa ? $empresa->allowed_ip : null
+        ]);
+    }
+
+    public function updateRed(Request $request)
+    {
+        $u = $request->user();
+        if ($u->role !== 'admin') {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+
+        $data = $request->validate([
+            'allowed_ip' => ['nullable', 'string', 'max:45']
+        ]);
+
+        $empresa = Empresa::find($u->empresa_id);
+        if ($empresa) {
+            $empresa->allowed_ip = $data['allowed_ip'];
+            $empresa->save();
+        }
+
+        return response()->json([
+            'message' => 'Configuración de red actualizada',
+            'allowed_ip' => $empresa->allowed_ip
+        ]);
+    }
 }

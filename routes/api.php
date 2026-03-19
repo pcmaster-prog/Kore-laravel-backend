@@ -176,6 +176,8 @@ Route::prefix('v1')->group(function () {
 
             // Config IP empresa
             Route::patch('/empresa/config', [EmpresaController::class, 'config']);
+            Route::get('/empresa/red',  [EmpresaController::class, 'getRed']);
+            Route::post('/empresa/red', [EmpresaController::class, 'updateRed']);
 
             // Configuración de calendario a nivel empresa
             Route::patch('/empresa/settings/calendar', [EmpresaSettingsController::class, 'updateCalendar']);
