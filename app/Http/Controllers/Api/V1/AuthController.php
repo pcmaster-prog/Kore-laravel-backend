@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB;
 use App\Models\User;
 
 class AuthController extends Controller
@@ -45,10 +46,10 @@ class AuthController extends Controller
     if ($u->empresa_id) {
         $empresa = \App\Models\Empresa::find($u->empresa_id);
 
-        $enabledKeys = \App\Models\EmpresaModulo::where('empresa_id', $u->empresa_id)
+        $enabledKeys = DB::table('empresa_modules')
+            ->where('empresa_id', $u->empresa_id)
             ->where('enabled', true)
-            ->join('modulos', 'empresa_modulos.modulo_id', '=', 'modulos.id')
-            ->pluck('modulos.key')
+            ->pluck('module_slug')
             ->values()
             ->all();
     }

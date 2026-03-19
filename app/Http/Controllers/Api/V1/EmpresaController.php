@@ -10,8 +10,6 @@ use Illuminate\Support\Str;
 
 use App\Models\Empresa;
 use App\Models\User;
-use App\Models\Modulo;
-use App\Models\EmpresaModulo;
 
 class EmpresaController extends Controller
 {
@@ -50,18 +48,20 @@ class EmpresaController extends Controller
                 'is_active' => true,
             ]);
 
-            // módulos base por defecto
-            $baseKeys = ['employees','attendance','tasks','evidences','reports_basic'];
-
-            $mods = Modulo::whereIn('key', $baseKeys)->get();
-            foreach ($mods as $m) {
-                EmpresaModulo::create([
-                    'empresa_id' => $empresa->id,
-                    'modulo_id' => $m->id,
-                    'enabled' => true,
-                    'settings' => null,
-                ]);
+            // módulos base por defecto (usando los nuevos slugs localizados)
+            $baseModules = ['tareas', 'asistencia', 'configuracion'];
+            $modulesToInsert = [];
+            foreach ($baseModules as $slug) {
+                $modulesToInsert[] = [
+                    'id'          => (string) Str::uuid(),
+                    'empresa_id'  => $empresa->id,
+                    'module_slug' => $slug,
+                    'enabled'     => true,
+                    'created_at'  => now(),
+                    'updated_at'  => now(),
+                ];
             }
+            DB::table('empresa_modules')->insert($modulesToInsert);
 
             $token = $user->createToken('kore-api')->plainTextToken;
 
@@ -95,9 +95,17 @@ class EmpresaController extends Controller
         
         $modulos = DB::table('empresa_modules')
             ->where('empresa_id', $u->empresa_id)
-            ->get(['module_slug', 'enabled']);
+            ->get(['module_slug as slug', 'enabled'])
+            ->map(function ($item) {
+                return [
+                    'slug' => $item->slug,
+                    'enabled' => (bool) $item->enabled
+                ];
+            })
+            ->values()
+            ->all();
 
-        return response()->json(['items' => $modulos]);
+        return response()->json($modulos);
     }
 
     public function toggleModulo(Request $request)
