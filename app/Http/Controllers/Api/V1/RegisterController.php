@@ -65,14 +65,12 @@ class RegisterController extends Controller
 
             // 4. Modulos
             $selectedModules = $data['modules'] ?? [];
-            $modulesToInsert = [];
+            $defaultModules = ['tareas', 'asistencia', 'nomina', 'configuracion'];
             
-            // Configuracion siempre activo
-            if (!in_array('configuracion', $selectedModules)) {
-                $selectedModules[] = 'configuracion';
-            }
+            $allModules = array_unique(array_merge($selectedModules, $defaultModules));
 
-            foreach (array_unique($selectedModules) as $mod) {
+            $modulesToInsert = [];
+            foreach ($allModules as $mod) {
                 $modulesToInsert[] = [
                     'id'          => (string) Str::uuid(),
                     'empresa_id'  => $empresa->id,
