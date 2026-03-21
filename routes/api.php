@@ -52,8 +52,8 @@ Route::prefix('v1')->group(function () {
             Route::get('/dashboard/manager', [DashboardController::class, 'manager']);
             Route::get('/dashboard/employee', [DashboardController::class, 'employee']);
 
-            // Rutas protegidas por el módulo "employees"
-            Route::middleware('module:employees')->group(function () {
+            // Rutas protegidas por el módulo "configuracion"
+            Route::middleware('module:configuracion')->group(function () {
                 // Admin + Supervisor
                 Route::get('/empleados', [EmployeesController::class, 'index']);
                 Route::get('/empleados/{id}', [EmployeesController::class, 'show']);
@@ -185,7 +185,7 @@ Route::prefix('v1')->group(function () {
             // Ruta de prueba 
             Route::get('/demo/employees-module-check', function () {
                 return response()->json(['ok' => true, 'message' => 'Employees module enabled']);
-            })->middleware('module:employees');
+            })->middleware('module:configuracion');
         });
     });
 });
