@@ -4,8 +4,7 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
-use App\Models\Modulo;
-use App\Models\EmpresaModulo;
+use App\Models\EmpresaModule; // ← el modelo correcto
 
 class EnsureModuleEnabled
 {
@@ -13,20 +12,15 @@ class EnsureModuleEnabled
     {
         $empresaId = $request->user()?->empresa_id;
         if (!$empresaId) {
-            return response()->json(['message'=>'Tenant inválido'], 403);
+            return response()->json(['message' => 'Tenant inválido'], 403);
         }
 
-        $mod = Modulo::where('key', $moduleKey)->first();
-        if (!$mod) {
-            return response()->json(['message'=>'Módulo no existe'], 404);
-        }
-
-        $flag = EmpresaModulo::where('empresa_id', $empresaId)
-            ->where('modulo_id', $mod->id)
+        $flag = EmpresaModule::where('empresa_id', $empresaId)
+            ->where('module_slug', $moduleKey)
             ->first();
 
         if (!$flag || !$flag->enabled) {
-            return response()->json(['message'=>"Módulo deshabilitado: $moduleKey"], 403);
+            return response()->json(['message' => "Módulo deshabilitado: $moduleKey"], 403);
         }
 
         return $next($request);
