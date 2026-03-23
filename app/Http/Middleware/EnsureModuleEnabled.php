@@ -4,7 +4,7 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
-use App\Models\EmpresaModule; // ← el modelo correcto
+use App\Models\EmpresaModulo; // ← el modelo correcto
 
 class EnsureModuleEnabled
 {
@@ -15,7 +15,7 @@ class EnsureModuleEnabled
             return response()->json(['message' => 'Tenant inválido'], 403);
         }
 
-        $flag = EmpresaModule::where('empresa_id', $empresaId)
+        $flag = EmpresaModulo::where('empresa_id', $empresaId)
             ->where('module_slug', $moduleKey)
             ->first();
 
