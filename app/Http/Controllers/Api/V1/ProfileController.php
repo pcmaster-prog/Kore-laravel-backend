@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Empleado;
 use App\Models\AttendanceDay;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+
 
 class ProfileController extends Controller
 {
@@ -83,6 +85,38 @@ class ProfileController extends Controller
         ]);
     }
 
+    // POST /mi-perfil/avatar
+    public function uploadAvatar(Request $request)
+    {
+        $u = $request->user();
+        
+        $request->validate([
+            'avatar' => ['required', 'image', 'max:2048'] // max 2MB
+        ]);
+
+        // Borra el avatar anterior si existe
+        if ($u->avatar_url) {
+            // Extraer el path del URL de S3
+            // Si el URL es temporal o tiene query params, necesitamos solo el path
+            $parsedUrl = parse_url($u->avatar_url);
+            $oldPath = ltrim($parsedUrl['path'], '/');
+            
+            if (Storage::disk('s3')->exists($oldPath)) {
+                Storage::disk('s3')->delete($oldPath);
+            }
+        }
+
+        $file = $request->file('avatar');
+        $path = $file->store("kore/{$u->empresa_id}/avatars", 's3');
+        $url  = Storage::disk('s3')->temporaryUrl($path, now()->addYears(1));
+
+        $u->avatar_url = $url;
+        $u->save();
+
+        return response()->json(['avatar_url' => $url]);
+    }
+
+
     private function presentProfile($u, $emp, ?string $attendanceStatus): array
     {
         return [
@@ -91,8 +125,9 @@ class ProfileController extends Controller
             'email'             => $u->email,
             'phone'             => $u->phone ?? null,
             'address'           => $u->address ?? null,
-            'avatar_url'        => null, // para futura integración de foto
+            'avatar_url'        => $u->avatar_url ?? null,
             'role'              => $u->role,
+
             // Datos del empleado
             'employee_number'   => $emp?->employee_code ?? null,
             'position_title'    => $emp?->position_title ?? null,

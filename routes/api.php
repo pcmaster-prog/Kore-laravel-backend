@@ -169,6 +169,8 @@ Route::prefix('v1')->group(function () {
             //perfil
             Route::get('/mi-perfil',   [ProfileController::class, 'show']);
             Route::patch('/mi-perfil', [ProfileController::class, 'update']);
+            Route::post('/mi-perfil/avatar', [ProfileController::class, 'uploadAvatar']);
+
 
             // Rutas de módulos empresa (Nuevas)
             Route::get('/empresa/modulos', [EmpresaController::class, 'modulos']);
