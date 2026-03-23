@@ -80,7 +80,7 @@ Route::prefix('v1')->group(function () {
             });
 
             // Rutas del módulo "tasks"
-            Route::middleware('module:tasks')->group(function () {
+            Route::middleware('module:tareas')->group(function () {
                 // Tareas existentes (asignaciones, etc.)
                 Route::get('/tareas', [TasksController::class, 'index']);
                 Route::post('/tareas', [TasksController::class, 'store']);
@@ -132,7 +132,7 @@ Route::prefix('v1')->group(function () {
             });
 
             // Rutas del módulo "evidences"
-            Route::middleware('module:evidences')->group(function () {
+            Route::middleware('module:evidencias')->group(function () {
                 Route::post('/evidencias/upload', [EvidencesController::class, 'upload']);
                 Route::get('/evidencias/{id}', [EvidencesController::class, 'show']);
 
@@ -141,7 +141,7 @@ Route::prefix('v1')->group(function () {
             });
 
             // Rutas del módulo "attendance"
-            Route::middleware('module:attendance')->group(function () {
+            Route::middleware('module:asistencia')->group(function () {
                 // Empleado
                 Route::post('/asistencia/entrada', [AttendanceControllerV2::class, 'checkIn']);
                 Route::post('/asistencia/pausa/iniciar', [AttendanceControllerV2::class, 'breakStart']);
