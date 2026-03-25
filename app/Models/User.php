@@ -49,4 +49,12 @@ class User extends Authenticatable
             'is_active' => 'boolean',
         ];
     }
+
+    /**
+     * Get the employee associated with the user.
+     */
+    public function empleado()
+    {
+        return $this->hasOne(Empleado::class);
+    }
 }
