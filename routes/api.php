@@ -129,16 +129,15 @@ Route::prefix('v1')->group(function () {
 
                 //checklist
                 Route::patch('/mis-tareas/asignacion/{assignmentId}/checklist', [TasksController::class, 'updateMyChecklistItem']);
-            });
 
-            // Rutas del módulo "evidences"
-            Route::middleware('module:evidencias')->group(function () {
+                // Evidencias (ahora parte de tareas)
                 Route::post('/evidencias/upload', [EvidencesController::class, 'upload']);
                 Route::get('/evidencias/{id}', [EvidencesController::class, 'show']);
 
                 // Empleado: ligar evidencia a SU asignación
                 Route::post('/mis-tareas/asignacion/{assignmentId}/evidencia', [EvidencesController::class, 'attachToMyAssignment']);
             });
+
 
             // Rutas del módulo "attendance"
             Route::middleware('module:asistencia')->group(function () {
