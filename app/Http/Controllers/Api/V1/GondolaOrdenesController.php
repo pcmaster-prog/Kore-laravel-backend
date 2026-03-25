@@ -17,7 +17,7 @@ class GondolaOrdenesController extends Controller
 
     private function formatOrden(GondolaOrden $orden): array
     {
-        $orden->load(['gondola:id,nombre', 'empleado:id,full_name,position_title', 'items.producto', 'approvedBy:id,name']);
+        $orden->loadMissing(['gondola:id,nombre', 'empleado:id,full_name,position_title', 'items.producto', 'approvedBy:id,name']);
 
         return [
             'id'             => $orden->id,
@@ -33,7 +33,7 @@ class GondolaOrdenesController extends Controller
             'status'          => $orden->status,
             'notas_empleado'  => $orden->notas_empleado,
             'notas_rechazo'   => $orden->notas_rechazo,
-            'evidencia_url'   => $orden->evidencia_url,
+            'evidencia_url'   => $this->obtenerUrlEvidencia($orden->evidencia_url),
             'completed_at'    => $orden->completed_at,
             'approved_at'     => $orden->approved_at,
             'approved_by'     => $orden->approvedBy ? $orden->approvedBy->name : null,
@@ -49,6 +49,25 @@ class GondolaOrdenesController extends Controller
                 'foto_url'            => $item->producto?->foto_url,
             ])->values(),
         ];
+    }
+
+    private function obtenerUrlEvidencia(?string $path): ?string
+    {
+        if (!$path) return null;
+        
+        if (str_starts_with($path, 'http')) {
+            if (preg_match('/kore\/.+/', $path, $matches)) {
+                $path = $matches[0];
+            } else {
+                return $path;
+            }
+        }
+
+        try {
+            return \Illuminate\Support\Facades\Storage::disk('s3')->temporaryUrl($path, now()->addMinutes(120));
+        } catch (\Exception $e) {
+            return $path;
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -69,7 +88,7 @@ class GondolaOrdenesController extends Controller
         }
 
         $query = GondolaOrden::where('empresa_id', $user->empresa_id)
-            ->with(['gondola:id,nombre', 'empleado:id,full_name'])
+            ->with(['gondola:id,nombre', 'empleado:id,full_name,position_title', 'items.producto', 'approvedBy:id,name'])
             ->orderBy('created_at', 'desc');
 
         if ($request->filled('status')) {
@@ -89,6 +108,10 @@ class GondolaOrdenesController extends Controller
         }
 
         $ordenes = $query->paginate(20);
+
+        $ordenes->getCollection()->transform(function ($orden) {
+            return $this->formatOrden($orden);
+        });
 
         return response()->json($ordenes);
     }
@@ -300,9 +323,8 @@ class GondolaOrdenesController extends Controller
                 's3'
             );
 
-            // PENDIENTE: Requiere bucket público en Backblaze B2.
-            // Cuando se active el acceso público funcionará automáticamente sin cambios.
-            $evidenciaUrl = Storage::disk('s3')->url($path);
+            // Almacenamos el path, y generamos la URL temporal al consultarlo
+            $evidenciaUrl = $path;
         }
 
         $orden->update([
