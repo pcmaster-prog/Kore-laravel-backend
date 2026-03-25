@@ -31,6 +31,6 @@ class Gondola extends Model
 
     public function ultimaOrden()
     {
-        return $this->hasOne(GondolaOrden::class)->latestOfMany();
+        return $this->hasOne(GondolaOrden::class)->latest();
     }
 }

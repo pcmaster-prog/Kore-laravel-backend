@@ -30,8 +30,10 @@ class GondolasController extends Controller
 
         $gondolas = Gondola::where('empresa_id', $empresaId)
             ->where('activo', true)
-            ->withCount(['productos as productos_count' => fn ($q) => $q->where('activo', true)])
-            ->withCount(['ordenes as ordenes_pendientes' => fn ($q) => $q->where('status', 'pendiente')])
+            ->withCount([
+                'productos as productos_count' => fn ($q) => $q->where('activo', true),
+                'ordenes as ordenes_pendientes' => fn ($q) => $q->where('status', 'pendiente')
+            ])
             ->with(['ultimaOrden' => fn ($q) => $q->select('id', 'gondola_id', 'created_at', 'status')])
             ->orderBy('orden')
             ->get();
