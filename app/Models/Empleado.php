@@ -22,4 +22,9 @@ class Empleado extends Model
     protected $casts = [
         'hired_at' => 'date',
     ];
+
+    public function user()
+    {
+        return $this->belongsTo(\App\Models\User::class, 'user_id');
+    }
 }

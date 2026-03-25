@@ -56,7 +56,10 @@ class TasksController extends Controller
         }
 
         return response()->json(
-            $q->with('assignees.empleado')
+            $q->with(['assignees' => function ($query) {
+                  $query->withExists('evidences as has_evidence');
+              }, 'assignees.empleado.user'])
+              ->withExists('evidences as has_evidence')
               ->orderByDesc('created_at')
               ->paginate(20)
         );
@@ -186,7 +189,9 @@ class TasksController extends Controller
         }
 
         return response()->json(
-            $q->orderByDesc('created_at')
+            $q->with('assignees.empleado.user')
+              ->withExists('evidences as has_evidence')
+              ->orderByDesc('created_at')
               ->paginate(20)
         );
     }
@@ -198,7 +203,9 @@ class TasksController extends Controller
         $q = TaskAssignee::where('empresa_id', $empresaId)
             ->where('empleado_id', $emp->id)
             ->with(['task' => function ($t) use ($empresaId) {
-                $t->where('empresa_id', $empresaId);
+                $t->where('empresa_id', $empresaId)
+                  ->with('assignees.empleado.user')
+                  ->withExists('evidences as has_evidence');
             }]);
 
         if ($request->filled('status')) {
@@ -308,15 +315,9 @@ class TasksController extends Controller
                     'evidence_count' => $count,
                     'latest_evidence_url' => $latestUrl,
                 ],
-                'task' => [
-                    'id' => $a->task->id,
-                    'title' => $a->task->title,
-                    'description' => $a->task->description,
-                    'priority' => $a->task->priority,
-                    'status' => $a->task->status,
-                    'due_at' => $a->task->due_at?->toISOString(),
-                    'meta' => $a->task->meta,
-                ],
+                'task' => array_merge($this->presentTask($a->task), [
+                    'id' => $a->task->id, // redundant but kept for safety if presentTask changes
+                ]),
                 'checklist_def' => $checklistDef,
                 'checklist_state' => $checklistState,
                 'checklist_progress' => $checklistProgress,
@@ -698,17 +699,35 @@ class TasksController extends Controller
 
     private function presentTask(Task $t): array
     {
+        $firstAssignee = $t->relationLoaded('assignees')
+            ? $t->assignees->first()
+            : null;
+
+        $empleado = null;
+        if ($firstAssignee && $firstAssignee->relationLoaded('empleado') && $firstAssignee->empleado) {
+            $emp = $firstAssignee->empleado;
+            $empleado = [
+                'id'         => $emp->id,
+                'full_name'  => $emp->full_name,
+                'name'       => $emp->name ?? $emp->full_name,
+                'avatar_url' => $emp->user?->avatar_url ?? null,
+            ];
+        }
+
         return [
-            'id'=>$t->id,
-            'title'=>$t->title,
-            'description'=>$t->description,
-            'priority'=>$t->priority,
-            'status'=>$t->status,
-            'due_at'=>$t->due_at?->toISOString(),
-            'meta'=>$t->meta, 
-            'created_by'=>$t->created_by,
-            'created_at'=>$t->created_at?->toISOString(),
-            'updated_at'=>$t->updated_at?->toISOString(),
+            'id'           => $t->id,
+            'title'        => $t->title,
+            'description'  => $t->description,
+            'priority'     => $t->priority,
+            'status'       => $t->status,
+            'due_at'       => $t->due_at?->toISOString(),
+            'meta'         => $t->meta,
+            'assignee_name'=> $t->assignee_name,
+            'has_evidence' => $t->has_evidence,
+            'empleado'     => $empleado,
+            'created_by'   => $t->created_by,
+            'created_at'   => $t->created_at?->toISOString(),
+            'updated_at'   => $t->updated_at?->toISOString(),
         ];
     }
 
@@ -742,8 +761,7 @@ class TasksController extends Controller
         // LOCAL: Storage::url() devuelve "/storage/..."
         $relative = \Storage::url($evidence->path); // "/storage/...."
 
-        // Usa el host real del backend (ideal en local)
-        $base = config('http://127.0.0.1:8000'); // ej: http://127.0.0.1:8000
+        $base = config('app.url'); // ej: http://127.0.0.1:8000
 
         return rtrim($base, '/') . $relative;
     }
