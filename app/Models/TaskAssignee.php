@@ -51,4 +51,9 @@ class TaskAssignee extends Model
     {
         return $this->belongsTo(\App\Models\User::class, 'reviewed_by', 'id');
     }
+
+    public function evidences()
+    {
+        return $this->hasMany(Evidence::class, 'task_assignee_id');
+    }
 }
