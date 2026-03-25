@@ -28,6 +28,10 @@ use App\Http\Controllers\Api\V1\PayrollController;
 //Perfil
 use App\Http\Controllers\Api\V1\ProfileController;
 
+// Módulo Góndolas
+use App\Http\Controllers\Api\V1\GondolasController;
+use App\Http\Controllers\Api\V1\GondolaOrdenesController;
+
 // 🔥 Nuevo controlador para revisiones
 //use App\Http\Controllers\Api\V1\TaskReviewsController;
 
@@ -182,6 +186,33 @@ Route::prefix('v1')->group(function () {
 
             // Configuración de calendario a nivel empresa
             Route::patch('/empresa/settings/calendar', [EmpresaSettingsController::class, 'updateCalendar']);
+
+            // ── Módulo Góndolas ───────────────────────────────────────────────────────
+            Route::middleware(['module:gondolas'])->group(function () {
+                // Góndolas CRUD
+                Route::get('/gondolas',                              [GondolasController::class, 'index']);
+                Route::post('/gondolas',                             [GondolasController::class, 'store']);
+                Route::get('/gondolas/{id}',                         [GondolasController::class, 'show']);
+                Route::patch('/gondolas/{id}',                       [GondolasController::class, 'update']);
+                Route::delete('/gondolas/{id}',                      [GondolasController::class, 'destroy']);
+                Route::get('/gondolas/{id}/productos',               [GondolasController::class, 'productos']);
+                Route::post('/gondolas/{id}/productos',              [GondolasController::class, 'addProducto']);
+                Route::patch('/gondolas/{gId}/productos/{pId}',      [GondolasController::class, 'updateProducto']);
+                Route::delete('/gondolas/{gId}/productos/{pId}',     [GondolasController::class, 'removeProducto']);
+                Route::post('/gondolas/{gId}/productos/{pId}/foto',  [GondolasController::class, 'uploadFoto']);
+
+                // Órdenes — gestión (admin/supervisor)
+                Route::get('/gondola-ordenes',                       [GondolaOrdenesController::class, 'index']);
+                Route::post('/gondola-ordenes',                      [GondolaOrdenesController::class, 'store']);
+                Route::get('/gondola-ordenes/{id}',                  [GondolaOrdenesController::class, 'show']);
+                Route::post('/gondola-ordenes/{id}/aprobar',         [GondolaOrdenesController::class, 'aprobar']);
+                Route::post('/gondola-ordenes/{id}/rechazar',        [GondolaOrdenesController::class, 'rechazar']);
+
+                // Órdenes — empleado
+                Route::get('/mis-ordenes-gondola',                   [GondolaOrdenesController::class, 'misOrdenes']);
+                Route::post('/gondola-ordenes/{id}/iniciar',         [GondolaOrdenesController::class, 'iniciar']);
+                Route::post('/gondola-ordenes/{id}/completar',       [GondolaOrdenesController::class, 'completar']);
+            });
 
             // Ruta de prueba 
             Route::get('/demo/employees-module-check', function () {
