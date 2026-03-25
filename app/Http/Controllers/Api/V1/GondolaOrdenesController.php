@@ -269,6 +269,12 @@ class GondolaOrdenesController extends Controller
             return response()->json(['message' => 'La orden no está en un estado completable.'], 422);
         }
 
+        if (is_string($request->input('items'))) {
+            $request->merge([
+                'items' => json_decode($request->input('items'), true)
+            ]);
+        }
+
         $data = $request->validate([
             'items'                => ['required', 'array', 'min:1'],
             'items.*.id'           => ['required', 'uuid'],
