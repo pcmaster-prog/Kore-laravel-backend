@@ -108,6 +108,7 @@ class SemaforoController extends Controller
                     'id'             => $emp->id,
                     'full_name'      => $emp->full_name,
                     'position_title' => $emp->position_title,
+                    'user_id'        => $emp->user_id,
                 ],
                 'evaluation' => $evalData,
             ];
@@ -256,6 +257,7 @@ class SemaforoController extends Controller
                 'id'             => $evaluation->empleado->id,
                 'full_name'      => $evaluation->empleado->full_name,
                 'position_title' => $evaluation->empleado->position_title,
+                'user_id'        => $evaluation->empleado->user_id,
             ],
             'is_active'         => $evaluation->is_active,
             'activated_at'      => $evaluation->activated_at,
@@ -379,6 +381,7 @@ class SemaforoController extends Controller
                     'id'             => $eval->empleado->id,
                     'full_name'      => $eval->empleado->full_name,
                     'position_title' => $eval->empleado->position_title,
+                    'user_id'        => $eval->empleado->user_id,
                 ],
                 'evaluation' => [
                     'id'                      => $eval->id,
@@ -440,6 +443,7 @@ class SemaforoController extends Controller
                     'id'             => $eval->empleado->id,
                     'full_name'      => $eval->empleado->full_name,
                     'position_title' => $eval->empleado->position_title,
+                    'user_id'        => $eval->empleado->user_id,
                 ],
                 'evaluation_id'     => $eval->id,
                 'already_evaluated' => $alreadyEvaluated,
