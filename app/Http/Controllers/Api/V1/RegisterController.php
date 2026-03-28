@@ -65,7 +65,7 @@ class RegisterController extends Controller
 
             // 4. Modulos
             $selectedModules = $data['modules'] ?? [];
-            $defaultModules = ['tareas', 'asistencia', 'nomina', 'configuracion', 'gondolas'];
+            $defaultModules = ['tareas', 'asistencia', 'nomina', 'configuracion', 'gondolas', 'semaforo'];
             
             $allModules = array_unique(array_merge($selectedModules, $defaultModules));
 

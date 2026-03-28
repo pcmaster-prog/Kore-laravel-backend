@@ -32,6 +32,9 @@ use App\Http\Controllers\Api\V1\ProfileController;
 use App\Http\Controllers\Api\V1\GondolasController;
 use App\Http\Controllers\Api\V1\GondolaOrdenesController;
 
+// Módulo Semáforo de Desempeño
+use App\Http\Controllers\Api\V1\SemaforoController;
+
 // 🔥 Nuevo controlador para revisiones
 //use App\Http\Controllers\Api\V1\TaskReviewsController;
 
@@ -212,6 +215,23 @@ Route::prefix('v1')->group(function () {
                 Route::get('/mis-ordenes-gondola',                   [GondolaOrdenesController::class, 'misOrdenes']);
                 Route::post('/gondola-ordenes/{id}/iniciar',         [GondolaOrdenesController::class, 'iniciar']);
                 Route::post('/gondola-ordenes/{id}/completar',       [GondolaOrdenesController::class, 'completar']);
+            });
+
+            // ── Módulo Semáforo de Desempeño ─────────────────────────────────────────
+            Route::middleware(['module:semaforo'])->group(function () {
+                // Admin
+                Route::get('/semaforo/empleados',                            [SemaforoController::class, 'index']);
+                Route::post('/semaforo/empleados/{empleadoId}/activar',      [SemaforoController::class, 'activar']);
+                Route::post('/semaforo/empleados/{empleadoId}/desactivar',   [SemaforoController::class, 'desactivar']);
+                Route::get('/semaforo/empleados/{empleadoId}/resultado',     [SemaforoController::class, 'resultado']);
+
+                // Admin + Supervisor
+                Route::post('/semaforo/evaluaciones',                        [SemaforoController::class, 'evaluarAdmin']);
+                Route::get('/semaforo/mis-evaluaciones-pendientes',          [SemaforoController::class, 'pendientesSupervisor']);
+
+                // Empleado
+                Route::get('/semaforo/companeros',                           [SemaforoController::class, 'companeros']);
+                Route::post('/semaforo/peer-evaluaciones',                   [SemaforoController::class, 'peerEvaluar']);
             });
 
             // Ruta de prueba 
