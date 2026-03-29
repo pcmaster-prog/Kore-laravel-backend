@@ -21,10 +21,12 @@ class Empresa extends Model
         'industry',
         'employee_count_range',
         'allowed_ip',
+        'documentos',
     ];
 
     protected $casts = [
-        'settings' => 'array', 
+        'settings'   => 'array',
+        'documentos' => 'array',
     ];
 
     public function modulos()

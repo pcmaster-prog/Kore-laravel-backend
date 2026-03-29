@@ -9,6 +9,10 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use App\Models\User;
 use App\Models\Empleado;
+use App\Models\Empresa;
+use App\Mail\BienvenidaEmpleado;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
 
 class UsersController extends Controller
 {
@@ -63,7 +67,7 @@ class UsersController extends Controller
         $data = $request->validate([
             'name'           => ['required', 'string', 'max:160'],
             'email'          => ['required', 'email', 'max:200', Rule::unique('users', 'email')],
-            'password'       => ['required', 'string', 'min:6', 'max:100'],
+            'password'       => ['nullable', 'string', 'min:6', 'max:100'],
             'role'           => ['required', Rule::in(['admin', 'supervisor', 'empleado'])],
             // Campos del empleado (opcionales)
             'employee_code'  => ['nullable', 'string', 'max:50'],
@@ -76,12 +80,15 @@ class UsersController extends Controller
 
         DB::beginTransaction();
         try {
-            // 1) Crear User
+            // 1) Generar contraseña si no viene en el request
+            $passwordTemporal = $data['password'] ?? $this->generarPasswordTemporal();
+
+            // 2) Crear User
             $newUser = User::create([
                 'empresa_id' => $empresaId,
                 'name'       => $data['name'],
                 'email'      => $data['email'],
-                'password'   => Hash::make($data['password']),
+                'password'   => Hash::make($passwordTemporal),
                 'role'       => $data['role'],
                 'is_active'  => true,
             ]);
@@ -101,6 +108,25 @@ class UsersController extends Controller
             ]);
 
             DB::commit();
+
+            // 4) Enviar correo de bienvenida (fuera de la transacción)
+            $empresa = Empresa::find($empresaId);
+            $documentos = $empresa->documentos ?? [];
+
+            try {
+                Mail::to($newUser->email)->send(new BienvenidaEmpleado(
+                    empleadoNombre:   $newUser->name,
+                    empresaNombre:    $empresa->name,
+                    email:            $newUser->email,
+                    passwordTemporal: $passwordTemporal,
+                    appUrl:           config('app.frontend_url', 'https://kore-react-frontend.vercel.app'),
+                    documentos:       $documentos,
+                ));
+            } catch (\Exception $e) {
+                // Si falla el correo, no fallar la creación del usuario
+                Log::warning("No se pudo enviar correo de bienvenida a {$newUser->email}: " . $e->getMessage());
+            }
+
         } catch (\Throwable $e) {
             DB::rollBack();
             return response()->json(['message' => 'Error al crear usuario', 'detail' => $e->getMessage()], 500);
@@ -291,5 +317,14 @@ class UsersController extends Controller
             'hourly_rate'    => $emp?->hourly_rate ?? 0,
             'daily_rate'     => $emp?->daily_rate ?? 0,
         ];
+    }
+    private function generarPasswordTemporal(): string
+    {
+        // Genera algo como: Kore#4829
+        $palabras = ['Kore', 'Team', 'Work', 'Join', 'Star'];
+        $palabra = $palabras[array_rand($palabras)];
+        $numero = rand(1000, 9999);
+        $especial = ['#', '@', '!'][rand(0, 2)];
+        return $palabra . $especial . $numero;
     }
 }

@@ -7,10 +7,12 @@ use App\Models\Empleado;
 use App\Models\AttendanceDay;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Hash;
 
 
 class ProfileController extends Controller
 {
+    // ...
     // GET /mi-perfil
     public function show(Request $request)
     {
@@ -114,6 +116,33 @@ class ProfileController extends Controller
         $u->save();
 
         return response()->json(['avatar_url' => $url]);
+    }
+
+
+    // POST /mi-perfil/password
+    public function changePassword(Request $request)
+    {
+        $u = $request->user();
+
+        $data = $request->validate([
+            'current_password' => ['required', 'string'],
+            'new_password'     => ['required', 'string', 'min:6', 'confirmed'],
+            // confirmed = requiere new_password_confirmation en el body
+        ]);
+
+        // Verificar contraseña actual
+        if (!Hash::check($data['current_password'], $u->password)) {
+            return response()->json([
+                'message' => 'La contraseña actual no es correcta.',
+            ], 422);
+        }
+
+        $u->password = Hash::make($data['new_password']);
+        $u->save();
+
+        return response()->json([
+            'message' => 'Contraseña actualizada correctamente.',
+        ]);
     }
 
 

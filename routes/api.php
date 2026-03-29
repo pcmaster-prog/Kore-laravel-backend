@@ -35,6 +35,9 @@ use App\Http\Controllers\Api\V1\GondolaOrdenesController;
 // Módulo Semáforo de Desempeño
 use App\Http\Controllers\Api\V1\SemaforoController;
 
+// Documentos de empresa
+use App\Http\Controllers\Api\V1\EmpresaDocumentosController;
+
 // 🔥 Nuevo controlador para revisiones
 //use App\Http\Controllers\Api\V1\TaskReviewsController;
 
@@ -84,6 +87,11 @@ Route::prefix('v1')->group(function () {
                 Route::put('/usuarios/{id}', [UsersController::class, 'update']);
                 Route::patch('/usuarios/{id}/toggle-status', [UsersController::class, 'toggleStatus']);
                 Route::delete('/usuarios/{id}', [UsersController::class, 'destroy']);
+
+                // Documentos de empresa
+                Route::get('/empresa/documentos',            [EmpresaDocumentosController::class, 'index']);
+                Route::post('/empresa/documentos',           [EmpresaDocumentosController::class, 'upload']);
+                Route::delete('/empresa/documentos/{index}', [EmpresaDocumentosController::class, 'destroy']);
             });
 
             // Rutas del módulo "tasks"
@@ -176,6 +184,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/mi-perfil',   [ProfileController::class, 'show']);
             Route::patch('/mi-perfil', [ProfileController::class, 'update']);
             Route::post('/mi-perfil/avatar', [ProfileController::class, 'uploadAvatar']);
+            Route::post('/mi-perfil/password', [ProfileController::class, 'changePassword']);
 
 
             // Rutas de módulos empresa (Nuevas)
