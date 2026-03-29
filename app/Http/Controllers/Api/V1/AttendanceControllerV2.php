@@ -26,20 +26,19 @@ class AttendanceControllerV2 extends Controller
         $operativo = $settings['operativo'] ?? null;
         if ($operativo && isset($operativo['check_in_time'])) {
             $checkInTimeStr = $operativo['check_in_time']; // E.g., "08:30"
-            $checkInTime = \Carbon\Carbon::createFromFormat('H:i', $checkInTimeStr);
-            $earliestAllowed = $checkInTime->copy()->subMinutes(15);
             
-            $now = now();
-            // Solo comparamos la hora si es el mismo día (que ya lo es por $today)
-            // Creamos un objeto Carbon para hoy con la hora de entrada
+            // Usamos parse para mayor robustez con formatos (pueden ser HH:mm o HH:mm:ss)
             $todayCheckIn = \Carbon\Carbon::parse($today . ' ' . $checkInTimeStr);
             $todayEarliest = $todayCheckIn->copy()->subMinutes(15);
+            
+            $now = now(); // Ahora con la zona horaria correcta de config/app.php
 
             if ($now->lessThan($todayEarliest)) {
                 return response()->json([
-                    'message' => "No puedes marcar entrada antes de tu hora de entrada estipulada. El acceso se permite desde las " . $todayEarliest->format('H:i') . ".",
+                    'message' => "Entrada bloqueada: Aún es muy temprano. El acceso para las " . $todayCheckIn->format('H:i') . " se permite desde las " . $todayEarliest->format('H:i') . ". Tu hora actual es: " . $now->format('H:i'),
                     'code' => 'CHECK_IN_TOO_EARLY',
-                    'earliest_allowed' => $todayEarliest->toTimeString()
+                    'earliest_allowed' => $todayEarliest->toTimeString(),
+                    'current_server_time' => $now->toTimeString()
                 ], 409);
             }
         }
