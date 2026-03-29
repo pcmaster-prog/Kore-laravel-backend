@@ -189,6 +189,8 @@ Route::prefix('v1')->group(function () {
 
             // Configuración de calendario a nivel empresa
             Route::patch('/empresa/settings/calendar', [EmpresaSettingsController::class, 'updateCalendar']);
+            Route::get('/empresa/settings/operativo', [EmpresaSettingsController::class, 'getOperativo']);
+            Route::patch('/empresa/settings/operativo', [EmpresaSettingsController::class, 'updateOperativo']);
 
             // ── Módulo Góndolas ───────────────────────────────────────────────────────
             Route::middleware(['module:gondolas'])->group(function () {

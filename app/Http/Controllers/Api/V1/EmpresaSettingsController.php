@@ -37,4 +37,61 @@ class EmpresaSettingsController extends Controller
             'settings' => $empresa->settings,
         ]);
     }
+
+    public function getOperativo(Request $request)
+    {
+        $u = $request->user();
+        if ($u->role !== 'admin') {
+            return response()->json(['message'=>'No autorizado'], 403);
+        }
+
+        $empresa = Empresa::where('id', $u->empresa_id)->first();
+        if (!$empresa) return response()->json(['message'=>'Empresa no encontrada'], 404);
+
+        $settings = is_array($empresa->settings) ? $empresa->settings : [];
+        $operativo = $settings['operativo'] ?? [
+            'check_in_time' => '08:00',
+            'check_out_time' => '17:00',
+            'late_tolerance' => 10,
+            'max_hours' => 8
+        ];
+
+        return response()->json([
+            'operativo' => $operativo
+        ]);
+    }
+
+    public function updateOperativo(Request $request)
+    {
+        $u = $request->user();
+        if ($u->role !== 'admin') {
+            return response()->json(['message'=>'No autorizado'], 403);
+        }
+
+        $data = $request->validate([
+            'check_in_time' => ['required', 'string'],
+            'check_out_time' => ['required', 'string'],
+            'late_tolerance' => ['required', 'integer', 'min:0'],
+            'max_hours' => ['required', 'integer', 'min:1', 'max:24']
+        ]);
+
+        $empresa = Empresa::where('id', $u->empresa_id)->first();
+        if (!$empresa) return response()->json(['message'=>'Empresa no encontrada'], 404);
+
+        $settings = is_array($empresa->settings) ? $empresa->settings : [];
+        $settings['operativo'] = [
+            'check_in_time' => $data['check_in_time'],
+            'check_out_time' => $data['check_out_time'],
+            'late_tolerance' => (int)$data['late_tolerance'],
+            'max_hours' => (int)$data['max_hours']
+        ];
+
+        $empresa->settings = $settings;
+        $empresa->save();
+
+        return response()->json([
+            'message' => 'Esquema operativo actualizado',
+            'operativo' => $settings['operativo'],
+        ]);
+    }
 }

@@ -17,10 +17,34 @@ class AttendanceControllerV2 extends Controller
     public function checkIn(Request $request)
     {
         [$u, $empresaId, $emp] = $this->authEmployee($request);
+        $empresa = Empresa::find($empresaId);
 
         $today = now()->toDateString();
 
-        if (!$this->validateNetworkAccess($request, Empresa::find($empresaId))) {
+        // 🛡️ VALIDACIÓN: No permitir entrada antes de la hora configurada (-15 min margen)
+        $settings = is_array($empresa->settings) ? $empresa->settings : [];
+        $operativo = $settings['operativo'] ?? null;
+        if ($operativo && isset($operativo['check_in_time'])) {
+            $checkInTimeStr = $operativo['check_in_time']; // E.g., "08:30"
+            $checkInTime = \Carbon\Carbon::createFromFormat('H:i', $checkInTimeStr);
+            $earliestAllowed = $checkInTime->copy()->subMinutes(15);
+            
+            $now = now();
+            // Solo comparamos la hora si es el mismo día (que ya lo es por $today)
+            // Creamos un objeto Carbon para hoy con la hora de entrada
+            $todayCheckIn = \Carbon\Carbon::parse($today . ' ' . $checkInTimeStr);
+            $todayEarliest = $todayCheckIn->copy()->subMinutes(15);
+
+            if ($now->lessThan($todayEarliest)) {
+                return response()->json([
+                    'message' => "No puedes marcar entrada antes de tu hora de entrada estipulada. El acceso se permite desde las " . $todayEarliest->format('H:i') . ".",
+                    'code' => 'CHECK_IN_TOO_EARLY',
+                    'earliest_allowed' => $todayEarliest->toTimeString()
+                ], 409);
+            }
+        }
+
+        if (!$this->validateNetworkAccess($request, $empresa)) {
             return response()->json([
                 'message' => 'No puedes marcar asistencia fuera de la red de la tienda.',
                 'code' => 'NETWORK_RESTRICTED'
