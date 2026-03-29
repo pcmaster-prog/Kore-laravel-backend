@@ -52,11 +52,20 @@ class BienvenidaEmpleado extends Mailable
      */
     public function attachments(): array
     {
-        // Adjuntar documentos desde URL
-        return collect($this->documentos)->map(function ($doc) {
-            return Attachment::fromUrl($doc['url'])
-                ->as($doc['nombre'] . '.pdf')
-                ->withMime('application/pdf');
-        })->toArray();
+        // Adjuntar documentos desde URL con validación básica
+        return collect($this->documentos)
+            ->filter(fn($doc) => !empty($doc['url']) && str_starts_with($doc['url'], 'http'))
+            ->map(function ($doc) {
+                try {
+                    return Attachment::fromUrl($doc['url'])
+                        ->as(($doc['nombre'] ?? 'documento') . '.pdf')
+                        ->withMime('application/pdf');
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::error("Error al adjuntar documento {$doc['url']} a correo de bienvenida: " . $e->getMessage());
+                    return null;
+                }
+            })
+            ->filter()
+            ->toArray();
     }
 }

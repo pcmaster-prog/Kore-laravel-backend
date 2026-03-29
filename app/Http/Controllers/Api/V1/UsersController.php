@@ -52,6 +52,25 @@ class UsersController extends Controller
     }
 
     /**
+     * Ver un usuario específico (admin).
+     */
+    public function show(Request $request, string $id)
+    {
+        $u = $request->user();
+        if ($u->role !== 'admin') {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+
+        $user = User::where('empresa_id', $u->empresa_id)->where('id', $id)->first();
+        if (!$user) {
+            return response()->json(['message' => 'Usuario no encontrado'], 404);
+        }
+
+        $emp = Empleado::where('user_id', $user->id)->first();
+        return response()->json(['item' => $this->present($user, $emp)]);
+    }
+
+    /**
      * Crear usuario + empleado en una sola llamada (admin).
      * Crea el User con credenciales y el registro Empleado vinculado.
      */
@@ -113,6 +132,9 @@ class UsersController extends Controller
             $empresa = Empresa::find($empresaId);
             $documentos = $empresa->documentos ?? [];
 
+            $emailSent = false;
+            $emailError = null;
+
             try {
                 Mail::to($newUser->email)->send(new BienvenidaEmpleado(
                     empleadoNombre:   $newUser->name,
@@ -122,9 +144,14 @@ class UsersController extends Controller
                     appUrl:           config('app.frontend_url', 'https://kore-react-frontend.vercel.app'),
                     documentos:       $documentos,
                 ));
+                $emailSent = true;
             } catch (\Exception $e) {
                 // Si falla el correo, no fallar la creación del usuario
-                Log::warning("No se pudo enviar correo de bienvenida a {$newUser->email}: " . $e->getMessage());
+                $emailError = $e->getMessage();
+                Log::warning("No se pudo enviar correo de bienvenida a {$newUser->email}. Error: " . $emailError, [
+                    'exception' => $e,
+                    'user_id' => $newUser->id
+                ]);
             }
 
         } catch (\Throwable $e) {
@@ -132,7 +159,11 @@ class UsersController extends Controller
             return response()->json(['message' => 'Error al crear usuario', 'detail' => $e->getMessage()], 500);
         }
 
-        return response()->json(['item' => $this->present($newUser, $emp)], 201);
+        return response()->json([
+            'item' => $this->present($newUser, $emp),
+            'email_sent' => $emailSent,
+            'email_error' => $emailError
+        ], 201);
     }
 
     /**

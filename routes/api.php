@@ -83,6 +83,7 @@ Route::prefix('v1')->group(function () {
 
                 // Gestión de usuarios (admin)
                 Route::get('/usuarios', [UsersController::class, 'index']);
+                Route::get('/usuarios/{id}', [UsersController::class, 'show']);
                 Route::post('/usuarios', [UsersController::class, 'store']);
                 Route::put('/usuarios/{id}', [UsersController::class, 'update']);
                 Route::patch('/usuarios/{id}/toggle-status', [UsersController::class, 'toggleStatus']);
