@@ -136,6 +136,10 @@ class UsersController extends Controller
             $emailError = null;
 
             try {
+                Log::info('Intentando enviar correo a: ' . $newUser->email);
+                Log::info('Mailer configurado: ' . config('mail.default'));
+                Log::info('From address: ' . config('mail.from.address'));
+
                 Mail::to($newUser->email)->send(new BienvenidaEmpleado(
                     empleadoNombre:   $newUser->name,
                     empresaNombre:    $empresa->name,
@@ -144,9 +148,11 @@ class UsersController extends Controller
                     appUrl:           config('app.frontend_url', 'https://kore-react-frontend.vercel.app'),
                     documentos:       $documentos,
                 ));
+
+                Log::info('Correo enviado exitosamente a: ' . $newUser->email);
                 $emailSent = true;
             } catch (\Exception $e) {
-                // Si falla el correo, no fallar la creación del usuario
+                Log::error('ERROR enviando correo: ' . $e->getMessage());
                 $emailError = $e->getMessage();
                 Log::warning("No se pudo enviar correo de bienvenida a {$newUser->email}. Error: " . $emailError, [
                     'exception' => $e,
