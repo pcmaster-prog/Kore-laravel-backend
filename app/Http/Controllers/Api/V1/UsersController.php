@@ -135,6 +135,22 @@ class UsersController extends Controller
             $emailSent = false;
             $emailError = null;
 
+            // Preparar adjuntos descargando desde S3
+            $attachments = [];
+            foreach ($documentos as $doc) {
+                if (empty($doc['url']) || empty($doc['nombre']) || empty($doc['path'])) continue;
+                try {
+                    // Descargar el archivo desde S3 usando el path
+                    $contenido = \Illuminate\Support\Facades\Storage::disk('s3')->get($doc['path']);
+                    $attachments[] = [
+                        'filename' => $doc['nombre'] . '.pdf',
+                        'content'  => base64_encode($contenido),
+                    ];
+                } catch (\Exception $e) {
+                    Log::warning("No se pudo adjuntar documento {$doc['nombre']}: " . $e->getMessage());
+                }
+            }
+
             try {
                 Log::info('Intentando enviar correo a: ' . $newUser->email);
                 Log::info('URL del frontend configurada: ' . config('app.frontend_url', 'https://kore-react-frontend.vercel.app'));
@@ -151,6 +167,7 @@ class UsersController extends Controller
                         'appUrl'           => config('app.frontend_url', 'https://kore-react-frontend.vercel.app'),
                         'documentos'       => $documentos,
                     ])->render(),
+                    'attachments' => $attachments,
                 ]);
                 
                 Log::info('Correo enviado exitosamente');
