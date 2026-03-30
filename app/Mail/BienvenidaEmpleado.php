@@ -8,6 +8,7 @@ use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Mail\Mailables\Attachment;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
 
 class BienvenidaEmpleado extends Mailable
 {
@@ -52,20 +53,27 @@ class BienvenidaEmpleado extends Mailable
      */
     public function attachments(): array
     {
-        // Adjuntar documentos desde URL con validación básica
+        if (empty($this->documentos)) return [];
+        
         return collect($this->documentos)
-            ->filter(fn($doc) => !empty($doc['url']) && str_starts_with($doc['url'], 'http'))
+            ->filter(fn($doc) => 
+                is_array($doc) && 
+                !empty($doc['url']) && 
+                !empty($doc['nombre']) &&
+                str_starts_with($doc['url'], 'http')
+            )
             ->map(function ($doc) {
                 try {
                     return Attachment::fromUrl($doc['url'])
-                        ->as(($doc['nombre'] ?? 'documento') . '.pdf')
+                        ->as($doc['nombre'] . '.pdf')
                         ->withMime('application/pdf');
                 } catch (\Exception $e) {
-                    \Illuminate\Support\Facades\Log::error("Error al adjuntar documento {$doc['url']} a correo de bienvenida: " . $e->getMessage());
+                    Log::error("Error adjuntando documento: " . $e->getMessage());
                     return null;
                 }
             })
             ->filter()
+            ->values()
             ->toArray();
     }
 }
