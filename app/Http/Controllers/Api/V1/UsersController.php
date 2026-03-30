@@ -319,7 +319,6 @@ class UsersController extends Controller
 
                 // Borrar dependencias en cascada
                 \Illuminate\Support\Facades\DB::table('task_assignees')->where('empleado_id', $emp->id)->delete();
-                \Illuminate\Support\Facades\DB::table('attendance_events')->where('empleado_id', $emp->id)->delete();
                 \Illuminate\Support\Facades\DB::table('attendance_days')->where('empleado_id', $emp->id)->delete();
                 
                 // Borrar el modelo de empleado
