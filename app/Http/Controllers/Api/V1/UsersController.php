@@ -137,6 +137,7 @@ class UsersController extends Controller
 
             try {
                 Log::info('Intentando enviar correo a: ' . $newUser->email);
+                Log::info('URL del frontend configurada: ' . config('app.frontend_url', 'https://kore-react-frontend.vercel.app'));
                 
                 \Resend\Laravel\Facades\Resend::emails()->send([
                     'from'    => config('mail.from.name') . ' <' . config('mail.from.address') . '>',
