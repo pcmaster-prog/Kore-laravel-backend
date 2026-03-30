@@ -24,7 +24,9 @@ class BienvenidaEmpleado extends Mailable
         public string $passwordTemporal,
         public string $appUrl,
         public array  $documentos = [], // [{ nombre, url }]
-    ) {}
+    ) {
+        $this->documentos = is_array($documentos) ? $documentos : [];
+    }
 
     /**
      * Get the message envelope.

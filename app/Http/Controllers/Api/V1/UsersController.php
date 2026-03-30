@@ -130,7 +130,7 @@ class UsersController extends Controller
 
             // 4) Enviar correo de bienvenida (fuera de la transacción)
             $empresa = Empresa::find($empresaId);
-            $documentos = $empresa->documentos ?? [];
+            $documentos = is_array($empresa->documentos) ? $empresa->documentos : [];
 
             $emailSent = false;
             $emailError = null;
