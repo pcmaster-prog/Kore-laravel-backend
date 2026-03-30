@@ -137,27 +137,20 @@ class UsersController extends Controller
 
             try {
                 Log::info('Intentando enviar correo a: ' . $newUser->email);
-                Log::info('Mailer configurado: ' . config('mail.default'));
-                Log::info('From address: ' . config('mail.from.address'));
+                Log::info('RESEND_API_KEY: ' . substr(config('services.resend.key', 'NO_KEY'), 0, 10) . '...');
+                
+                \Resend\Laravel\Facades\Resend::emails()->send([
+                    'from' => config('mail.from.address'), // Resend prefiere formato simple o "Nombre <email>"
+                    'to'   => [$newUser->email],
+                    'subject' => 'Test Kore - Bienvenido',
+                    'html' => '<p>Este es un correo de prueba directo con Resend para verificar la configuración.</p>',
+                ]);
 
-                Mail::to($newUser->email)->send(new BienvenidaEmpleado(
-                    empleadoNombre:   $newUser->name,
-                    empresaNombre:    $empresa->name,
-                    email:            $newUser->email,
-                    passwordTemporal: $passwordTemporal,
-                    appUrl:           config('app.frontend_url', 'https://kore-react-frontend.vercel.app'),
-                    documentos:       $documentos,
-                ));
-
-                Log::info('Correo enviado exitosamente a: ' . $newUser->email);
+                Log::info('Correo enviado exitosamente con Resend directo');
                 $emailSent = true;
             } catch (\Exception $e) {
-                Log::error('ERROR enviando correo: ' . $e->getMessage());
+                Log::error('ERROR Resend directo: ' . $e->getMessage());
                 $emailError = $e->getMessage();
-                Log::warning("No se pudo enviar correo de bienvenida a {$newUser->email}. Error: " . $emailError, [
-                    'exception' => $e,
-                    'user_id' => $newUser->id
-                ]);
             }
 
         } catch (\Throwable $e) {
