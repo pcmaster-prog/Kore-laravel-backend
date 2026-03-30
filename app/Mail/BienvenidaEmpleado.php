@@ -53,6 +53,8 @@ class BienvenidaEmpleado extends Mailable
      */
     public function attachments(): array
     {
+        Log::info('Documentos al enviar correo: ' . json_encode($this->documentos));
+        
         if (empty($this->documentos)) return [];
         
         return collect($this->documentos)
