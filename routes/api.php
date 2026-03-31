@@ -60,6 +60,7 @@ Route::prefix('v1')->group(function () {
 
             // NUEVAS RUTAS DEL DASHBOARD (dentro de auth + tenant)
             Route::get('/dashboard/manager', [DashboardController::class, 'manager']);
+            Route::get('/dashboard/supervisor', [DashboardController::class, 'supervisor']);
             Route::get('/dashboard/employee', [DashboardController::class, 'employee']);
 
             // Rutas protegidas por el módulo "configuracion"
