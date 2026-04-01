@@ -28,6 +28,10 @@ class TaskTemplatesController extends Controller
             $q->where('is_active', filter_var($request->string('active'), FILTER_VALIDATE_BOOLEAN));
         }
 
+        if ($request->has('show_in_dashboard')) {
+            $q->where('show_in_dashboard', $request->boolean('show_in_dashboard'));
+        }
+
         if ($request->filled('search')) {
             $s = $request->string('search');
             $q->where('title','ilike',"%{$s}%");
@@ -49,6 +53,7 @@ class TaskTemplatesController extends Controller
             'priority' => ['nullable', Rule::in(['low','medium','high','urgent'])],
             'tags' => ['nullable'],
             'is_active' => ['nullable','boolean'],
+            'show_in_dashboard' => ['nullable','boolean'],
         ]);
 
         $t = TaskTemplate::create([
@@ -61,6 +66,7 @@ class TaskTemplatesController extends Controller
             'priority'=>$data['priority'] ?? 'medium',
             'tags'=>$data['tags'] ?? null,
             'is_active'=>$data['is_active'] ?? true,
+            'show_in_dashboard'=>$data['show_in_dashboard'] ?? false,
             'meta'=>null,
         ]);
 
@@ -94,6 +100,7 @@ class TaskTemplatesController extends Controller
             'priority' => ['sometimes', Rule::in(['low','medium','high','urgent'])],
             'tags' => ['sometimes','nullable'],
             'is_active' => ['sometimes','boolean'],
+            'show_in_dashboard' => ['sometimes','boolean'],
         ]);
 
         $t->fill($data);
