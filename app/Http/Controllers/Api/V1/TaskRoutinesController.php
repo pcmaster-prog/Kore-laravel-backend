@@ -30,6 +30,10 @@ class TaskRoutinesController extends Controller
             $q->where('is_active', filter_var($request->string('active'), FILTER_VALIDATE_BOOLEAN));
         }
 
+        if ($request->has('show_in_dashboard')) {
+            $q->where('show_in_dashboard', $request->boolean('show_in_dashboard'));
+        }
+
         return response()->json($q->orderBy('name')->paginate(20));
     }
 
@@ -47,6 +51,7 @@ class TaskRoutinesController extends Controller
             'start_date' => ['nullable','date'],
             'end_date' => ['nullable','date'],
             'is_active' => ['nullable','boolean'],
+            'show_in_dashboard' => ['nullable','boolean'],
         ]);
 
         if ($data['recurrence'] === 'weekly' && empty($data['weekdays'])) {
@@ -63,6 +68,7 @@ class TaskRoutinesController extends Controller
             'start_date'=>$data['start_date'] ?? null,
             'end_date'=>$data['end_date'] ?? null,
             'is_active'=>$data['is_active'] ?? true,
+            'show_in_dashboard'=>$data['show_in_dashboard'] ?? false,
         ]);
 
         return response()->json(['item'=>$r], 201);
@@ -102,6 +108,7 @@ class TaskRoutinesController extends Controller
             'start_date' => ['sometimes','nullable','date'],
             'end_date' => ['sometimes','nullable','date'],
             'is_active' => ['sometimes','boolean'],
+            'show_in_dashboard' => ['sometimes','boolean'],
         ]);
 
         $r->fill($data);
