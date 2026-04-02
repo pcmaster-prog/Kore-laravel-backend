@@ -14,6 +14,7 @@ class DatabaseSeeder extends Seeder
         // Catálogos globales del sistema
         $this->call([
             ModulosSeeder::class,
+            BitacoraCriteriosSeeder::class,
         ]);
     }
 }

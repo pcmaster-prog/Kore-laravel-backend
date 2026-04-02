@@ -35,6 +35,9 @@ use App\Http\Controllers\Api\V1\GondolaOrdenesController;
 // Módulo Semáforo de Desempeño
 use App\Http\Controllers\Api\V1\SemaforoController;
 
+// Bitácora
+use App\Http\Controllers\Api\V1\BitacoraController;
+
 // Documentos de empresa
 use App\Http\Controllers\Api\V1\EmpresaDocumentosController;
 
@@ -54,6 +57,10 @@ Route::prefix('v1')->group(function () {
 
         Route::get('/auth/me', [AuthController::class, 'me']);
         Route::post('/auth/logout', [AuthController::class, 'logout']);
+
+        // Bitácora — catálogo de criterios (global, sin tenant)
+        Route::get('/bitacora/criterios',  [BitacoraController::class, 'getCriterios']);
+        Route::post('/bitacora/criterios', [BitacoraController::class, 'saveCriterios']);
 
         // Rutas con tenant (empresa activa)
         Route::middleware('tenant')->group(function () {
