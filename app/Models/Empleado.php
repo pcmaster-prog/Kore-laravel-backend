@@ -17,6 +17,9 @@ class Empleado extends Model
         'position_title',
         'status',
         'hired_at',
+        'rfc',
+        'nss',
+        'expediente_url',
     ];
 
     protected $casts = [

@@ -63,7 +63,15 @@ class EmployeesController extends Controller
             'position_title' => ['nullable','string','max:120'],
             'status' => ['nullable', Rule::in(['active','inactive'])],
             'hired_at' => ['nullable','date'],
+            'rfc' => ['nullable','string','max:15'],
+            'nss' => ['nullable','string','max:15'],
+            'expediente' => ['nullable','file','mimes:pdf,jpg,png','max:5120'],
         ]);
+
+        $expedienteUrl = null;
+        if ($request->hasFile('expediente')) {
+            $expedienteUrl = $request->file('expediente')->store('expedientes', 's3');
+        }
 
         $emp = Empleado::create([
             'empresa_id' => $empresaId,
@@ -73,6 +81,9 @@ class EmployeesController extends Controller
             'position_title' => $data['position_title'] ?? null,
             'status' => $data['status'] ?? 'active',
             'hired_at' => $data['hired_at'] ?? null,
+            'rfc' => $data['rfc'] ?? null,
+            'nss' => $data['nss'] ?? null,
+            'expediente_url' => $expedienteUrl,
         ]);
 
         return response()->json(['item'=>$this->present($emp)], 201);
@@ -113,7 +124,14 @@ class EmployeesController extends Controller
             'position_title' => ['sometimes','nullable','string','max:120'],
             'status' => ['sometimes', Rule::in(['active','inactive'])],
             'hired_at' => ['sometimes','nullable','date'],
+            'rfc' => ['sometimes','nullable','string','max:15'],
+            'nss' => ['sometimes','nullable','string','max:15'],
+            'expediente' => ['sometimes','nullable','file','mimes:pdf,jpg,png','max:5120'],
         ]);
+
+        if ($request->hasFile('expediente')) {
+            $data['expediente_url'] = $request->file('expediente')->store('expedientes', 's3');
+        }
 
         $emp->fill($data);
         $emp->save();
@@ -288,6 +306,9 @@ class EmployeesController extends Controller
             'status' => $e->status,
             'hired_at' => $e->hired_at?->toDateString(),
             'user_id' => $e->user_id,
+            'rfc' => $e->rfc,
+            'nss' => $e->nss,
+            'expediente_url' => $e->expediente_url,
             'created_at' => $e->created_at?->toISOString(),
             'updated_at' => $e->updated_at?->toISOString(),
         ];
