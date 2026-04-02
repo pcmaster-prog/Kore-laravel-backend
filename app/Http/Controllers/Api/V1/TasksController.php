@@ -125,6 +125,24 @@ class TasksController extends Controller
         ]);
     }
 
+    public function destroy(Request $request, string $id)
+    {
+        $u = $request->user();
+        if (!in_array($u->role, ['admin','supervisor'])) {
+            return response()->json(['message'=>'No autorizado'], 403);
+        }
+
+        $task = Task::where('empresa_id', $u->empresa_id)->where('id', $id)->first();
+        if (!$task) return response()->json(['message'=>'No encontrado'], 404);
+
+        // Delete any assignees first to avoid constraint errors if not handled dynamically by cascade
+        TaskAssignee::where('empresa_id', $u->empresa_id)->where('task_id', $task->id)->delete();
+        
+        $task->delete();
+
+        return response()->json(['message'=>'Tarea eliminada exitosamente']);
+    }
+
     public function assign(Request $request, string $id)
     {
         $u = $request->user();

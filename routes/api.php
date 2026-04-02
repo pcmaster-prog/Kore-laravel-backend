@@ -102,6 +102,7 @@ Route::prefix('v1')->group(function () {
                 Route::get('/tareas', [TasksController::class, 'index']);
                 Route::post('/tareas', [TasksController::class, 'store']);
                 Route::get('/tareas/{id}', [TasksController::class, 'show'])->whereUuid('id');
+                Route::delete('/tareas/{id}', [TasksController::class, 'destroy'])->whereUuid('id');
                 Route::post('/tareas/{id}/asignar', [TasksController::class, 'assign'])->whereUuid('id');
 
                 // Empleado
