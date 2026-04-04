@@ -11,7 +11,7 @@ return new class extends Migration
         // tasks: filtros frecuentes por status y fecha
         Schema::table('tasks', function (Blueprint $table) {
             $table->index(['empresa_id', 'status'], 'tasks_empresa_status_idx');
-            $table->index(['empresa_id', 'due_date'], 'tasks_empresa_due_date_idx');
+            $table->index(['empresa_id', 'due_at'], 'tasks_empresa_due_at_idx');
         });
 
         // task_assignees: búsquedas por empleado y estado de asignación
@@ -36,7 +36,7 @@ return new class extends Migration
     {
         Schema::table('tasks', function (Blueprint $table) {
             $table->dropIndex('tasks_empresa_status_idx');
-            $table->dropIndex('tasks_empresa_due_date_idx');
+            $table->dropIndex('tasks_empresa_due_at_idx');
         });
 
         Schema::table('task_assignees', function (Blueprint $table) {
