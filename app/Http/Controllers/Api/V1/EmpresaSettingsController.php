@@ -69,10 +69,10 @@ class EmpresaSettingsController extends Controller
         }
 
         $data = $request->validate([
-            'check_in_time' => ['required', 'string'],
-            'check_out_time' => ['required', 'string'],
+            'check_in_time'  => ['required', 'string', 'regex:/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/'],
+            'check_out_time' => ['required', 'string', 'regex:/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/'],
             'late_tolerance' => ['required', 'integer', 'min:0'],
-            'max_hours' => ['required', 'integer', 'min:1', 'max:24']
+            'max_hours'      => ['required', 'integer', 'min:1', 'max:24'],
         ]);
 
         $empresa = Empresa::where('id', $u->empresa_id)->first();

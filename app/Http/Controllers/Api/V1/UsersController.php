@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use App\Models\User;
 use App\Models\Empleado;
@@ -183,11 +184,17 @@ class UsersController extends Controller
             return response()->json(['message' => 'Error al crear usuario', 'detail' => $e->getMessage()], 500);
         }
 
-        return response()->json([
-            'item' => $this->present($newUser, $emp),
-            'email_sent' => $emailSent,
-            'email_error' => $emailError
-        ], 201);
+        $response = ['item' => $this->present($newUser, $emp), 'email_sent' => $emailSent];
+
+        if (!$emailSent) {
+            $response['warning'] = 'El usuario fue creado pero no se pudo enviar el correo de bienvenida. Comparte las credenciales manualmente.';
+            $response['credenciales'] = [
+                'email'    => $newUser->email,
+                'password' => $passwordTemporal,
+            ];
+        }
+
+        return response()->json($response, 201);
     }
 
     /**
@@ -374,11 +381,6 @@ class UsersController extends Controller
     }
     private function generarPasswordTemporal(): string
     {
-        // Genera algo como: Kore#4829
-        $palabras = ['Kore', 'Team', 'Work', 'Join', 'Star'];
-        $palabra = $palabras[array_rand($palabras)];
-        $numero = rand(1000, 9999);
-        $especial = ['#', '@', '!'][rand(0, 2)];
-        return $palabra . $especial . $numero;
+        return Str::password(12, letters: true, numbers: true, symbols: true, spaces: false);
     }
 }

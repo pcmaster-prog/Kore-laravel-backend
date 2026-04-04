@@ -41,8 +41,6 @@ class BitacoraController extends Controller
             'criterios.*.sort_order'=> ['nullable', 'integer', 'min:0'],
         ]);
 
-        DB::table('bitacora_criterios')->delete();
-
         $now = now();
         $rows = array_map(function ($item, $index) use ($now) {
             return [
@@ -55,7 +53,10 @@ class BitacoraController extends Controller
             ];
         }, $data['criterios'], array_keys($data['criterios']));
 
-        DB::table('bitacora_criterios')->insert($rows);
+        DB::transaction(function () use ($rows) {
+            DB::table('bitacora_criterios')->delete();
+            DB::table('bitacora_criterios')->insert($rows);
+        });
 
         $criterios = DB::table('bitacora_criterios')
             ->orderBy('sort_order')

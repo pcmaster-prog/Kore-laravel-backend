@@ -47,10 +47,12 @@ use App\Http\Controllers\Api\V1\EmpresaDocumentosController;
 Route::prefix('v1')->group(function () {
 
     // Registro empresa (público) - README_BACKEND implementation
-    Route::post('/register', [\App\Http\Controllers\Api\V1\RegisterController::class, 'register']);
+    Route::post('/register', [\App\Http\Controllers\Api\V1\RegisterController::class, 'register'])
+        ->middleware('throttle:5,60');
 
     // Auth (público)
-    Route::post('/auth/login', [AuthController::class, 'login']);
+    Route::post('/auth/login', [AuthController::class, 'login'])
+        ->middleware('throttle:10,1');
 
     // Rutas autenticadas
     Route::middleware('auth:sanctum')->group(function () {
