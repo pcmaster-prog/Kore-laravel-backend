@@ -76,28 +76,28 @@ Route::prefix('v1')->group(function () {
             Route::middleware('module:configuracion')->group(function () {
                 // Admin + Supervisor
                 Route::get('/empleados', [EmployeesController::class, 'index']);
-                Route::get('/empleados/{id}', [EmployeesController::class, 'show']);
+                Route::get('/empleados/{id}', [EmployeesController::class, 'show'])->whereUuid('id');
 
-                // Solo Admin 
+                // Solo Admin
                 Route::post('/empleados', [EmployeesController::class, 'store']);
-                Route::put('/empleados/{id}', [EmployeesController::class, 'update']);
+                Route::put('/empleados/{id}', [EmployeesController::class, 'update'])->whereUuid('id');
 
                 // Calendar & overrides
-                Route::patch('/empleados/{id}/calendar', [EmployeesController::class, 'updateCalendar']);
-                Route::post('/empleados/{id}/calendar/override', [EmployeesController::class, 'upsertCalendarOverride']);
+                Route::patch('/empleados/{id}/calendar', [EmployeesController::class, 'updateCalendar'])->whereUuid('id');
+                Route::post('/empleados/{id}/calendar/override', [EmployeesController::class, 'upsertCalendarOverride'])->whereUuid('id');
 
                 // Solo Empleado (su propio perfil)
                 Route::get('/empleados-me', [EmployeesController::class, 'me']);
 
-                Route::post('/empleados/{id}/link-user', [EmployeesController::class, 'linkUser']);
+                Route::post('/empleados/{id}/link-user', [EmployeesController::class, 'linkUser'])->whereUuid('id');
 
                 // Gestión de usuarios (admin)
                 Route::get('/usuarios', [UsersController::class, 'index']);
-                Route::get('/usuarios/{id}', [UsersController::class, 'show']);
+                Route::get('/usuarios/{id}', [UsersController::class, 'show'])->whereUuid('id');
                 Route::post('/usuarios', [UsersController::class, 'store']);
-                Route::put('/usuarios/{id}', [UsersController::class, 'update']);
-                Route::patch('/usuarios/{id}/toggle-status', [UsersController::class, 'toggleStatus']);
-                Route::delete('/usuarios/{id}', [UsersController::class, 'destroy']);
+                Route::put('/usuarios/{id}', [UsersController::class, 'update'])->whereUuid('id');
+                Route::patch('/usuarios/{id}/toggle-status', [UsersController::class, 'toggleStatus'])->whereUuid('id');
+                Route::delete('/usuarios/{id}', [UsersController::class, 'destroy'])->whereUuid('id');
 
                 // Documentos de empresa
                 Route::get('/empresa/documentos',            [EmpresaDocumentosController::class, 'index']);
@@ -123,25 +123,25 @@ Route::prefix('v1')->group(function () {
                 // Templates
                 Route::get('/task-templates', [TaskTemplatesController::class, 'index']);
                 Route::post('/task-templates', [TaskTemplatesController::class, 'store']);
-                Route::get('/task-templates/{id}', [TaskTemplatesController::class, 'show']);
-                Route::patch('/task-templates/{id}', [TaskTemplatesController::class, 'update']);
-                Route::delete('/task-templates/{id}', [TaskTemplatesController::class, 'destroy']);
+                Route::get('/task-templates/{id}', [TaskTemplatesController::class, 'show'])->whereUuid('id');
+                Route::patch('/task-templates/{id}', [TaskTemplatesController::class, 'update'])->whereUuid('id');
+                Route::delete('/task-templates/{id}', [TaskTemplatesController::class, 'destroy'])->whereUuid('id');
 
                 // Routines
                 Route::get('/task-routines', [TaskRoutinesController::class, 'index']);
                 Route::post('/task-routines', [TaskRoutinesController::class, 'store']);
-                Route::get('/task-routines/{id}', [TaskRoutinesController::class, 'show']);
-                Route::patch('/task-routines/{id}', [TaskRoutinesController::class, 'update']);
-                Route::delete('/task-routines/{id}', [TaskRoutinesController::class, 'destroy']);
+                Route::get('/task-routines/{id}', [TaskRoutinesController::class, 'show'])->whereUuid('id');
+                Route::patch('/task-routines/{id}', [TaskRoutinesController::class, 'update'])->whereUuid('id');
+                Route::delete('/task-routines/{id}', [TaskRoutinesController::class, 'destroy'])->whereUuid('id');
 
-                Route::post('/task-routines/{id}/items', [TaskRoutinesController::class, 'addItems']);
-                Route::delete('/task-routines/{id}/items/{itemId}', [TaskRoutinesController::class, 'removeItem']);
+                Route::post('/task-routines/{id}/items', [TaskRoutinesController::class, 'addItems'])->whereUuid('id');
+                Route::delete('/task-routines/{id}/items/{itemId}', [TaskRoutinesController::class, 'removeItem'])->whereUuid(['id', 'itemId']);
 
                 // Catálogo del día + crear tareas desde template
                 Route::get('/tareas/catalogo', [TaskCatalogController::class, 'catalog']);
                 Route::post('/tareas/crear-desde-template', [TaskCatalogController::class, 'createFromTemplate']);
                 Route::post('/tareas/crear-desde-catalogo-bulk', [TaskCatalogController::class, 'createBulkFromTemplates']);
-                Route::post('/task-routines/{id}/assign', [TaskRoutinesController::class, 'assignRoutine']);
+                Route::post('/task-routines/{id}/assign', [TaskRoutinesController::class, 'assignRoutine'])->whereUuid('id');
 
                 Route::get('/activity-logs', [ActivityLogsController::class, 'index']);
                 Route::patch('/tareas/{id}/status', [TasksController::class, 'updateStatus'])->whereUuid('id');

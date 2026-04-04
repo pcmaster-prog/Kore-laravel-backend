@@ -140,6 +140,17 @@ class ProfileController extends Controller
         $u->password = Hash::make($data['new_password']);
         $u->save();
 
+        \App\Services\ActivityLogger::log(
+            $u->empresa_id,
+            $u->id,
+            null,
+            'password_changed',
+            'user',
+            $u->id,
+            null,
+            $request
+        );
+
         return response()->json([
             'message' => 'Contraseña actualizada correctamente.',
         ]);

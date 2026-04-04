@@ -142,6 +142,17 @@ class EmpresaController extends Controller
             ]);
         }
 
+        \App\Services\ActivityLogger::log(
+            $empresaId,
+            $u->id,
+            null,
+            $data['enabled'] ? 'module_enabled' : 'module_disabled',
+            'module',
+            null,
+            ['module_slug' => $data['module_slug']],
+            $request
+        );
+
         return response()->json(['message' => 'Módulo actualizado']);
     }
 

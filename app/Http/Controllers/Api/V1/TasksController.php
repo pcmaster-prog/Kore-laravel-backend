@@ -642,20 +642,21 @@ class TasksController extends Controller
         $evs = Evidence::where('empresa_id',$u->empresa_id)
             ->where('task_id',$task->id)
             ->orderByDesc('created_at')
-            ->get()
-            ->map(fn($e)=>[
-                'id'=>$e->id,
-                'task_id'=>$e->task_id,
-                'task_assignee_id'=>$e->task_assignee_id,
-                'empleado_id'=>$e->empleado_id,
-                'original_name'=>$e->original_name,
-                'mime'=>$e->mime,
-                'size'=>$e->size,
-                'created_at'=>$e->created_at?->toISOString(),
-                'url'=>$this->evidenceFileUrl($e),
-            ]);
+            ->paginate(50);
 
-        return response()->json(['data'=>$evs]);
+        $evs->getCollection()->transform(fn($e)=>[
+            'id'=>$e->id,
+            'task_id'=>$e->task_id,
+            'task_assignee_id'=>$e->task_assignee_id,
+            'empleado_id'=>$e->empleado_id,
+            'original_name'=>$e->original_name,
+            'mime'=>$e->mime,
+            'size'=>$e->size,
+            'created_at'=>$e->created_at?->toISOString(),
+            'url'=>$this->evidenceFileUrl($e),
+        ]);
+
+        return response()->json($evs);
     }
 
     // 🔥 ACTUALIZADO: completada solo si todas están "approved"
