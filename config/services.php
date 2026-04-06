@@ -35,4 +35,11 @@ return [
         ],
     ],
 
+    'firebase' => [
+        'project_id'   => env('FIREBASE_PROJECT_ID'),
+        'client_email' => env('FIREBASE_CLIENT_EMAIL'),
+        // Railway almacena \n literales; los convertimos a saltos de línea reales
+        'private_key'  => str_replace('\\n', "\n", env('FIREBASE_PRIVATE_KEY', '')),
+    ],
+
 ];

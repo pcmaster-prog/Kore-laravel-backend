@@ -10,6 +10,7 @@ use App\Models\AttendanceEvent;
 use App\Models\Empleado;
 use App\Models\EmployeeCalendarOverride;
 use App\Models\Empresa;
+use App\Services\NotificationService;
 
 class AttendanceControllerV2 extends Controller
 {
@@ -85,6 +86,18 @@ class AttendanceControllerV2 extends Controller
                 'date'          => $day->date,
             ],
             $request
+        );
+
+        // 🔔 Notificar a managers sobre la entrada
+        app(NotificationService::class)->sendToManagers(
+            empresaId: $empresaId,
+            title: '📍 Entrada registrada',
+            body: ($emp->full_name ?? $u->name) . ' marcó entrada a las ' . now()->format('H:i'),
+            data: [
+                'type'        => 'attendance.check_in',
+                'empleado_id' => $emp->id,
+                'empresa_id'  => $empresaId,
+            ]
         );
 
         return response()->json(['message'=>'Entrada OK', 'day'=>$this->presentDay($day)]);
@@ -202,6 +215,17 @@ class AttendanceControllerV2 extends Controller
                 'date'           => $day->date,
             ],
             $request
+        );
+
+        // 🔔 Notificar a managers sobre la salida
+        app(NotificationService::class)->sendToManagers(
+            empresaId: $empresaId,
+            title: '🚪 Salida registrada',
+            body: ($emp->full_name ?? $u->name) . ' marcó salida a las ' . now()->format('H:i'),
+            data: [
+                'type'        => 'attendance.check_out',
+                'empleado_id' => $emp->id,
+            ]
         );
 
         return response()->json(['message'=>'Salida OK', 'day'=>$this->presentDay($day)]);
@@ -446,6 +470,165 @@ class AttendanceControllerV2 extends Controller
         ]);
     }
 
+    // ─────────────────────────────────────────────
+    // NUEVOS MÉTODOS: ajustar, iniciarComida, terminarComida
+    // ─────────────────────────────────────────────
+
+    /**
+     * PATCH /asistencia/ajustar/{empleadoId}/{fecha}
+     * Admin/Supervisor puede corregir la hora de entrada o salida de un dia.
+     */
+    public function ajustar(Request $request, string $empleadoId, string $fecha)
+    {
+        $u = $request->user();
+        if (!in_array($u->role, ['admin', 'supervisor'])) {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+
+        $data = $request->validate([
+            'first_check_in_at'  => ['nullable', 'date_format:H:i'],
+            'last_check_out_at'  => ['nullable', 'date_format:H:i'],
+            'motivo'             => ['required', 'string', 'max:300'],
+        ]);
+
+        $emp = Empleado::where('empresa_id', $u->empresa_id)
+            ->where('id', $empleadoId)
+            ->firstOrFail();
+
+        $day = AttendanceDay::firstOrCreate(
+            [
+                'empresa_id'  => $u->empresa_id,
+                'empleado_id' => $emp->id,
+                'date'        => $fecha,
+            ],
+            ['status' => 'present']
+        );
+
+        if (array_key_exists('first_check_in_at', $data) && $data['first_check_in_at']) {
+            $day->first_check_in_at = \Carbon\Carbon::parse($fecha . ' ' . $data['first_check_in_at']);
+        }
+
+        if (array_key_exists('last_check_out_at', $data) && $data['last_check_out_at']) {
+            $day->last_check_out_at = \Carbon\Carbon::parse($fecha . ' ' . $data['last_check_out_at']);
+        }
+
+        $day->save();
+
+        \App\Services\ActivityLogger::log(
+            $u->empresa_id,
+            $u->id,
+            null,
+            'attendance.adjusted',
+            'attendance_day',
+            $day->id,
+            [
+                'empleado_name'      => $emp->full_name,
+                'fecha'              => $fecha,
+                'motivo'             => $data['motivo'],
+                'adjusted_check_in'  => $data['first_check_in_at'] ?? null,
+                'adjusted_check_out' => $data['last_check_out_at'] ?? null,
+                'adjusted_by'        => $u->name,
+            ],
+            $request
+        );
+
+        return response()->json([
+            'message' => 'Asistencia ajustada correctamente',
+            'day'     => $this->presentDay($day),
+        ]);
+    }
+
+    /**
+     * POST /asistencia/comida/iniciar
+     * El empleado inicia su tiempo de comida (máx. 30 min).
+     */
+    public function iniciarComida(Request $request)
+    {
+        [$u, $empresaId, $emp] = $this->authEmployee($request);
+
+        $hoy = now()->toDateString();
+        $day = AttendanceDay::where('empresa_id', $empresaId)
+            ->where('empleado_id', $emp->id)
+            ->where('date', $hoy)
+            ->first();
+
+        if (!$day || !$day->first_check_in_at) {
+            return response()->json(['message' => 'Debes marcar entrada primero'], 422);
+        }
+
+        if ($day->lunch_start_at) {
+            return response()->json(['message' => 'Ya iniciaste tu tiempo de comida'], 409);
+        }
+
+        $day->lunch_start_at = now();
+        $day->save();
+
+        // 🔔 Notificar al supervisor
+        app(NotificationService::class)->sendToManagers(
+            empresaId: $empresaId,
+            title: '🍽️ Inicio de comida',
+            body: ($emp->full_name ?? $u->name) . ' inició su tiempo de comida',
+            data: ['type' => 'attendance.lunch_start', 'empleado_id' => $emp->id]
+        );
+
+        return response()->json([
+            'message'        => 'Tiempo de comida iniciado',
+            'lunch_start_at' => $day->lunch_start_at->toISOString(),
+            'lunch_limit_at' => $day->lunch_start_at->copy()->addMinutes(30)->toISOString(),
+        ]);
+    }
+
+    /**
+     * POST /asistencia/comida/terminar
+     * El empleado termina su tiempo de comida. Notifica si excedió 30 min.
+     */
+    public function terminarComida(Request $request)
+    {
+        [$u, $empresaId, $emp] = $this->authEmployee($request);
+
+        $hoy = now()->toDateString();
+        $day = AttendanceDay::where('empresa_id', $empresaId)
+            ->where('empleado_id', $emp->id)
+            ->where('date', $hoy)
+            ->first();
+
+        if (!$day?->lunch_start_at) {
+            return response()->json(['message' => 'No has iniciado tu tiempo de comida'], 422);
+        }
+
+        if ($day->lunch_end_at) {
+            return response()->json(['message' => 'Tu tiempo de comida ya terminó'], 409);
+        }
+
+        $day->lunch_end_at = now();
+        $day->save();
+
+        $minutos = (int) round($day->lunch_start_at->diffInMinutes($day->lunch_end_at));
+        $excedio = $minutos > 30;
+
+        // 🔔 Notificar si se pasó del tiempo
+        if ($excedio) {
+            app(NotificationService::class)->sendToManagers(
+                empresaId: $empresaId,
+                title: '⚠️ Tiempo de comida excedido',
+                body: ($emp->full_name ?? $u->name) . " tardó {$minutos} min en comida (límite: 30 min)",
+                data: [
+                    'type'        => 'attendance.lunch_overtime',
+                    'empleado_id' => $emp->id,
+                    'minutos'     => $minutos,
+                ]
+            );
+        }
+
+        return response()->json([
+            'message'        => 'Tiempo de comida terminado',
+            'lunch_start_at' => $day->lunch_start_at->toISOString(),
+            'lunch_end_at'   => $day->lunch_end_at->toISOString(),
+            'minutos'        => $minutos,
+            'excedio'        => $excedio,
+        ]);
+    }
+
     // ----------------- helpers -----------------
 
     private function authEmployee(Request $request): array
@@ -558,13 +741,29 @@ class AttendanceControllerV2 extends Controller
 
     private function presentDay(AttendanceDay $d): array
     {
+        // Calcular minutos de comida (completada o en curso)
+        $lunchMinutes = null;
+        if ($d->lunch_start_at && $d->lunch_end_at) {
+            $lunchMinutes = (int) round($d->lunch_start_at->diffInMinutes($d->lunch_end_at));
+        } elseif ($d->lunch_start_at) {
+            $lunchMinutes = (int) round($d->lunch_start_at->diffInMinutes(now()));
+        }
+
         return [
-            'id'=>$d->id,
-            'empleado_id'=>$d->empleado_id,
-            'date'=>$d->date?->toDateString(),
-            'status'=>$d->status,
-            'first_check_in_at'=>$d->first_check_in_at?->toISOString(),
-            'last_check_out_at'=>$d->last_check_out_at?->toISOString(),
+            'id'                => $d->id,
+            'empleado_id'       => $d->empleado_id,
+            'date'              => $d->date?->toDateString(),
+            'status'            => $d->status,
+            'first_check_in_at' => $d->first_check_in_at?->toISOString(),
+            'last_check_out_at' => $d->last_check_out_at?->toISOString(),
+            // Campos de comida
+            'lunch_start_at'    => $d->lunch_start_at?->toISOString(),
+            'lunch_end_at'      => $d->lunch_end_at?->toISOString(),
+            'lunch_minutes'     => $lunchMinutes,
+            'lunch_active'      => $d->lunch_start_at && !$d->lunch_end_at,
+            'lunch_overtime'    => $d->lunch_start_at && !$d->lunch_end_at
+                ? now()->diffInMinutes($d->lunch_start_at) > 30
+                : false,
         ];
     }
 

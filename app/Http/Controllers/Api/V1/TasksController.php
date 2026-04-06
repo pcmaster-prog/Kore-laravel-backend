@@ -12,6 +12,7 @@ use App\Models\Task;
 use App\Models\TaskAssignee;
 use App\Models\Empleado;
 use App\Models\Evidence;
+use App\Services\NotificationService;
 
 class TasksController extends Controller
 {
@@ -175,6 +176,21 @@ class TasksController extends Controller
                 );
             }
         });
+
+        // 🔔 Notificar a cada empleado asignado
+        foreach ($validEmployees as $empId) {
+            $empUser = \App\Models\User::where('empresa_id', $u->empresa_id)
+                ->whereHas('empleado', fn($q) => $q->where('id', $empId))
+                ->first();
+            if ($empUser) {
+                app(NotificationService::class)->sendToUser(
+                    userId: $empUser->id,
+                    title: '📋 Nueva tarea asignada',
+                    body: "Se te asignó: {$task->title}",
+                    data: ['type' => 'task.assigned', 'task_id' => $task->id]
+                );
+            }
+}
 
         if ($task->status === 'open') {
             $task->status = 'in_progress';
@@ -490,6 +506,18 @@ class TasksController extends Controller
             }
 
             $a->done_at = now();
+
+            // 🔔 Notificar a managers: tarea lista para revisión
+            app(NotificationService::class)->sendToManagers(
+                empresaId: $u->empresa_id,
+                title: '✅ Tarea lista para revisar',
+                body: ($emp->full_name ?? $u->name) . ' completó: ' . ($a->task->title ?? 'una tarea'),
+                data: [
+                    'type'          => 'task.done_pending',
+                    'task_id'       => $a->task_id,
+                    'assignment_id' => $a->id,
+                ]
+            );
         }
 
         $a->status = $data['status'];

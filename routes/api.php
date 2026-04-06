@@ -21,6 +21,8 @@ use App\Http\Controllers\Api\V1\ActivityLogsController;
 
 // Controlador del dashboard (nuevo)
 use App\Http\Controllers\Api\V1\DashboardController;
+use App\Http\Controllers\Api\V1\FcmTokenController;
+
 
 //Controlador de nómina
 use App\Http\Controllers\Api\V1\PayrollController;
@@ -71,6 +73,11 @@ Route::prefix('v1')->group(function () {
             Route::get('/dashboard/manager', [DashboardController::class, 'manager']);
             Route::get('/dashboard/supervisor', [DashboardController::class, 'supervisor']);
             Route::get('/dashboard/employee', [DashboardController::class, 'employee']);
+
+            // FCM Tokens (Notificaciones Push)
+            Route::post('/fcm/token',   [FcmTokenController::class, 'store']);
+            Route::delete('/fcm/token', [FcmTokenController::class, 'destroy']);
+
 
             // Rutas protegidas por el módulo "configuracion"
             Route::middleware('module:configuracion')->group(function () {
@@ -183,7 +190,15 @@ Route::prefix('v1')->group(function () {
                 Route::get('/asistencia/semanal', [AttendanceControllerV2::class, 'weeklySummary']);
 
                 Route::get('/asistencia/mis-hoy', [AttendanceControllerV2::class, 'myToday']);
+
+                // Cronómetro de comida
+                Route::post('/asistencia/comida/iniciar',  [AttendanceControllerV2::class, 'iniciarComida']);
+                Route::post('/asistencia/comida/terminar', [AttendanceControllerV2::class, 'terminarComida']);
+
+                // Ajuste de asistencia (Admin/Supervisor)
+                Route::patch('/asistencia/ajustar/{empleadoId}/{fecha}', [AttendanceControllerV2::class, 'ajustar']);
             });
+
 
             //Modulo de Nomina
                 Route::get('/nomina/periodos',                       [PayrollController::class, 'index']);
