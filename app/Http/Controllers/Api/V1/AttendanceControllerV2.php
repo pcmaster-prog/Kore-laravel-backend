@@ -89,16 +89,20 @@ class AttendanceControllerV2 extends Controller
         );
 
         // 🔔 Notificar a managers sobre la entrada
-        app(NotificationService::class)->sendToManagers(
-            empresaId: $empresaId,
-            title: '📍 Entrada registrada',
-            body: ($emp->full_name ?? $u->name) . ' marcó entrada a las ' . now()->format('H:i'),
-            data: [
-                'type'        => 'attendance.check_in',
-                'empleado_id' => $emp->id,
-                'empresa_id'  => $empresaId,
-            ]
-        );
+        try {
+            app(NotificationService::class)->sendToManagers(
+                empresaId: $empresaId,
+                title: '📍 Entrada registrada',
+                body: ($emp->full_name ?? $u->name) . ' marcó entrada a las ' . now()->format('H:i'),
+                data: [
+                    'type'        => 'attendance.check_in',
+                    'empleado_id' => $emp->id,
+                    'empresa_id'  => $empresaId,
+                ]
+            );
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Error de notificaciones en entrada: ' . $e->getMessage());
+        }
 
         return response()->json(['message'=>'Entrada OK', 'day'=>$this->presentDay($day)]);
     }
@@ -218,15 +222,19 @@ class AttendanceControllerV2 extends Controller
         );
 
         // 🔔 Notificar a managers sobre la salida
-        app(NotificationService::class)->sendToManagers(
-            empresaId: $empresaId,
-            title: '🚪 Salida registrada',
-            body: ($emp->full_name ?? $u->name) . ' marcó salida a las ' . now()->format('H:i'),
-            data: [
-                'type'        => 'attendance.check_out',
-                'empleado_id' => $emp->id,
-            ]
-        );
+        try {
+            app(NotificationService::class)->sendToManagers(
+                empresaId: $empresaId,
+                title: '🚪 Salida registrada',
+                body: ($emp->full_name ?? $u->name) . ' marcó salida a las ' . now()->format('H:i'),
+                data: [
+                    'type'        => 'attendance.check_out',
+                    'empleado_id' => $emp->id,
+                ]
+            );
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Error de notificaciones en salida: ' . $e->getMessage());
+        }
 
         return response()->json(['message'=>'Salida OK', 'day'=>$this->presentDay($day)]);
     }
@@ -564,12 +572,16 @@ class AttendanceControllerV2 extends Controller
         $day->save();
 
         // 🔔 Notificar al supervisor
-        app(NotificationService::class)->sendToManagers(
-            empresaId: $empresaId,
-            title: '🍽️ Inicio de comida',
-            body: ($emp->full_name ?? $u->name) . ' inició su tiempo de comida',
-            data: ['type' => 'attendance.lunch_start', 'empleado_id' => $emp->id]
-        );
+        try {
+            app(NotificationService::class)->sendToManagers(
+                empresaId: $empresaId,
+                title: '🍽️ Inicio de comida',
+                body: ($emp->full_name ?? $u->name) . ' inició su tiempo de comida',
+                data: ['type' => 'attendance.lunch_start', 'empleado_id' => $emp->id]
+            );
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Error de notificaciones en inicio de comida: ' . $e->getMessage());
+        }
 
         return response()->json([
             'message'        => 'Tiempo de comida iniciado',
@@ -608,16 +620,20 @@ class AttendanceControllerV2 extends Controller
 
         // 🔔 Notificar si se pasó del tiempo
         if ($excedio) {
-            app(NotificationService::class)->sendToManagers(
-                empresaId: $empresaId,
-                title: '⚠️ Tiempo de comida excedido',
-                body: ($emp->full_name ?? $u->name) . " tardó {$minutos} min en comida (límite: 30 min)",
-                data: [
-                    'type'        => 'attendance.lunch_overtime',
-                    'empleado_id' => $emp->id,
-                    'minutos'     => $minutos,
-                ]
-            );
+            try {
+                app(NotificationService::class)->sendToManagers(
+                    empresaId: $empresaId,
+                    title: '⚠️ Tiempo de comida excedido',
+                    body: ($emp->full_name ?? $u->name) . " tardó {$minutos} min en comida (límite: 30 min)",
+                    data: [
+                        'type'        => 'attendance.lunch_overtime',
+                        'empleado_id' => $emp->id,
+                        'minutos'     => $minutos,
+                    ]
+                );
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error('Error de notificaciones en termino de comida: ' . $e->getMessage());
+            }
         }
 
         return response()->json([
