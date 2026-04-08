@@ -709,51 +709,62 @@ class AttendanceControllerV2 extends Controller
         };
     }
 
-    // ✅ FIX: retorna [worked_minutes, break_minutes] con soporte para turnos abiertos
-   private function computeTotals(string $empresaId, string $dayId): array
-{
-    $events = AttendanceEvent::where('empresa_id',$empresaId)
-        ->where('attendance_day_id',$dayId)
-        ->orderBy('occurred_at')
-        ->get();
+    // ✅ FIX: retorna [worked_minutes, break_minutes] con soporte para turnos abiertos y ajustes manuales
+    private function computeTotals(string $empresaId, string $dayId): array
+    {
+        $day = AttendanceDay::find($dayId);
+        $events = AttendanceEvent::where('empresa_id',$empresaId)
+            ->where('attendance_day_id',$dayId)
+            ->orderBy('occurred_at')
+            ->get();
 
-    $checkIn    = null;
-    $checkOut   = null;
-    $breakStart = null;
-    $breakSeconds = 0;
+        $checkIn    = null;
+        $checkOut   = null;
+        $breakStart = null;
+        $breakSeconds = 0;
 
-    foreach ($events as $e) {
-        if ($e->type === 'check_in')  $checkIn  = $checkIn ?? $e->occurred_at;
-        if ($e->type === 'check_out') $checkOut = $e->occurred_at;
+        foreach ($events as $e) {
+            if ($e->type === 'check_in')  $checkIn  = $checkIn ?? $e->occurred_at;
+            if ($e->type === 'check_out') $checkOut = $e->occurred_at;
 
-        if ($e->type === 'break_start') $breakStart = $e->occurred_at;
-        if ($e->type === 'break_end' && $breakStart) {
-            // ✅ FIX: breakStart (más antiguo) → occurred_at (más nuevo)
-            $breakSeconds += max(0, $breakStart->diffInSeconds($e->occurred_at));
-            $breakStart = null;
+            if ($e->type === 'break_start') $breakStart = $e->occurred_at;
+            if ($e->type === 'break_end' && $breakStart) {
+                // ✅ FIX: breakStart (más antiguo) → occurred_at (más nuevo)
+                $breakSeconds += max(0, $breakStart->diffInSeconds($e->occurred_at));
+                $breakStart = null;
+            }
         }
+
+        // Si el admin hizo ajustes manuales (AttendanceDay tiene los datos correctos), 
+        // estos valores tienen prioridad sobre los AttendanceEvent originales.
+        if ($day) {
+            if ($day->first_check_in_at) $checkIn = $day->first_check_in_at;
+            if ($day->last_check_out_at) $checkOut = $day->last_check_out_at;
+        }
+
+        if (!$checkIn) {
+            return [0, 0];
+        }
+
+        $effectiveCheckOut = $checkOut ?? now();
+
+        // ✅ FIX: si hay pausa abierta, contar hasta el final del turno o hasta ahora
+        if ($breakStart) {
+            $breakEndLimit = min(now(), $effectiveCheckOut);
+            if ($breakStart < $breakEndLimit) {
+                $breakSeconds += max(0, $breakStart->diffInSeconds($breakEndLimit));
+            }
+        }
+
+        // ✅ FIX: checkIn (más antiguo) → effectiveCheckOut (más nuevo)
+        $totalSeconds  = max(0, $checkIn->diffInSeconds($effectiveCheckOut));
+        $workedSeconds = max(0, $totalSeconds - $breakSeconds);
+
+        return [
+            (int) round($workedSeconds / 60),
+            (int) round($breakSeconds  / 60),
+        ];
     }
-
-    if (!$checkIn) {
-        return [0, 0];
-    }
-
-    $effectiveCheckOut = $checkOut ?? now();
-
-    // ✅ FIX: si hay pausa abierta, contar hasta ahora
-    if ($breakStart) {
-        $breakSeconds += max(0, $breakStart->diffInSeconds(now()));
-    }
-
-    // ✅ FIX: checkIn (más antiguo) → effectiveCheckOut (más nuevo)
-    $totalSeconds  = max(0, $checkIn->diffInSeconds($effectiveCheckOut));
-    $workedSeconds = max(0, $totalSeconds - $breakSeconds);
-
-    return [
-        (int) round($workedSeconds / 60),
-        (int) round($breakSeconds  / 60),
-    ];
-}
 
     private function presentDay(AttendanceDay $d): array
     {
