@@ -183,14 +183,18 @@ class TasksController extends Controller
                 ->whereHas('empleado', fn($q) => $q->where('id', $empId))
                 ->first();
             if ($empUser) {
-                app(NotificationService::class)->sendToUser(
-                    userId: $empUser->id,
-                    title: '📋 Nueva tarea asignada',
-                    body: "Se te asignó: {$task->title}",
-                    data: ['type' => 'task.assigned', 'task_id' => $task->id]
-                );
+                try {
+                    app(NotificationService::class)->sendToUser(
+                        userId: $empUser->id,
+                        title: '📋 Nueva tarea asignada',
+                        body: "Se te asignó: {$task->title}",
+                        data: ['type' => 'task.assigned', 'task_id' => $task->id]
+                    );
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::error('Error sending task assignment notification: ' . $e->getMessage());
+                }
             }
-}
+        }
 
         if ($task->status === 'open') {
             $task->status = 'in_progress';
@@ -508,16 +512,20 @@ class TasksController extends Controller
             $a->done_at = now();
 
             // 🔔 Notificar a managers: tarea lista para revisión
-            app(NotificationService::class)->sendToManagers(
-                empresaId: $u->empresa_id,
-                title: '✅ Tarea lista para revisar',
-                body: ($emp->full_name ?? $u->name) . ' completó: ' . ($a->task->title ?? 'una tarea'),
-                data: [
-                    'type'          => 'task.done_pending',
-                    'task_id'       => $a->task_id,
-                    'assignment_id' => $a->id,
-                ]
-            );
+            try {
+                app(NotificationService::class)->sendToManagers(
+                    empresaId: $u->empresa_id,
+                    title: '✅ Tarea lista para revisar',
+                    body: ($emp->full_name ?? $u->name) . ' completó: ' . ($a->task->title ?? 'una tarea'),
+                    data: [
+                        'type'          => 'task.done_pending',
+                        'task_id'       => $a->task_id,
+                        'assignment_id' => $a->id,
+                    ]
+                );
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error('Error sending task done notification: ' . $e->getMessage());
+            }
         }
 
         $a->status = $data['status'];
