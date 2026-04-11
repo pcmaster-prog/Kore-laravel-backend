@@ -188,6 +188,8 @@ Route::prefix('v1')->group(function () {
                 // Admin/Supervisor
                 Route::get('/asistencia/por-fecha', [AttendanceControllerV2::class, 'byDate']);
                 Route::get('/asistencia/semanal', [AttendanceControllerV2::class, 'weeklySummary']);
+                Route::post('/asistencia/dia-descanso', [AttendanceControllerV2::class, 'marcarDiaDescansoAdmin']);
+                Route::delete('/asistencia/dia-descanso', [AttendanceControllerV2::class, 'quitarDiaDescansoAdmin']);
 
                 Route::get('/asistencia/mis-hoy', [AttendanceControllerV2::class, 'myToday']);
 
@@ -207,6 +209,7 @@ Route::prefix('v1')->group(function () {
                 Route::patch('/nomina/periodos/{id}/entradas/{entryId}', [PayrollController::class, 'updateEntry']);
                 Route::post('/nomina/periodos/{id}/aprobar',         [PayrollController::class, 'approve']);
                 Route::get('/nomina/periodos/{id}/exportar',         [PayrollController::class, 'export']);
+                Route::post('/nomina/periodos/{periodoId}/excluir',  [PayrollController::class, 'excluirEmpleado']);
             //perfil
             Route::get('/mi-perfil',   [ProfileController::class, 'show']);
             Route::patch('/mi-perfil', [ProfileController::class, 'update']);

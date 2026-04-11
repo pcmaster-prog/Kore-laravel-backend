@@ -71,9 +71,12 @@ class PayrollController extends Controller
             ]);
         }
 
+        $excluded = $period->excluded_employee_ids ?? [];
+
         // Recalcula entradas para todos los empleados activos
         $empleados = Empleado::where('empresa_id', $empresaId)
             ->where('status', 'active')
+            ->when(!empty($excluded), fn($q) => $q->whereNotIn('id', $excluded))
             ->get();
 
         foreach ($empleados as $emp) {
@@ -146,6 +149,48 @@ class PayrollController extends Controller
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // POST /nomina/periodos/{periodoId}/excluir
+    // Excluye o incluye un empleado de una nómina específica
+    // ─────────────────────────────────────────────────────────────────────────
+    public function excluirEmpleado(Request $request, string $periodoId)
+    {
+        [$u, $empresaId] = $this->requireAdmin($request);
+
+        $data = $request->validate([
+            'empleado_id' => ['required', 'uuid'],
+            'excluir'     => ['required', 'boolean'],
+        ]);
+
+        $periodo = PayrollPeriod::where('empresa_id', $empresaId)
+            ->findOrFail($periodoId);
+
+        if ($periodo->status === 'approved') {
+            return response()->json(['message' => 'No se puede modificar una nómina aprobada'], 409);
+        }
+
+        $excluded = $periodo->excluded_employee_ids ?? [];
+
+        if ($data['excluir']) {
+            if (!in_array($data['empleado_id'], $excluded)) {
+                $excluded[] = $data['empleado_id'];
+            }
+        } else {
+            $excluded = array_values(array_filter(
+                $excluded,
+                fn($id) => $id !== $data['empleado_id']
+            ));
+        }
+
+        $periodo->excluded_employee_ids = $excluded;
+        $periodo->save();
+
+        return response()->json([
+            'message'               => $data['excluir'] ? 'Empleado excluido de la nómina' : 'Empleado incluido en la nómina',
+            'excluded_employee_ids' => $excluded,
+        ]);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // POST /nomina/periodos/{id}/aprobar
     // Aprueba y cierra el periodo
     // ─────────────────────────────────────────────────────────────────────────
@@ -207,7 +252,7 @@ class PayrollController extends Controller
         $restDaysPaid = 0;
         $subtotal     = 0;
 
-        // Trae los attendance_days de la semana para este empleado
+        // Trae los attendance_days de la semana para este empleado (solo se usa count para 'daily')
         $days = AttendanceDay::where('empresa_id', $empresaId)
             ->where('empleado_id', $emp->id)
             ->whereBetween('date', [$weekStart, $weekEnd])
@@ -215,12 +260,7 @@ class PayrollController extends Controller
             ->keyBy(fn($d) => $d->date->toDateString());
 
         if ($paymentType === 'hourly') {
-            // Suma minutos trabajados de cada día y convierte a horas
-            $totalMinutes = 0;
-            foreach ($days as $day) {
-                $totalMinutes += $this->computeWorkedMinutes($empresaId, $day->id);
-            }
-            $units    = round($totalMinutes / 60, 2);
+            $units    = $this->calcularHorasSemanales($emp, $weekStart, $weekEnd);
             $subtotal = round($units * $rate, 2);
 
         } else {
@@ -277,41 +317,49 @@ class PayrollController extends Controller
     }
 
     /**
-     * Calcula minutos trabajados para un attendance_day usando sus eventos.
+     * Calcula horas trabajadas para un empleado en la semana corrigiendo bugs de minutos.
      */
-    private function computeWorkedMinutes(string $empresaId, string $dayId): int
-    {
-        $events = AttendanceEvent::where('empresa_id', $empresaId)
-            ->where('attendance_day_id', $dayId)
-            ->orderBy('occurred_at')
+    private function calcularHorasSemanales(
+        Empleado $emp,
+        string $weekStart,
+        string $weekEnd
+    ): float {
+        $days = AttendanceDay::where('empresa_id', $emp->empresa_id)
+            ->where('empleado_id', $emp->id)
+            ->whereBetween('date', [$weekStart, $weekEnd])
+            ->whereNotNull('first_check_in_at')
+            ->whereNotNull('last_check_out_at')
+            ->where('status', '!=', 'day_off') // excluir días de descanso
             ->get();
 
-        $checkIn    = null;
-        $checkOut   = null;
-        $breakStart = null;
-        $breakSecs  = 0;
+        $totalMinutes = 0;
 
-        foreach ($events as $e) {
-            if ($e->type === 'check_in')    $checkIn  = $checkIn ?? $e->occurred_at;
-            if ($e->type === 'check_out')   $checkOut = $e->occurred_at;
-            if ($e->type === 'break_start') $breakStart = $e->occurred_at;
-            if ($e->type === 'break_end' && $breakStart) {
-                $breakSecs += max(0, $breakStart->diffInSeconds($e->occurred_at));
-                $breakStart = null;
+        foreach ($days as $day) {
+            // Validar que check_out sea después de check_in
+            if ($day->last_check_out_at <= $day->first_check_in_at) continue;
+
+            $dayMinutes = $day->first_check_in_at->diffInMinutes($day->last_check_out_at);
+
+            // Descontar tiempo de comida completado
+            if ($day->lunch_start_at && $day->lunch_end_at &&
+                $day->lunch_end_at > $day->lunch_start_at) {
+                $lunchMinutes = $day->lunch_start_at->diffInMinutes($day->lunch_end_at);
+                $dayMinutes -= min($lunchMinutes, 60); // máximo 1 hora de comida
             }
+
+            // Sanitizar: máximo 14 horas por día (840 minutos)
+            $dayMinutes = max(0, min($dayMinutes, 840));
+            $totalMinutes += $dayMinutes;
         }
 
-        if (!$checkIn) return 0;
-
-        $effectiveOut = $checkOut ?? now();
-        if ($breakStart) {
-            $breakSecs += max(0, $breakStart->diffInSeconds(now()));
+        if ($totalMinutes > 6720) { // 112 horas en minutos
+            \Illuminate\Support\Facades\Log::warning("Horas anómalas para empleado {$emp->id}: " .
+                round($totalMinutes/60, 1) . "h en semana {$weekStart}");
+            $totalMinutes = 0;
         }
 
-        $totalSecs  = max(0, $checkIn->diffInSeconds($effectiveOut));
-        $workedSecs = max(0, $totalSecs - $breakSecs);
-
-        return (int) round($workedSecs / 60);
+        // Retornar horas con 2 decimales
+        return round($totalMinutes / 60, 2);
     }
 
     /**
@@ -355,6 +403,7 @@ class PayrollController extends Controller
             'total_adjustments' => $p->total_adjustments,
             'total_bonuses'     => $p->total_bonuses,
             'approved_at'       => $p->approved_at?->toISOString(),
+            'excluded_employee_ids' => $p->excluded_employee_ids ?? [],
             'entries'           => $entries,
         ];
     }

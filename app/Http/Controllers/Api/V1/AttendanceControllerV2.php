@@ -397,6 +397,122 @@ class AttendanceControllerV2 extends Controller
         return response()->json(['message' => 'Descanso cancelado correctamente.']);
     }
 
+    // POST /asistencia/dia-descanso (admin marca para cualquier empleado)
+    public function marcarDiaDescansoAdmin(Request $request)
+    {
+        $u = $request->user();
+        if ($u->role !== 'admin') {
+            return response()->json(['message' => 'Solo el administrador puede marcar días de descanso'], 403);
+        }
+
+        $data = $request->validate([
+            'empleado_id' => ['required', 'uuid'],
+            'fecha'       => ['required', 'date_format:Y-m-d'],
+            'motivo'      => ['nullable', 'string', 'max:300'],
+        ]);
+
+        // Verificar que el empleado pertenece a la empresa
+        $emp = Empleado::where('empresa_id', $u->empresa_id)
+            ->where('id', $data['empleado_id'])
+            ->firstOrFail();
+
+        // Verificar que no haya ya una asistencia registrada ese día
+        $existing = AttendanceDay::where('empresa_id', $u->empresa_id)
+            ->where('empleado_id', $emp->id)
+            ->where('date', $data['fecha'])
+            ->first();
+
+        if ($existing && in_array($existing->status, ['present', 'late', 'open', 'working', 'closed'])) {
+            return response()->json([
+                'message' => 'El empleado ya tiene asistencia o turno este día. Usa "Ajustar asistencia" si necesitas corregirla.'
+            ], 409);
+        }
+
+        // Crear o actualizar el día de descanso (attendance_day)
+        $day = AttendanceDay::updateOrCreate(
+            [
+                'empresa_id'  => $u->empresa_id,
+                'empleado_id' => $emp->id,
+                'date'        => $data['fecha'],
+            ],
+            [
+                'status'            => 'day_off',
+                'first_check_in_at' => null,
+                'last_check_out_at' => null,
+            ]
+        );
+
+        // Crear o actualizar también en employee_calendar_overrides para reportes o reglas adicionales
+        EmployeeCalendarOverride::updateOrCreate(
+            ['empresa_id' => $u->empresa_id, 'empleado_id' => $emp->id, 'date' => $data['fecha']],
+            ['type' => 'rest', 'is_paid' => true]
+        );
+
+        // Log de auditoría
+        \App\Services\ActivityLogger::log(
+            $u->empresa_id,
+            $u->id,
+            null,
+            'attendance.day_off_added',
+            'attendance_day',
+            $day->id,
+            [
+                'empleado_name' => $emp->full_name,
+                'fecha'         => $data['fecha'],
+                'motivo'        => $data['motivo'] ?? 'Sin motivo especificado',
+                'added_by'      => $u->name,
+            ],
+            $request
+        );
+
+        return response()->json([
+            'message'    => "Día de descanso registrado para {$emp->full_name}",
+            'attendance' => $day,
+        ]);
+    }
+
+    // DELETE /asistencia/dia-descanso (admin quita día de descanso)
+    public function quitarDiaDescansoAdmin(Request $request)
+    {
+        $u = $request->user();
+        if ($u->role !== 'admin') {
+            return response()->json(['message' => 'Solo el administrador puede modificar días de descanso'], 403);
+        }
+
+        $data = $request->validate([
+            'empleado_id' => ['required', 'uuid'],
+            'fecha'       => ['required', 'date_format:Y-m-d'],
+        ]);
+
+        $emp = Empleado::where('empresa_id', $u->empresa_id)
+            ->where('id', $data['empleado_id'])
+            ->firstOrFail();
+
+        $day = AttendanceDay::where('empresa_id', $u->empresa_id)
+            ->where('empleado_id', $emp->id)
+            ->where('date', $data['fecha'])
+            ->where('status', 'day_off')
+            ->first();
+
+        if ($day) {
+            $day->delete();
+        }
+
+        // Quitar también del employee_calendar_overrides
+        $override = EmployeeCalendarOverride::where('empresa_id', $u->empresa_id)
+            ->where('empleado_id', $emp->id)
+            ->where('date', $data['fecha'])
+            ->where('type', 'rest')
+            ->first();
+        if ($override) {
+            $override->delete();
+        }
+
+        return response()->json([
+            'message' => "Día de descanso eliminado para {$emp->full_name} el {$data['fecha']}",
+        ]);
+    }
+
     // ADMIN/SUPERVISOR: por fecha (resumen)
     public function byDate(Request $request)
     {
