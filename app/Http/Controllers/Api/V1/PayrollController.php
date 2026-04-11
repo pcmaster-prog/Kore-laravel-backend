@@ -71,7 +71,9 @@ class PayrollController extends Controller
             ]);
         }
 
-        $excluded = $period->excluded_employee_ids ?? [];
+        $rawExcluded = $period->excluded_employee_ids ?? [];
+        $excluded = is_string($rawExcluded) ? json_decode($rawExcluded, true) : $rawExcluded;
+        if (!is_array($excluded)) $excluded = [];
 
         // Recalcula entradas para todos los empleados activos
         $empleados = Empleado::where('empresa_id', $empresaId)
@@ -168,7 +170,9 @@ class PayrollController extends Controller
             return response()->json(['message' => 'No se puede modificar una nómina aprobada'], 409);
         }
 
-        $excluded = $periodo->excluded_employee_ids ?? [];
+        $rawExcluded = $periodo->excluded_employee_ids ?? [];
+        $excluded = is_string($rawExcluded) ? json_decode($rawExcluded, true) : $rawExcluded;
+        if (!is_array($excluded)) $excluded = [];
 
         if ($data['excluir']) {
             if (!in_array($data['empleado_id'], $excluded)) {
@@ -403,7 +407,7 @@ class PayrollController extends Controller
             'total_adjustments' => $p->total_adjustments,
             'total_bonuses'     => $p->total_bonuses,
             'approved_at'       => $p->approved_at?->toISOString(),
-            'excluded_employee_ids' => $p->excluded_employee_ids ?? [],
+            'excluded_employee_ids' => is_string($p->excluded_employee_ids) ? json_decode($p->excluded_employee_ids, true) : ($p->excluded_employee_ids ?? []),
             'entries'           => $entries,
         ];
     }
