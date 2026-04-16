@@ -386,4 +386,83 @@ class GondolaOrdenesController extends Controller
 
         return response()->json($result);
     }
+
+    /**
+     * POST /gondolas/{gondolaId}/auto-rellenar
+     * El empleado inicia un relleno por iniciativa propia sin esperar orden.
+     */
+    public function autoRellenar(Request $request, string $gondolaId)
+    {
+        $u = $request->user();
+
+        $emp = \App\Models\Empleado::where('empresa_id', $u->empresa_id)
+            ->where('user_id', $u->id)
+            ->first();
+
+        if (!$emp) {
+            return response()->json(['message' => 'Empleado no vinculado'], 404);
+        }
+
+        $gondola = Gondola::where('empresa_id', $u->empresa_id)
+            ->where('id', $gondolaId)
+            ->where('activo', true)
+            ->firstOrFail();
+
+        // Verificar que no haya ya una orden activa de este empleado para esta góndola
+        $existing = GondolaOrden::where('empresa_id', $u->empresa_id)
+            ->where('gondola_id', $gondolaId)
+            ->where('empleado_id', $emp->id)
+            ->whereIn('status', ['pendiente', 'en_proceso'])
+            ->first();
+
+        if ($existing) {
+            return response()->json([
+                'message'  => 'Ya tienes una orden activa para esta góndola',
+                'orden_id' => $existing->id,
+            ], 409);
+        }
+
+        $orden = GondolaOrden::create([
+            'empresa_id'     => $u->empresa_id,
+            'gondola_id'     => $gondolaId,
+            'empleado_id'    => $emp->id,
+            'status'         => 'en_proceso',
+            'notas_empleado' => 'Iniciado por iniciativa propia',
+        ]);
+
+        // Copiar snapshot de productos
+        foreach ($gondola->productos as $producto) {
+            GondolaOrdenItem::create([
+                'empresa_id'          => $u->empresa_id,
+                'orden_id'            => $orden->id,
+                'gondola_producto_id' => $producto->id,
+                'clave'               => $producto->clave,
+                'nombre'              => $producto->nombre,
+                'unidad'              => $producto->unidad,
+                'cantidad'            => null,
+            ]);
+        }
+
+        // Notificar a admins y supervisores
+        try {
+            app(\App\Services\NotificationService::class)->sendToManagers(
+                empresaId: $u->empresa_id,
+                title: '🛒 Relleno iniciado por iniciativa',
+                body: "{$emp->full_name} inició el relleno de {$gondola->nombre}",
+                data: [
+                    'type'     => 'gondola.auto_started',
+                    'orden_id' => $orden->id,
+                    'gondola'  => $gondola->nombre,
+                    'empleado' => $emp->full_name,
+                ]
+            );
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Error notifying gondola auto-start: ' . $e->getMessage());
+        }
+
+        return response()->json([
+            'message'  => 'Relleno iniciado',
+            'orden_id' => $orden->id,
+        ], 201);
+    }
 }

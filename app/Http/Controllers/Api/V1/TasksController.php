@@ -157,44 +157,62 @@ class TasksController extends Controller
         ]);
 
         $task = Task::where('empresa_id', $u->empresa_id)->where('id', $id)->first();
-        if (!$task) return response()->json(['message'=>'No encontrado'], 404);
+        if (!$task) return response()->json(['message'=>'Tarea no encontrada'], 404);
 
-        $validEmployees = Empleado::where('empresa_id', $u->empresa_id)
+        // Obtener los empleados con su usuario vinculado
+        $empleados = Empleado::where('empresa_id', $u->empresa_id)
             ->whereIn('id', $data['empleado_ids'])
-            ->pluck('id')
-            ->all();
+            ->with('user')
+            ->get();
 
-        if (count($validEmployees) !== count($data['empleado_ids'])) {
+        if ($empleados->count() !== count($data['empleado_ids'])) {
             return response()->json(['message'=>'Uno o más empleados no pertenecen a esta empresa'], 422);
         }
 
-        DB::transaction(function () use ($u, $task, $validEmployees) {
-            foreach ($validEmployees as $empId) {
-                TaskAssignee::firstOrCreate(
-                    ['empresa_id'=>$u->empresa_id, 'task_id'=>$task->id, 'empleado_id'=>$empId],
-                    ['status'=>'assigned']
-                );
-            }
-        });
+        // ✅ Validar jerarquía por cada empleado
+        foreach ($empleados as $emp) {
+            $targetRole = $emp->user?->role ?? 'empleado';
 
-        // 🔔 Notificar a cada empleado asignado
-        foreach ($validEmployees as $empId) {
-            $empUser = \App\Models\User::where('empresa_id', $u->empresa_id)
-                ->whereHas('empleado', fn($q) => $q->where('id', $empId))
-                ->first();
-            if ($empUser) {
-                try {
-                    app(NotificationService::class)->sendToUser(
-                        userId: $empUser->id,
-                        title: '📋 Nueva tarea asignada',
-                        body: "Se te asignó: {$task->title}",
-                        data: ['type' => 'task.assigned', 'task_id' => $task->id]
-                    );
-                } catch (\Exception $e) {
-                    \Illuminate\Support\Facades\Log::error('Error sending task assignment notification: ' . $e->getMessage());
-                }
+            // Nadie puede asignarse a sí mismo
+            if ($emp->user_id === $u->id) {
+                return response()->json(['message' => 'No puedes asignarte una tarea a ti mismo'], 422);
+            }
+
+            // Supervisor solo puede asignar a empleados
+            if ($u->role === 'supervisor' && in_array($targetRole, ['supervisor', 'admin'])) {
+                return response()->json([
+                    'message' => "Un supervisor solo puede asignar tareas a empleados. {$emp->full_name} es {$targetRole}."
+                ], 422);
+            }
+
+            // Admin no puede asignar a otros admins
+            if ($u->role === 'admin' && $targetRole === 'admin') {
+                return response()->json(['message' => 'No puedes asignar tareas a otros administradores.'], 422);
             }
         }
+
+        DB::transaction(function () use ($u, $task, $empleados) {
+            foreach ($empleados as $emp) {
+                TaskAssignee::firstOrCreate(
+                    ['empresa_id'=>$u->empresa_id, 'task_id'=>$task->id, 'empleado_id'=>$emp->id],
+                    ['status'=>'assigned']
+                );
+
+                // 🔔 Notificar al asignado
+                if ($emp->user_id) {
+                    try {
+                        app(NotificationService::class)->sendToUser(
+                            userId: $emp->user_id,
+                            title: '📋 Nueva tarea asignada',
+                            body: "Se te asignó: {$task->title}",
+                            data: ['type' => 'task.assigned', 'task_id' => $task->id]
+                        );
+                    } catch (\Exception $e) {
+                        \Illuminate\Support\Facades\Log::error('Error sending task assignment notification: ' . $e->getMessage());
+                    }
+                }
+            }
+        });
 
         if ($task->status === 'open') {
             $task->status = 'in_progress';
@@ -202,6 +220,87 @@ class TasksController extends Controller
         }
 
         return response()->json(['message'=>'Asignación OK']);
+    }
+
+    // GET /tareas/empleados-asignables
+    public function empleadosAsignables(Request $request)
+    {
+        $u = $request->user();
+        if (!in_array($u->role, ['admin', 'supervisor'])) {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+
+        $query = Empleado::where('empresa_id', $u->empresa_id)
+            ->where('status', 'active')
+            ->with('user')
+            ->whereHas('user');
+
+        if ($u->role === 'supervisor') {
+            // Supervisor solo ve empleados
+            $query->whereHas('user', fn($q) => $q->where('role', 'empleado'));
+        } else {
+            // Admin ve empleados y supervisores, NO otros admins NI a sí mismo
+            $query->whereHas('user', fn($q) =>
+                $q->whereIn('role', ['empleado', 'supervisor'])
+                  ->where('id', '!=', $u->id)
+            );
+        }
+
+        $empleados = $query->get()->map(fn($emp) => [
+            'id'             => $emp->id,
+            'full_name'      => $emp->full_name,
+            'position_title' => $emp->position_title,
+            'role'           => $emp->user?->role,
+            'avatar_url'     => $emp->user?->avatar_url,
+        ]);
+
+        return response()->json(['data' => $empleados]);
+    }
+
+    // GET /mi-panel — combina tareas + órdenes góndola para el empleado
+    public function miPanel(Request $request)
+    {
+        [$u, $empresaId, $emp] = $this->authEmployee($request);
+
+        // Tareas normales asignadas
+        $tareas = TaskAssignee::where('empresa_id', $empresaId)
+            ->where('empleado_id', $emp->id)
+            ->whereIn('status', ['assigned', 'in_progress', 'rejected'])
+            ->with('task')
+            ->orderByDesc('created_at')
+            ->limit(10)
+            ->get()
+            ->map(fn($a) => [
+                'type'       => 'tarea',
+                'id'         => $a->id,
+                'title'      => $a->task?->title,
+                'status'     => $a->status,
+                'priority'   => $a->task?->priority,
+                'created_at' => $a->created_at?->toISOString(),
+            ]);
+
+        // Órdenes de góndola activas
+        $gondolas = \App\Models\GondolaOrden::where('empresa_id', $empresaId)
+            ->where('empleado_id', $emp->id)
+            ->whereIn('status', ['pendiente', 'en_proceso', 'rechazado'])
+            ->with('gondola')
+            ->orderByDesc('created_at')
+            ->limit(10)
+            ->get()
+            ->map(fn($o) => [
+                'type'       => 'gondola',
+                'id'         => $o->id,
+                'title'      => 'Rellenar: ' . ($o->gondola?->nombre ?? ''),
+                'status'     => $o->status,
+                'priority'   => 'medium',
+                'created_at' => $o->created_at?->toISOString(),
+            ]);
+
+        $items = $tareas->concat($gondolas)
+            ->sortByDesc('created_at')
+            ->values();
+
+        return response()->json(['data' => $items]);
     }
 
     public function myTasks(Request $request)

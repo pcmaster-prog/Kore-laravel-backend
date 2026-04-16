@@ -127,6 +127,11 @@ Route::prefix('v1')->group(function () {
                 Route::get('/mis-tareas/asignaciones', [TasksController::class, 'myAssignments']);
                 Route::patch('/mis-tareas/asignacion/{assignmentId}', [TasksController::class, 'updateMyAssignment']);
 
+                // Empleados asignables (respeta jerarquía)
+                Route::get('/tareas/empleados-asignables', [TasksController::class, 'empleadosAsignables']);
+
+                // Panel combinado tareas + góndolas
+                Route::get('/mi-panel', [TasksController::class, 'miPanel']);
                 // Templates
                 Route::get('/task-templates', [TaskTemplatesController::class, 'index']);
                 Route::post('/task-templates', [TaskTemplatesController::class, 'store']);
@@ -256,6 +261,9 @@ Route::prefix('v1')->group(function () {
                 Route::get('/mis-ordenes-gondola',                   [GondolaOrdenesController::class, 'misOrdenes']);
                 Route::post('/gondola-ordenes/{id}/iniciar',         [GondolaOrdenesController::class, 'iniciar']);
                 Route::post('/gondola-ordenes/{id}/completar',       [GondolaOrdenesController::class, 'completar']);
+
+                // Auto-relleno por iniciativa propia
+                Route::post('/gondolas/{gondolaId}/auto-rellenar',   [GondolaOrdenesController::class, 'autoRellenar']);
             });
 
             // ── Módulo Semáforo de Desempeño ─────────────────────────────────────────
