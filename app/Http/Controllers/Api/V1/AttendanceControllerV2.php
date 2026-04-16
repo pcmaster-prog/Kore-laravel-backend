@@ -23,24 +23,40 @@ class AttendanceControllerV2 extends Controller
         $today = now()->toDateString();
 
         // 🛡️ VALIDACIÓN: No permitir entrada antes de la hora configurada (-15 min margen)
+        // ni después de la hora de salida configurada
         $settings = is_array($empresa->settings) ? $empresa->settings : [];
         $operativo = $settings['operativo'] ?? null;
         if ($operativo && isset($operativo['check_in_time'])) {
-            $checkInTimeStr = $operativo['check_in_time']; // E.g., "08:30"
-            
-            // Usamos parse para mayor robustez con formatos (pueden ser HH:mm o HH:mm:ss)
-            $todayCheckIn = \Carbon\Carbon::parse($today . ' ' . $checkInTimeStr);
-            $todayEarliest = $todayCheckIn->copy()->subMinutes(15);
-            
-            $now = now(); // Ahora con la zona horaria correcta de config/app.php
+            $checkInTimeStr = $operativo['check_in_time']; // E.g., "08:20"
 
+            $todayCheckIn  = \Carbon\Carbon::parse($today . ' ' . $checkInTimeStr);
+            $todayEarliest = $todayCheckIn->copy()->subMinutes(15);
+
+            $now = now(); // Hora actual del servidor (timezone de config/app.php)
+
+            // ❌ Demasiado temprano
             if ($now->lessThan($todayEarliest)) {
                 return response()->json([
                     'message' => "Entrada bloqueada: Aún es muy temprano. El acceso para las " . $todayCheckIn->format('H:i') . " se permite desde las " . $todayEarliest->format('H:i') . ". Tu hora actual es: " . $now->format('H:i'),
-                    'code' => 'CHECK_IN_TOO_EARLY',
-                    'earliest_allowed' => $todayEarliest->toTimeString(),
-                    'current_server_time' => $now->toTimeString()
+                    'code'                => 'CHECK_IN_TOO_EARLY',
+                    'earliest_allowed'    => $todayEarliest->toTimeString(),
+                    'current_server_time' => $now->toTimeString(),
                 ], 409);
+            }
+
+            // ❌ Demasiado tarde (después de la hora de salida configurada)
+            if (isset($operativo['check_out_time'])) {
+                $checkOutTimeStr = $operativo['check_out_time']; // E.g., "17:10"
+                $todayCheckOut   = \Carbon\Carbon::parse($today . ' ' . $checkOutTimeStr);
+
+                if ($now->greaterThan($todayCheckOut)) {
+                    return response()->json([
+                        'message' => "Entrada bloqueada: El turno ya terminó. La hora de salida era las " . $todayCheckOut->format('H:i') . ". Tu hora actual es: " . $now->format('H:i'),
+                        'code'                => 'CHECK_IN_TOO_LATE',
+                        'latest_allowed'      => $todayCheckOut->toTimeString(),
+                        'current_server_time' => $now->toTimeString(),
+                    ], 409);
+                }
             }
         }
 
