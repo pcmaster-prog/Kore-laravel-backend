@@ -55,9 +55,13 @@ class EmpresaSettingsController extends Controller
             'late_tolerance' => 10,
             'max_hours' => 8
         ];
+        $calendar = $settings['calendar'] ?? [
+            'week_start' => 0 // Domingo
+        ];
 
         return response()->json([
-            'operativo' => $operativo
+            'operativo' => $operativo,
+            'calendar' => $calendar
         ]);
     }
 

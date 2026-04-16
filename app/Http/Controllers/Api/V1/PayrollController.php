@@ -51,7 +51,7 @@ class PayrollController extends Controller
             'week_date' => ['required', 'date'], // cualquier día de la semana
         ]);
 
-        [$weekStart, $weekEnd] = $this->weekRange($data['week_date']);
+        [$weekStart, $weekEnd] = $this->weekRange($data['week_date'], $empresaId);
 
         // Busca o crea el periodo
         $period = PayrollPeriod::where('empresa_id', $empresaId)
@@ -380,16 +380,27 @@ class PayrollController extends Controller
         ]);
     }
 
-    /**
-     * Calcula domingo→sábado de una semana.
-     */
-    private function weekRange(string $date): array
+    private function weekStartIndex(string $empresaId): int
     {
+        $empresa = Empresa::find($empresaId);
+        $ws = $empresa?->settings['calendar']['week_start'] ?? 0;
+        return (int)$ws;
+    }
+
+    /**
+     * Calcula dinámicamente el inicio de semana de la empresa.
+     */
+    private function weekRange(string $date, string $empresaId): array
+    {
+        $weekStart = $this->weekStartIndex($empresaId);
         $d = Carbon::parse($date);
-        // 0 = domingo en Carbon
-        $start = $d->copy()->startOfWeek(Carbon::SUNDAY);
-        $end   = $d->copy()->endOfWeek(Carbon::SATURDAY);
-        return [$start->toDateString(), $end->toDateString()];
+        $realWeekday = (int)$d->dayOfWeek; // 0=domingo..6=sábado
+        $delta = ($realWeekday - $weekStart + 7) % 7;
+
+        $start = $d->copy()->subDays($delta)->toDateString();
+        $end = $d->copy()->subDays($delta)->addDays(6)->toDateString();
+
+        return [$start, $end];
     }
 
     private function presentPeriod(PayrollPeriod $p): array
