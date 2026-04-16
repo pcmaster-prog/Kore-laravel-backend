@@ -7,6 +7,7 @@ use App\Models\AttendanceDay;
 use App\Models\AttendanceEvent;
 use App\Models\EmployeeCalendarOverride;
 use App\Models\Empleado;
+use App\Models\Empresa;
 use App\Models\PayrollEntry;
 use App\Models\PayrollPeriod;
 use Illuminate\Http\Request;
