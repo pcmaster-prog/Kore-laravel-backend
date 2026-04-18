@@ -206,8 +206,8 @@ class AttendanceControllerV2 extends Controller
         $day = AttendanceDay::where('empresa_id',$empresaId)->where('empleado_id',$emp->id)->where('date',$today)->first();
         if (!$day) return response()->json(['message'=>'No puedes marcar salida sin entrada'], 409);
 
-        // 🔒 Bloquear si el día ya fue cerrado por un admin/supervisor
-        if ($day->status === 'closed') {
+        // 🔒 Bloquear si el día ya fue cerrado por un admin/supervisor (status o salida manual)
+        if ($day->status === 'closed' || $day->last_check_out_at !== null) {
             return response()->json([
                 'message' => 'Tu jornada ya fue cerrada por el administrador. No puedes modificarla.',
                 'code'    => 'DAY_ALREADY_CLOSED',
@@ -891,7 +891,8 @@ class AttendanceControllerV2 extends Controller
     // out|working|break|closed
     private function currentState(AttendanceDay $day): string
     {
-        if ($day->status === 'closed') return 'closed';
+        // Cerrado si el status es 'closed' O si el admin ya registró una salida manual
+        if ($day->status === 'closed' || $day->last_check_out_at !== null) return 'closed';
 
         $events = AttendanceEvent::where('attendance_day_id',$day->id)->orderBy('occurred_at')->get();
         if ($events->isEmpty()) return 'out';
