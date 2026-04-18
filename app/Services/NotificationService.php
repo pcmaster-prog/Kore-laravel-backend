@@ -127,14 +127,16 @@ class NotificationService
 
                 if ($response->failed()) {
                     $errorCode = $response->json('error.details.0.errorCode') ?? $response->json('error.status');
+                    $errorMsg = $response->json('error.message') ?? 'Unknown error';
                     if (in_array($errorCode, ['UNREGISTERED', 'INVALID_ARGUMENT'])) {
                         $invalidTokens[] = $token;
                     } else {
                         Log::warning('FCM notification failed', [
                             'token_preview' => substr($token, 0, 20) . '...',
                             'status'        => $response->status(),
-                            'error'         => $response->json('error.message'),
+                            'error'         => $errorMsg,
                         ]);
+                        throw new \Exception("FCM API Error [{$errorCode}]: {$errorMsg}");
                     }
                 }
             }
@@ -147,6 +149,7 @@ class NotificationService
 
         } catch (\Throwable $e) {
             Log::warning('FCM NotificationService error: ' . $e->getMessage());
+            throw $e; // Re-lanzar para que el endpoint de prueba lo capture
         }
     }
 
