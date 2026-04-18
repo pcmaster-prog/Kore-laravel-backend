@@ -31,4 +31,8 @@ return Application::configure(basePath: dirname(__DIR__))
             return null; // deja el comportamiento normal fuera de /api
         });
     })
+    ->withSchedule(function (\Illuminate\Console\Scheduling\Schedule $schedule) {
+        // Cierre automático de asistencia — revisa cada minuto qué empresas deben cerrar hoy
+        $schedule->command('attendance:auto-close')->everyMinute()->withoutOverlapping();
+    })
     ->create();

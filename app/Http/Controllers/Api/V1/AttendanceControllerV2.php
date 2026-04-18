@@ -206,9 +206,16 @@ class AttendanceControllerV2 extends Controller
         $day = AttendanceDay::where('empresa_id',$empresaId)->where('empleado_id',$emp->id)->where('date',$today)->first();
         if (!$day) return response()->json(['message'=>'No puedes marcar salida sin entrada'], 409);
 
+        // 🔒 Bloquear si el día ya fue cerrado por un admin/supervisor
+        if ($day->status === 'closed') {
+            return response()->json([
+                'message' => 'Tu jornada ya fue cerrada por el administrador. No puedes modificarla.',
+                'code'    => 'DAY_ALREADY_CLOSED',
+            ], 409);
+        }
+
         $state = $this->currentState($day);
         if ($state !== 'working') {
-            // bloqueamos salida si está en pausa (MVP limpio)
             return response()->json(['message'=>'No puedes marcar salida ahora', 'state'=>$state], 409);
         }
 
