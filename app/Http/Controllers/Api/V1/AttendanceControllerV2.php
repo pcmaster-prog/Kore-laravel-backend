@@ -301,12 +301,18 @@ class AttendanceControllerV2 extends Controller
 
         $state = $day ? $this->currentState($day) : 'out';
 
+        // 🔒 Si el admin cerró el día manualmente, bloquear todo sin importar los eventos
+        $adminClosed = $day && $day->status === 'closed';
+        if ($adminClosed) {
+            $state = 'closed';
+        }
+
         // acciones permitidas según estado + descanso
         $actions = [
-            'check_in' => !$isRest && $state === 'out',
-            'break_start' => !$isRest && $state === 'working',
-            'break_end' => !$isRest && $state === 'break',
-            'check_out' => !$isRest && $state === 'working',
+            'check_in'    => !$isRest && !$adminClosed && $state === 'out',
+            'break_start' => !$isRest && !$adminClosed && $state === 'working',
+            'break_end'   => !$isRest && !$adminClosed && $state === 'break',
+            'check_out'   => !$isRest && !$adminClosed && $state === 'working',
         ];
 
         $totals = null;
@@ -322,19 +328,20 @@ class AttendanceControllerV2 extends Controller
             ->where('type', 'rest')
             ->exists();
 
-        $canMarkRest = ($emp->payment_type === 'daily' && !$hasCheckIn && !$restUsedThisWeek && !$isRest);
+        $canMarkRest = ($emp->payment_type === 'daily' && !$hasCheckIn && !$restUsedThisWeek && !$isRest && !$adminClosed);
 
         return response()->json([
-            'date' => $today,
-            'is_rest_day' => $isRest,
-            'state' => $isRest ? 'rest_day' : $state,
-            'status' => $isRest ? 'rest_day' : $state,
-            'is_paid_rest' => $isRest,
-            'can_mark_rest' => $canMarkRest,
-            'rest_used_this_week' => $restUsedThisWeek,
-            'actions' => $actions,
-            'day' => $day ? $this->presentDay($day) : null,
-            'totals' => $totals,
+            'date'               => $today,
+            'is_rest_day'        => $isRest,
+            'state'              => $isRest ? 'rest_day' : $state,
+            'status'             => $isRest ? 'rest_day' : $state,
+            'admin_closed'       => $adminClosed,
+            'is_paid_rest'       => $isRest,
+            'can_mark_rest'      => $canMarkRest,
+            'rest_used_this_week'=> $restUsedThisWeek,
+            'actions'            => $actions,
+            'day'                => $day ? $this->presentDay($day) : null,
+            'totals'             => $totals,
         ]);
     }
 
@@ -657,6 +664,13 @@ class AttendanceControllerV2 extends Controller
 
         if (array_key_exists('last_check_out_at', $data) && $data['last_check_out_at']) {
             $day->last_check_out_at = \Carbon\Carbon::parse($fecha . ' ' . $data['last_check_out_at']);
+        }
+
+        // 🔒 Si tiene salida ajustada → cerrar el día para que el empleado no pueda seguir marcando
+        if ($day->last_check_out_at) {
+            $day->status = 'closed';
+        } elseif ($day->first_check_in_at) {
+            $day->status = 'open';
         }
 
         $day->save();
