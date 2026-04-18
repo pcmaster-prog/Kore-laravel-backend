@@ -205,8 +205,8 @@ Route::prefix('v1')->group(function () {
 
                 // Ajuste de asistencia (Admin/Supervisor)
                 Route::patch('/asistencia/ajustar/{empleadoId}/{fecha}', [AttendanceControllerV2::class, 'ajustar']);
+                Route::delete('/asistencia/eliminar/{empleadoId}/{fecha}', [AttendanceControllerV2::class, 'eliminarDia']);
             });
-
 
             //Modulo de Nomina
                 Route::get('/nomina/periodos',                       [PayrollController::class, 'index']);

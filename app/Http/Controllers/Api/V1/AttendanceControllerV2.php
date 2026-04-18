@@ -679,6 +679,51 @@ class AttendanceControllerV2 extends Controller
     }
 
     /**
+     * DELETE /asistencia/eliminar/{empleadoId}/{fecha}
+     * Admin/Supervisor puede eliminar un día de asistencia.
+     */
+    public function eliminarDia(Request $request, string $empleadoId, string $fecha)
+    {
+        $u = $request->user();
+        if (!in_array($u->role, ['admin', 'supervisor'])) {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+
+        $emp = Empleado::where('empresa_id', $u->empresa_id)
+            ->where('id', $empleadoId)
+            ->firstOrFail();
+
+        $day = AttendanceDay::where('empresa_id', $u->empresa_id)
+            ->where('empleado_id', $emp->id)
+            ->where('date', $fecha)
+            ->first();
+
+        if (!$day) {
+            return response()->json(['message' => 'No se encontró registro de asistencia para este día'], 404);
+        }
+
+        \App\Models\AttendanceEvent::where('attendance_day_id', $day->id)->delete();
+        $day->delete();
+
+        \App\Services\ActivityLogger::log(
+            $u->empresa_id,
+            $u->id,
+            null,
+            'attendance.deleted',
+            'empleado', 
+            $emp->id,
+            [
+                'empleado_name' => $emp->full_name,
+                'fecha'         => $fecha,
+                'deleted_by'    => $u->name,
+            ],
+            $request
+        );
+
+        return response()->json(['message' => 'Asistencia eliminada correctamente']);
+    }
+
+    /**
      * POST /asistencia/comida/iniciar
      * El empleado inicia su tiempo de comida (máx. 30 min).
      */
