@@ -372,7 +372,13 @@ class PayrollController extends Controller
      */
     private function recalcPeriodTotals(PayrollPeriod $period): void
     {
-        $entries = PayrollEntry::where('payroll_period_id', $period->id)->get();
+        $rawExcluded = $period->excluded_employee_ids ?? [];
+        $excluded = is_string($rawExcluded) ? json_decode($rawExcluded, true) : $rawExcluded;
+        if (!is_array($excluded)) $excluded = [];
+
+        $entries = PayrollEntry::where('payroll_period_id', $period->id)
+            ->when(!empty($excluded), fn($q) => $q->whereNotIn('empleado_id', $excluded))
+            ->get();
 
         $period->update([
             'total_amount'      => $entries->sum('total'),
