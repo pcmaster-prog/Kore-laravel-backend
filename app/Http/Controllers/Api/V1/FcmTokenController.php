@@ -49,4 +49,25 @@ class FcmTokenController extends Controller
 
         return response()->json(['message' => 'Token eliminado']);
     }
+
+    /**
+     * POST /fcm/test — enviar una notificación de prueba al usuario actual.
+     */
+    public function test(Request $request): JsonResponse
+    {
+        $u = $request->user();
+
+        try {
+            app(\App\Services\NotificationService::class)->sendToUser(
+                userId: $u->id,
+                title: '🔔 Prueba de Notificación',
+                body: 'Si lees esto, las notificaciones están funcionando correctamente en este dispositivo.',
+                data: ['type' => 'test']
+            );
+
+            return response()->json(['message' => 'Notificación enviada con éxito']);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Error al enviar: ' . $e->getMessage()], 500);
+        }
+    }
 }

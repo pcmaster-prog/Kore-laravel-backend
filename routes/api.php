@@ -77,6 +77,7 @@ Route::prefix('v1')->group(function () {
             // FCM Tokens (Notificaciones Push)
             Route::post('/fcm/token',   [FcmTokenController::class, 'store']);
             Route::delete('/fcm/token', [FcmTokenController::class, 'destroy']);
+            Route::post('/fcm/test',    [FcmTokenController::class, 'test']);
 
 
             // Rutas protegidas por el módulo "configuracion"
