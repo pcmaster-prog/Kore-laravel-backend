@@ -43,6 +43,9 @@ use App\Http\Controllers\Api\V1\BitacoraController;
 // Documentos de empresa
 use App\Http\Controllers\Api\V1\EmpresaDocumentosController;
 
+// Solicitudes de ausencia
+use App\Http\Controllers\Api\V1\AbsenceRequestController;
+
 // 🔥 Nuevo controlador para revisiones
 //use App\Http\Controllers\Api\V1\TaskReviewsController;
 
@@ -206,6 +209,15 @@ Route::prefix('v1')->group(function () {
                 // Ajuste de asistencia (Admin/Supervisor)
                 Route::patch('/asistencia/ajustar/{empleadoId}/{fecha}', [AttendanceControllerV2::class, 'ajustar']);
                 Route::delete('/asistencia/eliminar/{empleadoId}/{fecha}', [AttendanceControllerV2::class, 'eliminarDia']);
+
+                // Retardos — empleado
+                Route::get('/asistencia/mis-retardos', [AttendanceControllerV2::class, 'myLateInfo']);
+
+                // Solicitudes de ausencia justificada
+                Route::post('/asistencia/ausencias',              [AbsenceRequestController::class, 'store']);
+                Route::get('/asistencia/ausencias',               [AbsenceRequestController::class, 'myRequests']);
+                Route::get('/asistencia/ausencias/pendientes',    [AbsenceRequestController::class, 'pending']);
+                Route::patch('/asistencia/ausencias/{id}',        [AbsenceRequestController::class, 'review']);
             });
 
             //Modulo de Nomina

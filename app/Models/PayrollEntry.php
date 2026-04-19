@@ -11,8 +11,9 @@ class PayrollEntry extends Model
 
     protected $fillable = [
         'empresa_id', 'payroll_period_id', 'empleado_id',
-        'payment_type', 'rate', 'units', 'rest_days_paid', 'subtotal',
-        'adjustment_amount', 'adjustment_note',
+        'payment_type', 'rate', 'units', 'rest_days_paid',
+        'tardiness_count', 'absences_count',
+        'subtotal', 'adjustment_amount', 'adjustment_note',
         'bonus_amount', 'bonus_note',
         'total',
     ];
@@ -21,6 +22,8 @@ class PayrollEntry extends Model
         'rate'              => 'float',
         'units'             => 'float',
         'rest_days_paid'    => 'int',
+        'tardiness_count'   => 'int',
+        'absences_count'    => 'int',
         'subtotal'          => 'float',
         'adjustment_amount' => 'float',
         'bonus_amount'      => 'float',

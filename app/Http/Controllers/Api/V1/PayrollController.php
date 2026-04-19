@@ -290,6 +290,45 @@ class PayrollController extends Controller
             ->where('empleado_id', $emp->id)
             ->first();
 
+        // ⏰ Retardos del mes completo que contiene el periodo
+        $monthStart = Carbon::parse($weekStart)->startOfMonth()->toDateString();
+        $monthEnd   = Carbon::parse($weekStart)->endOfMonth()->toDateString();
+
+        $tardiness = AttendanceDay::where('empresa_id', $empresaId)
+            ->where('empleado_id', $emp->id)
+            ->whereBetween('date', [$monthStart, $monthEnd])
+            ->where('late_minutes', '>', 0)
+            ->count();
+
+        // 3 o más retardos en el mes → no se paga el descanso semanal
+        if ($tardiness >= 3) {
+            $restDaysPaid = 0;
+        }
+
+        // Faltas de la semana: días sin check-in (excluyendo descansos y festivos)
+        $absences = 0;
+        $dateRange = collect();
+        $cursor = Carbon::parse($weekStart);
+        $weekEndDate = Carbon::parse($weekEnd);
+        while ($cursor->lte($weekEndDate)) {
+            $dateRange->push($cursor->toDateString());
+            $cursor->addDay();
+        }
+        $checkedInDates = $days->filter(fn($d) => $d->first_check_in_at !== null)->keys();
+        $restOrDayOff = EmployeeCalendarOverride::where('empresa_id', $empresaId)
+            ->where('empleado_id', $emp->id)
+            ->whereBetween('date', [$weekStart, $weekEnd])
+            ->pluck('date')
+            ->map(fn($d) => Carbon::parse($d)->toDateString())
+            ->toArray();
+        $absences = $dateRange->filter(function($date) use ($checkedInDates, $restOrDayOff, $days) {
+            if (in_array($date, $restOrDayOff)) return false;
+            $dayRecord = $days->get($date);
+            if ($dayRecord && $dayRecord->status === 'day_off') return false;
+            if ($checkedInDates->contains($date)) return false;
+            return true;
+        })->count();
+
         $adjustmentAmount = $entry?->adjustment_amount ?? 0;
         $adjustmentNote   = $entry?->adjustment_note ?? null;
         $bonusAmount      = $entry?->bonus_amount ?? 0;
@@ -305,6 +344,8 @@ class PayrollController extends Controller
             'rate'              => $rate,
             'units'             => $units,
             'rest_days_paid'    => $restDaysPaid,
+            'tardiness_count'   => $tardiness,
+            'absences_count'    => $absences,
             'subtotal'          => $subtotal,
             'adjustment_amount' => $adjustmentAmount,
             'adjustment_note'   => $adjustmentNote,
@@ -436,12 +477,15 @@ class PayrollController extends Controller
         return [
             'id'                => $e->id,
             'empleado_id'       => $e->empleado_id,
-            'empleado_name' => $emp?->full_name ?? '—',
-            'empleado_role' => $emp?->position_title ?? null,
+            'empleado_name'     => $emp?->full_name ?? '—',
+            'empleado_role'     => $emp?->position_title ?? null,
             'payment_type'      => $e->payment_type,
             'rate'              => $e->rate,
             'units'             => $e->units,
             'rest_days_paid'    => $e->rest_days_paid,
+            'tardiness_count'   => $e->tardiness_count ?? 0,
+            'absences_count'    => $e->absences_count ?? 0,
+            'penalty_active'    => ($e->tardiness_count ?? 0) >= 3,
             'subtotal'          => $e->subtotal,
             'adjustment_amount' => $e->adjustment_amount,
             'adjustment_note'   => $e->adjustment_note,

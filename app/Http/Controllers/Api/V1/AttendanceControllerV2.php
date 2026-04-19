@@ -86,7 +86,34 @@ class AttendanceControllerV2 extends Controller
 
         $day->first_check_in_at = $day->first_check_in_at ?? now();
         $day->status = 'open';
+
+        // ⏰ DETECCIÓN DE RETARDO
+        $lateMinutes = 0;
+        $tardCount   = 0;
+        $freshSettings = is_array($empresa->settings) ? $empresa->settings : [];
+        $freshOperativo = $freshSettings['operativo'] ?? null;
+        if ($freshOperativo && isset($freshOperativo['check_in_time'])) {
+            $tolerance    = (int)($freshOperativo['late_tolerance'] ?? 10);
+            $checkInAt    = \Carbon\Carbon::parse($today . ' ' . $freshOperativo['check_in_time']);
+            $lateThreshold = $checkInAt->copy()->addMinutes($tolerance);
+            $nowTs        = now();
+            if ($nowTs->greaterThan($lateThreshold)) {
+                $lateMinutes = (int)ceil($nowTs->diffInMinutes($lateThreshold));
+            }
+        }
+        if ($lateMinutes > 0) {
+            $day->late_minutes = $lateMinutes;
+        }
         $day->save();
+
+        // Contar retardos acumulados del mes (incluido el de hoy si aplica)
+        $monthStart = now()->startOfMonth()->toDateString();
+        $monthEnd   = now()->endOfMonth()->toDateString();
+        $tardCount  = AttendanceDay::where('empresa_id', $empresaId)
+            ->where('empleado_id', $emp->id)
+            ->whereBetween('date', [$monthStart, $monthEnd])
+            ->where('late_minutes', '>', 0)
+            ->count();
 
         // 🔔 PARCHE 1: Logging para check_in
         \App\Services\ActivityLogger::log(
@@ -97,30 +124,62 @@ class AttendanceControllerV2 extends Controller
             'attendance_day',
             $day->id,
             [
-                'employee_name' => $emp->full_name ?? $u->name,
-                'late_minutes'  => $day->late_minutes ?? null,
-                'date'          => $day->date,
+                'employee_name'   => $emp->full_name ?? $u->name,
+                'late_minutes'    => $lateMinutes ?: null,
+                'tardiness_count' => $tardCount,
+                'date'            => $day->date,
             ],
             $request
         );
 
+        // 🔔 Notificar al empleado si tiene retardos
+        if ($tardCount > 0) {
+            try {
+                $penaltyActive = $tardCount >= 3;
+                app(NotificationService::class)->sendToUser(
+                    userId: $u->id,
+                    title: $lateMinutes > 0 ? '⏰ Llegada tarde registrada' : '⚡ Alerta de puntualidad',
+                    body: "Ya llevas {$tardCount} retardo(s) este mes" . ($penaltyActive ? ". ¡Tu día de descanso de esta semana no será pagado!" : ". Ten cuidado."),
+                    data: [
+                        'type'           => 'attendance.late_warning',
+                        'tardiness_count' => (string)$tardCount,
+                        'penalty_active' => $penaltyActive ? '1' : '0',
+                    ]
+                );
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error('Error notificando retardo al empleado: ' . $e->getMessage());
+            }
+        }
+
         // 🔔 Notificar a managers sobre la entrada
         try {
+            $managerBody = ($emp->full_name ?? $u->name) . ' marcó entrada a las ' . now()->format('H:i');
+            if ($lateMinutes > 0) {
+                $managerBody .= " (retardo: {$lateMinutes} min — acumulado mes: {$tardCount}retardo(s))";
+            }
             app(NotificationService::class)->sendToManagers(
                 empresaId: $empresaId,
-                title: '📍 Entrada registrada',
-                body: ($emp->full_name ?? $u->name) . ' marcó entrada a las ' . now()->format('H:i'),
+                title: $lateMinutes > 0 ? '⚠️ Entrada tardía' : '📍 Entrada registrada',
+                body: $managerBody,
                 data: [
-                    'type'        => 'attendance.check_in',
-                    'empleado_id' => $emp->id,
-                    'empresa_id'  => $empresaId,
+                    'type'            => 'attendance.check_in',
+                    'empleado_id'     => $emp->id,
+                    'empresa_id'      => $empresaId,
+                    'late_minutes'    => (string)$lateMinutes,
+                    'tardiness_count' => (string)$tardCount,
                 ]
             );
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::error('Error de notificaciones en entrada: ' . $e->getMessage());
         }
 
-        return response()->json(['message'=>'Entrada OK', 'day'=>$this->presentDay($day)]);
+        return response()->json([
+            'message'         => $lateMinutes > 0 ? "Entrada registrada con {$lateMinutes} min de retardo" : 'Entrada OK',
+            'late_minutes'    => $lateMinutes,
+            'tardiness_count' => $tardCount,
+            'penalty_active'  => $tardCount >= 3,
+            'day'             => $this->presentDay($day),
+        ]);
     }
 
     // EMPLEADO: iniciar pausa
@@ -283,6 +342,42 @@ class AttendanceControllerV2 extends Controller
         });
 
         return response()->json($items);
+    }
+
+    // EMPLEADO: información de retardos del mes actual
+    public function myLateInfo(Request $request)
+    {
+        [$u, $empresaId, $emp] = $this->authEmployee($request);
+
+        $monthStart = now()->startOfMonth()->toDateString();
+        $monthEnd   = now()->endOfMonth()->toDateString();
+
+        $lateDays = AttendanceDay::where('empresa_id', $empresaId)
+            ->where('empleado_id', $emp->id)
+            ->whereBetween('date', [$monthStart, $monthEnd])
+            ->where('late_minutes', '>', 0)
+            ->orderByDesc('date')
+            ->get(['date', 'late_minutes']);
+
+        $lateCount = $lateDays->count();
+
+        // Retardo de hoy (si aplica)
+        $today = now()->toDateString();
+        $todayLate = AttendanceDay::where('empresa_id', $empresaId)
+            ->where('empleado_id', $emp->id)
+            ->where('date', $today)
+            ->value('late_minutes');
+
+        return response()->json([
+            'late_count'         => $lateCount,
+            'today_late_minutes' => $todayLate,
+            'penalty_active'     => $lateCount >= 3,
+            'late_days'          => $lateDays->map(fn($d) => [
+                'date'         => $d->date?->toDateString(),
+                'late_minutes' => $d->late_minutes,
+            ]),
+            'month'              => now()->format('Y-m'),
+        ]);
     }
 
     // EMPLEADO: estado actual del día
@@ -982,6 +1077,8 @@ class AttendanceControllerV2 extends Controller
             'status'            => $d->status,
             'first_check_in_at' => $d->first_check_in_at?->toISOString(),
             'last_check_out_at' => $d->last_check_out_at?->toISOString(),
+            // Retardo
+            'late_minutes'      => $d->late_minutes,
             // Campos de comida
             'lunch_start_at'    => $d->lunch_start_at?->toISOString(),
             'lunch_end_at'      => $d->lunch_end_at?->toISOString(),
