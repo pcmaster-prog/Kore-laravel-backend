@@ -19,14 +19,20 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => [
+    'allowed_origins' => array_filter([
         'https://kore-react-frontend.vercel.app',
         'capacitor://localhost',
-        'https://localhost',
-        'http://localhost',
-    ],
+        // Localhost solo en desarrollo (con puerto explícito)
+        env('APP_ENV') !== 'production' ? 'http://localhost:5173' : null,
+        env('APP_ENV') !== 'production' ? 'http://localhost:3000' : null,
+        // Origen adicional configurable por entorno
+        env('CORS_EXTRA_ORIGIN'),
+    ]),
 
-    'allowed_origins_patterns' => [],
+    // Permite preview deploys de Vercel (*.vercel.app)
+    'allowed_origins_patterns' => [
+        '/^https:\/\/kore-.*\.vercel\.app$/',
+    ],
 
     'allowed_headers' => ['*'],
 

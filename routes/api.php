@@ -57,7 +57,7 @@ Route::prefix('v1')->group(function () {
 
     // Auth (público)
     Route::post('/auth/login', [AuthController::class, 'login'])
-        ->middleware('throttle:10,1');
+        ->middleware('throttle:5,1');
 
     // Rutas autenticadas
     Route::middleware('auth:sanctum')->group(function () {

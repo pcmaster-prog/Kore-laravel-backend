@@ -13,13 +13,20 @@ class AuthController extends Controller
     public function login(Request $request)
     {
         $data = $request->validate([
-            'email' => ['required','email'],
-            'password' => ['required','string'],
+            'email'    => ['required', 'email', 'max:255'],
+            'password' => ['required', 'string', 'max:255'],
         ]);
 
         $user = User::where('email', $data['email'])->first();
-        if (!$user || !$user->is_active || !Hash::check($data['password'], $user->password)) {
-            return response()->json(['message'=>'Credenciales inválidas'], 401);
+
+        // Timing-attack mitigation: always run Hash::check even if user doesn't exist
+        if (!$user) {
+            Hash::check($data['password'], '$2y$12$dummyhashvaluetopreventtimingattacksx');
+            return response()->json(['message' => 'Credenciales inválidas'], 401);
+        }
+
+        if (!$user->is_active || !Hash::check($data['password'], $user->password)) {
+            return response()->json(['message' => 'Credenciales inválidas'], 401);
         }
 
         $token = $user->createToken('kore-api')->plainTextToken;

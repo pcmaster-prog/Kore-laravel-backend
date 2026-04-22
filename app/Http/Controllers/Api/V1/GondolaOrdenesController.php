@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use App\Models\Gondola;
 use App\Models\GondolaOrden;
@@ -141,26 +142,31 @@ class GondolaOrdenesController extends Controller
 
         $empresaId = $user->empresa_id;
 
-        $orden = GondolaOrden::create([
-            'empresa_id'  => $empresaId,
-            'gondola_id'  => $gondola->id,
-            'empleado_id' => $data['empleado_id'],
-            'status'      => 'pendiente',
-            'notas_empleado' => $data['notas'] ?? null,
-        ]);
-
-        // Crear snapshot de todos los productos activos de la góndola
-        foreach ($gondola->productos as $producto) {
-            GondolaOrdenItem::create([
-                'empresa_id'          => $empresaId,
-                'orden_id'            => $orden->id,
-                'gondola_producto_id' => $producto->id,
-                'clave'               => $producto->clave,
-                'nombre'              => $producto->nombre,
-                'unidad'              => $producto->unidad,
-                'cantidad'            => null, // el empleado lo llenará
+        // Section 2.4: operación atómica (orden + snapshot de items)
+        $orden = DB::transaction(function () use ($empresaId, $gondola, $data) {
+            $orden = GondolaOrden::create([
+                'empresa_id'  => $empresaId,
+                'gondola_id'  => $gondola->id,
+                'empleado_id' => $data['empleado_id'],
+                'status'      => 'pendiente',
+                'notas_empleado' => $data['notas'] ?? null,
             ]);
-        }
+
+            // Crear snapshot de todos los productos activos de la góndola
+            foreach ($gondola->productos as $producto) {
+                GondolaOrdenItem::create([
+                    'empresa_id'          => $empresaId,
+                    'orden_id'            => $orden->id,
+                    'gondola_producto_id' => $producto->id,
+                    'clave'               => $producto->clave,
+                    'nombre'              => $producto->nombre,
+                    'unidad'              => $producto->unidad,
+                    'cantidad'            => null, // el empleado lo llenará
+                ]);
+            }
+
+            return $orden;
+        });
 
         return response()->json($this->formatOrden($orden->fresh()), 201);
     }
@@ -307,32 +313,35 @@ class GondolaOrdenesController extends Controller
             'evidencia'            => ['nullable', 'file', 'image', 'max:5120'],
         ]);
 
-        // Actualizar cantidades de cada item
-        foreach ($data['items'] as $itemData) {
-            GondolaOrdenItem::where('orden_id', $orden->id)
-                ->where('id', $itemData['id'])
-                ->update(['cantidad' => $itemData['cantidad']]);
-        }
+        // Section 2.4: actualización atómica (items + status + evidencia)
+        DB::transaction(function () use ($orden, $data, $request, $user) {
+            // Actualizar cantidades de cada item
+            foreach ($data['items'] as $itemData) {
+                GondolaOrdenItem::where('orden_id', $orden->id)
+                    ->where('id', $itemData['id'])
+                    ->update(['cantidad' => $itemData['cantidad']]);
+            }
 
-        // Subir evidencia si viene como archivo
-        $evidenciaUrl = $data['evidencia_url'] ?? $orden->evidencia_url;
+            // Subir evidencia si viene como archivo
+            $evidenciaUrl = $data['evidencia_url'] ?? $orden->evidencia_url;
 
-        if ($request->hasFile('evidencia')) {
-            $path = $request->file('evidencia')->store(
-                "kore/{$user->empresa_id}/gondola-ordenes/{$orden->id}",
-                's3'
-            );
+            if ($request->hasFile('evidencia')) {
+                $path = $request->file('evidencia')->store(
+                    "kore/{$user->empresa_id}/gondola-ordenes/{$orden->id}",
+                    's3'
+                );
 
-            // Almacenamos el path, y generamos la URL temporal al consultarlo
-            $evidenciaUrl = $path;
-        }
+                // Almacenamos el path, y generamos la URL temporal al consultarlo
+                $evidenciaUrl = $path;
+            }
 
-        $orden->update([
-            'status'         => 'completado',
-            'notas_empleado' => $data['notas_empleado'] ?? $orden->notas_empleado,
-            'evidencia_url'  => $evidenciaUrl,
-            'completed_at'   => now(),
-        ]);
+            $orden->update([
+                'status'         => 'completado',
+                'notas_empleado' => $data['notas_empleado'] ?? $orden->notas_empleado,
+                'evidencia_url'  => $evidenciaUrl,
+                'completed_at'   => now(),
+            ]);
+        });
 
         return response()->json($this->formatOrden($orden->fresh()));
     }

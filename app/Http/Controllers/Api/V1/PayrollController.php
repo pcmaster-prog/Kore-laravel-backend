@@ -12,6 +12,7 @@ use App\Models\PayrollEntry;
 use App\Models\PayrollPeriod;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class PayrollController extends Controller
 {
@@ -54,7 +55,7 @@ class PayrollController extends Controller
 
         [$weekStart, $weekEnd] = $this->weekRange($data['week_date'], $empresaId);
 
-        // Busca o crea el periodo
+        // Busca periodo existente antes de la transacción
         $period = PayrollPeriod::where('empresa_id', $empresaId)
             ->where('week_start', $weekStart)
             ->first();
@@ -63,36 +64,39 @@ class PayrollController extends Controller
             return response()->json(['message' => 'Este periodo ya fue aprobado y no puede regenerarse'], 409);
         }
 
-        if (!$period) {
-            $period = PayrollPeriod::create([
-                'empresa_id' => $empresaId,
-                'week_start' => $weekStart,
-                'week_end'   => $weekEnd,
-                'status'     => 'draft',
+        // Section 2.4: toda la generación dentro de una transacción
+        return DB::transaction(function () use ($empresaId, $period, $weekStart, $weekEnd) {
+            if (!$period) {
+                $period = PayrollPeriod::create([
+                    'empresa_id' => $empresaId,
+                    'week_start' => $weekStart,
+                    'week_end'   => $weekEnd,
+                    'status'     => 'draft',
+                ]);
+            }
+
+            $rawExcluded = $period->excluded_employee_ids ?? [];
+            $excluded = is_string($rawExcluded) ? json_decode($rawExcluded, true) : $rawExcluded;
+            if (!is_array($excluded)) $excluded = [];
+
+            // Recalcula entradas para todos los empleados activos
+            $empleados = Empleado::where('empresa_id', $empresaId)
+                ->where('status', 'active')
+                ->when(!empty($excluded), fn($q) => $q->whereNotIn('id', $excluded))
+                ->get();
+
+            foreach ($empleados as $emp) {
+                $this->computeEntry($empresaId, $period, $emp, $weekStart, $weekEnd);
+            }
+
+            // Recalcula totales del periodo
+            $this->recalcPeriodTotals($period);
+
+            return response()->json([
+                'message' => 'Periodo generado correctamente',
+                'period'  => $this->presentPeriod($period->fresh(['entries.empleado'])),
             ]);
-        }
-
-        $rawExcluded = $period->excluded_employee_ids ?? [];
-        $excluded = is_string($rawExcluded) ? json_decode($rawExcluded, true) : $rawExcluded;
-        if (!is_array($excluded)) $excluded = [];
-
-        // Recalcula entradas para todos los empleados activos
-        $empleados = Empleado::where('empresa_id', $empresaId)
-            ->where('status', 'active')
-            ->when(!empty($excluded), fn($q) => $q->whereNotIn('id', $excluded))
-            ->get();
-
-        foreach ($empleados as $emp) {
-            $this->computeEntry($empresaId, $period, $emp, $weekStart, $weekEnd);
-        }
-
-        // Recalcula totales del periodo
-        $this->recalcPeriodTotals($period);
-
-        return response()->json([
-            'message' => 'Periodo generado correctamente',
-            'period'  => $this->presentPeriod($period->fresh(['entries.empleado'])),
-        ]);
+        });
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -209,16 +213,19 @@ class PayrollController extends Controller
             return response()->json(['message' => 'Ya estaba aprobado'], 409);
         }
 
-        $period->update([
-            'status'      => 'approved',
-            'approved_by' => $u->id,
-            'approved_at' => now(),
-        ]);
+        // Section 2.4: aprobación atómica
+        return DB::transaction(function () use ($period, $u) {
+            $period->update([
+                'status'      => 'approved',
+                'approved_by' => $u->id,
+                'approved_at' => now(),
+            ]);
 
-        return response()->json([
-            'message' => 'Nómina aprobada',
-            'period'  => $this->presentPeriod($period->fresh(['entries.empleado'])),
-        ]);
+            return response()->json([
+                'message' => 'Nómina aprobada',
+                'period'  => $this->presentPeriod($period->fresh(['entries.empleado'])),
+            ]);
+        });
     }
 
     // ─────────────────────────────────────────────────────────────────────────

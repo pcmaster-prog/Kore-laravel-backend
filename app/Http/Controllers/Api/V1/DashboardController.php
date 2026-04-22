@@ -64,8 +64,10 @@ class DashboardController extends Controller
         // ---- ATTENDANCE snapshot de HOY
         $employeesTotal = Empleado::where('empresa_id',$empresaId)->count();
 
+        // Section 2.1: eager load empleado to avoid N+1 if needed downstream
         $attendanceDays = AttendanceDay::where('empresa_id',$empresaId)
             ->where('date',$date)
+            ->with('events')
             ->get(['id','empleado_id','status','first_check_in_at','last_check_out_at']);
 
         $closed = $attendanceDays->whereNotNull('last_check_out_at')->count();
@@ -184,16 +186,16 @@ class DashboardController extends Controller
             ]);
 
         // ── 2. Carga de trabajo por empleado ─────────────────────────────────
-        // Obtener todos los empleados activos
+        // Section 2.1: eager load user to prevent N+1
         $empleados = \App\Models\Empleado::where('empresa_id', $empresaId)
             ->where('status', 'active')
-            ->with('user')
+            ->with('user:id,name,avatar_url')
             ->get();
 
-        // Obtener asignaciones activas de hoy (assigned o in_progress)
+        // Section 2.1: eager load task to prevent N+1 in the workload loop
         $activeAssignments = \App\Models\TaskAssignee::where('empresa_id', $empresaId)
             ->whereIn('status', ['assigned', 'in_progress'])
-            ->with('task')
+            ->with('task:id,title,priority,status,meta')
             ->get();
 
         $workload = $empleados->map(function ($emp) use ($activeAssignments) {

@@ -22,7 +22,13 @@ class RegisterController extends Controller
             'employee_count_range' => ['nullable', 'string', 'max:20'],
             'admin_name'           => ['required', 'string', 'max:160'],
             'admin_email'          => ['required', 'email', 'max:200', 'unique:users,email'],
-            'admin_password'       => ['required', 'string', 'min:6', 'max:100'],
+            'admin_password'       => [
+                'required', 'string', 'min:8', 'max:100',
+                'regex:/[a-z]/',      // al menos una minúscula
+                'regex:/[A-Z]/',      // al menos una mayúscula
+                'regex:/[0-9]/',      // al menos un número
+                'regex:/[@$!%*#?&]/', // al menos un símbolo
+            ],
             'modules'              => ['nullable', 'array'],
             'modules.*'            => ['string']
         ]);
