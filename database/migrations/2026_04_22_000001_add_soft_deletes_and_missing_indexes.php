@@ -13,43 +13,25 @@ return new class extends Migration
     public function up(): void
     {
         // ── Soft Deletes ─────────────────────────────────────────────────
-        Schema::table('users', function (Blueprint $table) {
-            if (!Schema::hasColumn('users', 'deleted_at')) {
-                $table->softDeletes();
-            }
-        });
+        $tablesWithSoftDeletes = ['users', 'empleados', 'tasks', 'payroll_periods', 'gondola_ordenes'];
 
-        Schema::table('empleados', function (Blueprint $table) {
-            if (!Schema::hasColumn('empleados', 'deleted_at')) {
-                $table->softDeletes();
+        foreach ($tablesWithSoftDeletes as $tableName) {
+            if (Schema::hasTable($tableName) && !Schema::hasColumn($tableName, 'deleted_at')) {
+                Schema::table($tableName, function (Blueprint $table) {
+                    $table->softDeletes();
+                });
             }
-        });
-
-        Schema::table('tasks', function (Blueprint $table) {
-            if (!Schema::hasColumn('tasks', 'deleted_at')) {
-                $table->softDeletes();
-            }
-        });
-
-        Schema::table('payroll_periods', function (Blueprint $table) {
-            if (!Schema::hasColumn('payroll_periods', 'deleted_at')) {
-                $table->softDeletes();
-            }
-        });
-
-        Schema::table('gondola_ordenes', function (Blueprint $table) {
-            if (!Schema::hasColumn('gondola_ordenes', 'deleted_at')) {
-                $table->softDeletes();
-            }
-        });
+        }
 
         // ── Missing Indexes (Section 4.1) ────────────────────────────────
-        // users.empresa_id — filtros frecuentes por empresa
+        
+        // users.empresa_id
         Schema::table('users', function (Blueprint $table) {
+            // En Postgres es mejor no repetir índices si ya existen
             $table->index('empresa_id', 'users_empresa_id_idx');
         });
 
-        // payroll_entries: filtros por periodo + empleado
+        // payroll_entries
         Schema::table('payroll_entries', function (Blueprint $table) {
             $table->index(
                 ['payroll_period_id', 'empleado_id'],
@@ -57,7 +39,7 @@ return new class extends Migration
             );
         });
 
-        // gondola_ordenes: filtros frecuentes por empresa + status
+        // gondola_ordenes
         Schema::table('gondola_ordenes', function (Blueprint $table) {
             $table->index(
                 ['empresa_id', 'status'],
