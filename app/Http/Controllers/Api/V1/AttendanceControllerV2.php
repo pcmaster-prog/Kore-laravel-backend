@@ -1107,10 +1107,26 @@ class AttendanceControllerV2 extends Controller
             $lunchMinutes = (int) round($d->lunch_start_at->diffInMinutes(now()));
         }
 
-        // Si hay retardo registrado, reportar 'late' sin importar si el status en DB
-        // es 'open' o 'closed' (para cubrir registros históricos que no lo tenían).
+        // Si hay retardo registrado, reportar 'late'.
+        // Si no hay late_minutes en DB, intentar calcularlo al vuelo usando la config de la empresa.
         $effectiveStatus = $d->status;
-        if (($d->late_minutes ?? 0) > 0 && in_array($d->status, ['open', 'closed', 'present'])) {
+        $lateMins = (int)($d->late_minutes ?? 0);
+
+        if ($lateMins === 0 && $d->first_check_in_at) {
+            $empresa = Empresa::find($d->empresa_id);
+            $settings = is_array($empresa->settings) ? $empresa->settings : [];
+            $checkInTimeStr = $settings['operativo']['check_in_time'] ?? null;
+
+            if ($checkInTimeStr) {
+                $scheduled = \Carbon\Carbon::parse($d->date->toDateString() . ' ' . $checkInTimeStr);
+                // Si entró más de 1 minuto tarde de la hora programada (sin contar gracia para visualización)
+                if ($d->first_check_in_at->greaterThan($scheduled->copy()->addMinute())) {
+                    $lateMins = (int) ceil($d->first_check_in_at->diffInMinutes($scheduled));
+                }
+            }
+        }
+
+        if ($lateMins > 0 && in_array($d->status, ['open', 'closed', 'present'])) {
             $effectiveStatus = 'late';
         }
 
@@ -1122,7 +1138,7 @@ class AttendanceControllerV2 extends Controller
             'first_check_in_at' => $d->first_check_in_at?->toISOString(),
             'last_check_out_at' => $d->last_check_out_at?->toISOString(),
             // Retardo
-            'late_minutes'      => $d->late_minutes,
+            'late_minutes'      => $lateMins,
             // Campos de comida
             'lunch_start_at'    => $d->lunch_start_at?->toISOString(),
             'lunch_end_at'      => $d->lunch_end_at?->toISOString(),
