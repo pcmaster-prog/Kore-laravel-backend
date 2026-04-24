@@ -87,20 +87,37 @@ class AttendanceControllerV2 extends Controller
         $day->first_check_in_at = $day->first_check_in_at ?? now();
         $day->status = 'open';
 
-        // ⏰ DETECCIÓN DE RETARDO
+        // ⏰ DETECCIÓN DE RETARDO (via TardinessConfig)
         $lateMinutes = 0;
         $tardCount   = 0;
+
+        $tardinessConfig = \App\Models\TardinessConfig::firstOrCreate(
+            ['empresa_id' => $empresaId],
+            [
+                'grace_period_minutes'    => 10,
+                'late_threshold_minutes'  => 1,
+                'lates_to_absence'        => 3,
+                'accumulation_period'     => 'month',
+                'penalize_rest_day'       => true,
+                'notify_employee_on_late' => true,
+                'notify_manager_on_late'  => true,
+            ]
+        );
+
         $freshSettings = is_array($empresa->settings) ? $empresa->settings : [];
         $freshOperativo = $freshSettings['operativo'] ?? null;
+
         if ($freshOperativo && isset($freshOperativo['check_in_time'])) {
-            $tolerance    = (int)($freshOperativo['late_tolerance'] ?? 10);
-            $checkInAt    = \Carbon\Carbon::parse($today . ' ' . $freshOperativo['check_in_time']);
-            $lateThreshold = $checkInAt->copy()->addMinutes($tolerance);
-            $nowTs        = now();
+            $scheduledTime = \Carbon\Carbon::parse($today . ' ' . $freshOperativo['check_in_time']);
+            $graceLimit    = $scheduledTime->copy()->addMinutes($tardinessConfig->grace_period_minutes);
+            $lateThreshold = $graceLimit->copy()->addMinutes($tardinessConfig->late_threshold_minutes);
+            $nowTs         = now();
+
             if ($nowTs->greaterThan($lateThreshold)) {
-                $lateMinutes = (int)ceil($nowTs->diffInMinutes($lateThreshold));
+                $lateMinutes = (int) ceil($nowTs->diffInMinutes($scheduledTime));
             }
         }
+
         if ($lateMinutes > 0) {
             $day->late_minutes = $lateMinutes;
         }
@@ -114,6 +131,22 @@ class AttendanceControllerV2 extends Controller
             ->whereBetween('date', [$monthStart, $monthEnd])
             ->where('late_minutes', '>', 0)
             ->count();
+
+        // Generar ausencia si se alcanzó el umbral de retardos
+        if ($tardCount >= $tardinessConfig->lates_to_absence
+            && $tardinessConfig->penalize_rest_day) {
+            \App\Models\GeneratedAbsence::firstOrCreate(
+                [
+                    'empleado_id' => $emp->id,
+                    'period_key'  => now()->format('Y-m'),
+                    'type'        => 'late_accumulation',
+                ],
+                [
+                    'empresa_id'              => $empresaId,
+                    'affects_rest_day_payment' => true,
+                ]
+            );
+        }
 
         // 🔔 PARCHE 1: Logging para check_in
         \App\Services\ActivityLogger::log(
@@ -132,10 +165,10 @@ class AttendanceControllerV2 extends Controller
             $request
         );
 
-        // 🔔 Notificar al empleado si tiene retardos
-        if ($tardCount > 0) {
+        // 🔔 Notificar al empleado si tiene retardos (respeta config)
+        if ($tardCount > 0 && $tardinessConfig->notify_employee_on_late) {
             try {
-                $penaltyActive = $tardCount >= 3;
+                $penaltyActive = $tardCount >= $tardinessConfig->lates_to_absence;
                 app(NotificationService::class)->sendToUser(
                     userId: $u->id,
                     title: $lateMinutes > 0 ? '⏰ Llegada tarde registrada' : '⚡ Alerta de puntualidad',
@@ -151,33 +184,36 @@ class AttendanceControllerV2 extends Controller
             }
         }
 
-        // 🔔 Notificar a managers sobre la entrada
-        try {
-            $managerBody = ($emp->full_name ?? $u->name) . ' marcó entrada a las ' . now()->format('H:i');
-            if ($lateMinutes > 0) {
-                $managerBody .= " (retardo: {$lateMinutes} min — acumulado mes: {$tardCount}retardo(s))";
+        // 🔔 Notificar a managers sobre la entrada (respeta config)
+        if ($tardinessConfig->notify_manager_on_late || $lateMinutes === 0) {
+            try {
+                $managerBody = ($emp->full_name ?? $u->name) . ' marcó entrada a las ' . now()->format('H:i');
+                if ($lateMinutes > 0) {
+                    $managerBody .= " (retardo: {$lateMinutes} min — acumulado mes: {$tardCount} retardo(s))";
+                }
+                app(NotificationService::class)->sendToManagers(
+                    empresaId: $empresaId,
+                    title: $lateMinutes > 0 ? '⚠️ Entrada tardía' : '📍 Entrada registrada',
+                    body: $managerBody,
+                    data: [
+                        'type'            => 'attendance.check_in',
+                        'empleado_id'     => $emp->id,
+                        'empresa_id'      => $empresaId,
+                        'late_minutes'    => (string)$lateMinutes,
+                        'tardiness_count' => (string)$tardCount,
+                    ]
+                );
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error('Error de notificaciones en entrada: ' . $e->getMessage());
             }
-            app(NotificationService::class)->sendToManagers(
-                empresaId: $empresaId,
-                title: $lateMinutes > 0 ? '⚠️ Entrada tardía' : '📍 Entrada registrada',
-                body: $managerBody,
-                data: [
-                    'type'            => 'attendance.check_in',
-                    'empleado_id'     => $emp->id,
-                    'empresa_id'      => $empresaId,
-                    'late_minutes'    => (string)$lateMinutes,
-                    'tardiness_count' => (string)$tardCount,
-                ]
-            );
-        } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error('Error de notificaciones en entrada: ' . $e->getMessage());
         }
 
         return response()->json([
             'message'         => $lateMinutes > 0 ? "Entrada registrada con {$lateMinutes} min de retardo" : 'Entrada OK',
+            'is_late'         => $lateMinutes > 0,
             'late_minutes'    => $lateMinutes,
             'tardiness_count' => $tardCount,
-            'penalty_active'  => $tardCount >= 3,
+            'penalty_active'  => $tardCount >= $tardinessConfig->lates_to_absence,
             'day'             => $this->presentDay($day),
         ]);
     }

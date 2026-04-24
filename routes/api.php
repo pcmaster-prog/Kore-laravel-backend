@@ -46,6 +46,10 @@ use App\Http\Controllers\Api\V1\EmpresaDocumentosController;
 // Solicitudes de ausencia
 use App\Http\Controllers\Api\V1\AbsenceRequestController;
 
+// Sistema de retardos
+use App\Http\Controllers\Api\V1\TardinessConfigController;
+use App\Http\Controllers\Api\V1\TardinessReportController;
+
 // 🔥 Nuevo controlador para revisiones
 //use App\Http\Controllers\Api\V1\TaskReviewsController;
 
@@ -218,6 +222,19 @@ Route::prefix('v1')->group(function () {
                 Route::get('/asistencia/ausencias',               [AbsenceRequestController::class, 'myRequests']);
                 Route::get('/asistencia/ausencias/pendientes',    [AbsenceRequestController::class, 'pending']);
                 Route::patch('/asistencia/ausencias/{id}',        [AbsenceRequestController::class, 'review']);
+            });
+
+            // ── Módulo Retardos ──────────────────────────────────────────────────────
+            // Configuración de retardos (solo admin)
+            Route::middleware(['role:admin'])->group(function () {
+                Route::get('/config/retardos',   [TardinessConfigController::class, 'show']);
+                Route::patch('/config/retardos', [TardinessConfigController::class, 'update']);
+            });
+
+            // Reportes de retardos (admin + supervisor)
+            Route::middleware(['role:admin,supervisor'])->group(function () {
+                Route::get('/retardos/resumen-mes',            [TardinessReportController::class, 'monthlySummary']);
+                Route::get('/retardos/empleado/{empleado}',    [TardinessReportController::class, 'employeeDetail']);
             });
 
             //Modulo de Nomina
