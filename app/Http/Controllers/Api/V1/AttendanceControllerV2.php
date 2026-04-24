@@ -120,6 +120,7 @@ class AttendanceControllerV2 extends Controller
 
         if ($lateMinutes > 0) {
             $day->late_minutes = $lateMinutes;
+            $day->status = 'late'; // ← marcar retardo en DB para que el admin lo vea
         }
         $day->save();
 
@@ -1106,11 +1107,18 @@ class AttendanceControllerV2 extends Controller
             $lunchMinutes = (int) round($d->lunch_start_at->diffInMinutes(now()));
         }
 
+        // Si hay retardo registrado, reportar 'late' sin importar si el status en DB
+        // es 'open' o 'closed' (para cubrir registros históricos que no lo tenían).
+        $effectiveStatus = $d->status;
+        if (($d->late_minutes ?? 0) > 0 && in_array($d->status, ['open', 'closed', 'present'])) {
+            $effectiveStatus = 'late';
+        }
+
         return [
             'id'                => $d->id,
             'empleado_id'       => $d->empleado_id,
             'date'              => $d->date?->toDateString(),
-            'status'            => $d->status,
+            'status'            => $effectiveStatus,
             'first_check_in_at' => $d->first_check_in_at?->toISOString(),
             'last_check_out_at' => $d->last_check_out_at?->toISOString(),
             // Retardo
