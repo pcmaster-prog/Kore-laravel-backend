@@ -67,7 +67,10 @@ class PayrollController extends Controller
             ->first();
 
         if ($period && $period->status === 'approved') {
-            return response()->json(['message' => 'Este periodo ya fue aprobado y no puede regenerarse'], 409);
+            return response()->json([
+                'message' => 'Este periodo ya fue aprobado y no puede regenerarse',
+                'period'  => $this->presentPeriod($period->load('entries.empleado')),
+            ], 409);
         }
 
         // Section 2.4: toda la generación dentro de una transacción
@@ -116,6 +119,36 @@ class PayrollController extends Controller
         $period = PayrollPeriod::where('empresa_id', $empresaId)
             ->with(['entries.empleado'])
             ->findOrFail($id);
+
+        return response()->json($this->presentPeriod($period));
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET /nomina/periodos/semana?week_date=YYYY-MM-DD
+    // Busca un periodo por fecha de semana (sin generarlo)
+    // ─────────────────────────────────────────────────────────────────────────
+    public function showByWeekDate(Request $request)
+    {
+        [, $empresaId] = $this->requireAdmin($request);
+
+        $data = $request->validate([
+            'week_date' => ['required', 'date'],
+        ]);
+
+        [$weekStart, $weekEnd] = $this->weekRange($data['week_date'], $empresaId);
+
+        $period = PayrollPeriod::where('empresa_id', $empresaId)
+            ->where('week_start', $weekStart)
+            ->with(['entries.empleado'])
+            ->first();
+
+        if (!$period) {
+            return response()->json([
+                'message'    => 'No hay periodo para esta semana',
+                'week_start' => $weekStart,
+                'week_end'   => $weekEnd,
+            ], 404);
+        }
 
         return response()->json($this->presentPeriod($period));
     }

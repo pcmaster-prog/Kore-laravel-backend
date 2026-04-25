@@ -242,6 +242,7 @@ Route::prefix('v1')->group(function () {
 
             //Modulo de Nomina
                 Route::get('/nomina/periodos',                       [PayrollController::class, 'index']);
+                Route::get('/nomina/periodos/semana',                [PayrollController::class, 'showByWeekDate']);
                 Route::post('/nomina/periodos/generar',              [PayrollController::class, 'generate']);
                 Route::get('/nomina/periodos/{id}',                  [PayrollController::class, 'show']);
                 Route::patch('/nomina/periodos/{id}',                [PayrollController::class, 'updateNotes']);
