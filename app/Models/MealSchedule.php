@@ -18,11 +18,11 @@ class MealSchedule extends Model
     ];
 
     /**
-     * The user (employee) this schedule belongs to.
+     * The employee this schedule belongs to.
      */
     public function employee()
     {
-        return $this->belongsTo(User::class, 'employee_id');
+        return $this->belongsTo(Empleado::class, 'employee_id');
     }
 
     /**

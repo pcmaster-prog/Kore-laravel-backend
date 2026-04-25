@@ -29,7 +29,13 @@ class SendMealNotifications extends Command
         $sent = 0;
 
         foreach ($schedules as $schedule) {
-            $user = $schedule->employee;
+            $empleado = $schedule->employee;
+
+            if (!$empleado || !$empleado->user_id) {
+                continue;
+            }
+
+            $user = \App\Models\User::find($empleado->user_id);
 
             if (!$user || !$user->is_active) {
                 continue;
