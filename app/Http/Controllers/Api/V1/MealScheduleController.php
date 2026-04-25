@@ -23,7 +23,7 @@ class MealScheduleController extends Controller
         }
 
         $schedules = MealSchedule::where('empresa_id', $u->empresa_id)
-            ->with('employee:id,name')
+            ->with('employee:id,full_name')
             ->get()
             ->map(fn($s) => [
                 'id'                => $s->id,
