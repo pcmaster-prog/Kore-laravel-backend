@@ -51,7 +51,7 @@ class MealScheduleController extends Controller
 
         $data = $request->validate([
             'schedules'                      => ['required', 'array', 'min:1'],
-            'schedules.*.employee_id'        => ['required', 'integer', 'exists:users,id'],
+            'schedules.*.employee_id'        => ['required', 'uuid', 'exists:users,id'],
             'schedules.*.meal_start_time'    => ['required', 'date_format:H:i'],
             'schedules.*.duration_minutes'   => ['sometimes', 'integer', 'min:5', 'max:120'],
         ]);

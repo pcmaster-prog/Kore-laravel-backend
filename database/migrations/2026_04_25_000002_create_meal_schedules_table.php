@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('meal_schedules', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('employee_id')->constrained('users')->onDelete('cascade');
+            $table->foreignUuid('employee_id')->constrained('users')->onDelete('cascade');
             $table->foreignUuid('empresa_id')->constrained('empresas')->cascadeOnDelete();
             $table->time('meal_start_time'); // HH:mm:ss
             $table->integer('duration_minutes')->default(30);
