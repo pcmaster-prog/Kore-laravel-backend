@@ -76,5 +76,8 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withSchedule(function (\Illuminate\Console\Scheduling\Schedule $schedule) {
         // Cierre automático de asistencia — revisa cada minuto qué empresas deben cerrar hoy
         $schedule->command('attendance:auto-close')->everyMinute()->withoutOverlapping();
+
+        // Notificaciones de hora de comida — revisa cada minuto quién debe salir a comer
+        $schedule->command('meals:notify')->everyMinute()->withoutOverlapping();
     })
     ->create();

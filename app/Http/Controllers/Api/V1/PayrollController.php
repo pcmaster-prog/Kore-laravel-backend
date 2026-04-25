@@ -34,8 +34,14 @@ class PayrollController extends Controller
     {
         [, $empresaId] = $this->requireAdmin($request);
 
-        $periods = PayrollPeriod::where('empresa_id', $empresaId)
-            ->orderByDesc('week_start')
+        $query = PayrollPeriod::where('empresa_id', $empresaId);
+
+        // Filtrar por status si se proporciona (ej: ?status=approved)
+        if ($request->filled('status')) {
+            $query->where('status', $request->input('status'));
+        }
+
+        $periods = $query->orderByDesc('week_start')
             ->paginate(12);
 
         return response()->json($periods);
@@ -226,6 +232,28 @@ class PayrollController extends Controller
                 'period'  => $this->presentPeriod($period->fresh(['entries.empleado'])),
             ]);
         });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // PATCH /nomina/periodos/{id}
+    // Actualiza las notas del periodo
+    // ─────────────────────────────────────────────────────────────────────────
+    public function updateNotes(Request $request, string $id)
+    {
+        [$u, $empresaId] = $this->requireAdmin($request);
+
+        $period = PayrollPeriod::where('empresa_id', $empresaId)->findOrFail($id);
+
+        $data = $request->validate([
+            'notes' => ['nullable', 'string', 'max:5000'],
+        ]);
+
+        $period->update(['notes' => $data['notes']]);
+
+        return response()->json([
+            'message' => 'Notas actualizadas',
+            'period'  => $this->presentPeriod($period->fresh(['entries.empleado'])),
+        ]);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -469,6 +497,7 @@ class PayrollController extends Controller
             'week_start'        => $p->week_start?->toDateString(),
             'week_end'          => $p->week_end?->toDateString(),
             'status'            => $p->status,
+            'notes'             => $p->notes,
             'total_amount'      => $p->total_amount,
             'total_adjustments' => $p->total_adjustments,
             'total_bonuses'     => $p->total_bonuses,

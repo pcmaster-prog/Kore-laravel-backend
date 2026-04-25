@@ -50,6 +50,9 @@ use App\Http\Controllers\Api\V1\AbsenceRequestController;
 use App\Http\Controllers\Api\V1\TardinessConfigController;
 use App\Http\Controllers\Api\V1\TardinessReportController;
 
+// Horarios de comida
+use App\Http\Controllers\Api\V1\MealScheduleController;
+
 // 🔥 Nuevo controlador para revisiones
 //use App\Http\Controllers\Api\V1\TaskReviewsController;
 
@@ -241,10 +244,15 @@ Route::prefix('v1')->group(function () {
                 Route::get('/nomina/periodos',                       [PayrollController::class, 'index']);
                 Route::post('/nomina/periodos/generar',              [PayrollController::class, 'generate']);
                 Route::get('/nomina/periodos/{id}',                  [PayrollController::class, 'show']);
+                Route::patch('/nomina/periodos/{id}',                [PayrollController::class, 'updateNotes']);
                 Route::patch('/nomina/periodos/{id}/entradas/{entryId}', [PayrollController::class, 'updateEntry']);
                 Route::post('/nomina/periodos/{id}/aprobar',         [PayrollController::class, 'approve']);
                 Route::get('/nomina/periodos/{id}/exportar',         [PayrollController::class, 'export']);
                 Route::post('/nomina/periodos/{periodoId}/excluir',  [PayrollController::class, 'excluirEmpleado']);
+
+            // Horarios de comida
+                Route::get('/meal-schedules',       [MealScheduleController::class, 'index']);
+                Route::post('/meal-schedules/bulk', [MealScheduleController::class, 'bulkStore']);
             //perfil
             Route::get('/mi-perfil',   [ProfileController::class, 'show']);
             Route::patch('/mi-perfil', [ProfileController::class, 'update']);

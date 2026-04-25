@@ -66,4 +66,12 @@ class User extends Authenticatable
     {
         return $this->belongsTo(Empresa::class, 'empresa_id');
     }
+
+    /**
+     * Get the meal schedule for the user.
+     */
+    public function mealSchedule()
+    {
+        return $this->hasOne(MealSchedule::class, 'employee_id');
+    }
 }

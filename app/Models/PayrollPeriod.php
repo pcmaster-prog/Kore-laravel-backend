@@ -11,7 +11,7 @@ class PayrollPeriod extends Model
     use HasUuids, SoftDeletes;
 
     protected $fillable = [
-        'empresa_id', 'week_start', 'week_end', 'status',
+        'empresa_id', 'week_start', 'week_end', 'status', 'notes',
         'total_amount', 'total_adjustments', 'total_bonuses',
         'approved_by', 'approved_at',
     ];
