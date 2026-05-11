@@ -1,0 +1,63 @@
+<?php
+
+namespace App\Http\Controllers\Api\V1;
+
+use App\Http\Controllers\Controller;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
+
+class BitacoraController extends Controller
+{
+    // GET /v1/bitacora/criterios
+    public function getCriterios(Request $request)
+    {
+        Gate::authorize('supervisor');
+
+        $criterios = DB::table('bitacora_criterios')
+            ->where('activo', true)
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get();
+
+        return response()->json(['items' => $criterios]);
+    }
+
+    // POST /v1/bitacora/criterios
+    public function saveCriterios(Request $request)
+    {
+        Gate::authorize('admin');
+
+        $data = $request->validate([
+            'criterios'             => ['required', 'array', 'min:1'],
+            'criterios.*.label'     => ['required', 'string', 'max:120'],
+            'criterios.*.tipo'      => ['required', Rule::in(['positivo', 'negativo'])],
+            'criterios.*.sort_order'=> ['nullable', 'integer', 'min:0'],
+        ]);
+
+        $now = now();
+        $rows = array_map(function ($item, $index) use ($now) {
+            return [
+                'label'      => $item['label'],
+                'tipo'       => $item['tipo'],
+                'activo'     => true,
+                'sort_order' => $item['sort_order'] ?? $index,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }, $data['criterios'], array_keys($data['criterios']));
+
+        DB::transaction(function () use ($rows) {
+            DB::table('bitacora_criterios')->delete();
+            DB::table('bitacora_criterios')->insert($rows);
+        });
+
+        $criterios = DB::table('bitacora_criterios')
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get();
+
+        return response()->json(['items' => $criterios]);
+    }
+}
