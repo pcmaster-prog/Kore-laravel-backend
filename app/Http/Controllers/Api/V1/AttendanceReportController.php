@@ -107,6 +107,7 @@ class AttendanceReportController extends Controller
                 'empleado_ids'        => ['nullable', 'string'],
                 'incluir_retardos'    => ['nullable', 'boolean'],
                 'incluir_tiempos_comida' => ['nullable', 'boolean'],
+                'incluir_admins'      => ['nullable', 'boolean'],
             ]);
 
             $u = $request->user();
@@ -116,11 +117,16 @@ class AttendanceReportController extends Controller
 
             $incluirRetardos = filter_var($request->input('incluir_retardos', false), FILTER_VALIDATE_BOOLEAN);
             $incluirComida = filter_var($request->input('incluir_tiempos_comida', false), FILTER_VALIDATE_BOOLEAN);
+            $incluirAdmins = filter_var($request->input('incluir_admins', false), FILTER_VALIDATE_BOOLEAN);
 
             // Empleados a consultar
             $empleadoQuery = Empleado::where('empresa_id', $empresaId)
-                ->whereHas('user', function ($q) {
-                    $q->where('is_active', true)->where('role', 'empleado');
+                ->whereHas('user', function ($q) use ($incluirAdmins, $data) {
+                    $q->where('is_active', true);
+                    // Si no se filtra por IDs específicos y no se piden admins, excluir roles admin/superadmin
+                    if (empty($data['empleado_ids']) && !$incluirAdmins) {
+                        $q->whereNotIn('role', ['admin', 'superadmin']);
+                    }
                 });
 
             if (!empty($data['empleado_ids'])) {

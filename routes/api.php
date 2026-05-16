@@ -369,6 +369,10 @@ Route::prefix('v1')->group(function () {
                 // Empleado
                 Route::get('/semaforo/companeros',                           [SemaforoController::class, 'companeros']);
                 Route::post('/semaforo/peer-evaluaciones',                   [SemaforoController::class, 'peerEvaluar']);
+
+                // Configuración del semáforo (lectura pública dentro del módulo, escritura solo admin)
+                Route::get('/semaforo/config',                               [SemaforoController::class, 'configShow']);
+                Route::post('/semaforo/config',                              [SemaforoController::class, 'configStore']);
             });
 
             // Ruta de prueba 

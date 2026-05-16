@@ -7,10 +7,12 @@ use App\Models\EmployeeEvaluation;
 use App\Models\DesempenoEvaluacion;
 use App\Models\DesempenoPeerEvaluacion;
 use App\Models\Empleado;
+use App\Models\SemaforoConfig;
 use Illuminate\Http\Request;
 use App\Http\Resources\EmployeeEvaluationResource;
 use App\Http\Resources\EmpleadoResource;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Validator;
 
 class SemaforoController extends Controller
 {
@@ -410,8 +412,10 @@ class SemaforoController extends Controller
             }
 
             return [
-                'empleado' => new EmpleadoResource($eval->empleado),
-                'evaluation_id'     => $eval->id,
+                'id'             => $eval->empleado->id,
+                'nombre'         => $eval->empleado->full_name,
+                'position_title' => $eval->empleado->position_title,
+                'avatar_url'     => $eval->empleado->expediente_url,
                 'already_evaluated' => $alreadyEvaluated,
             ];
         });
@@ -419,7 +423,7 @@ class SemaforoController extends Controller
         return response()->json([
             'companeros' => $result,
             'progress'   => [
-                'evaluated' => $evaluated,
+                'evaluados' => $evaluated,
                 'total'     => $total,
             ],
         ]);
@@ -510,5 +514,132 @@ class SemaforoController extends Controller
                 'porcentaje'  => $peer->porcentaje,
             ],
         ], 201);
+    }
+
+    // ─── CONFIGURACIÓN SEMÁFORO ───────────────────────────────────────────────
+
+    private function defaultSemaforoConfig(): array
+    {
+        return [
+            'criterios_admin' => [
+                ['key' => 'puntualidad', 'label' => 'Puntualidad'],
+                ['key' => 'asistencia', 'label' => 'Asistencia'],
+                ['key' => 'productividad', 'label' => 'Productividad'],
+                ['key' => 'calidad', 'label' => 'Calidad de trabajo'],
+                ['key' => 'disciplina', 'label' => 'Disciplina'],
+                ['key' => 'proactividad', 'label' => 'Proactividad'],
+                ['key' => 'trabajo_equipo', 'label' => 'Trabajo en equipo'],
+                ['key' => 'cumplimiento', 'label' => 'Cumplimiento de normas'],
+            ],
+            'criterios_peer' => [
+                ['key' => 'cooperacion', 'label' => 'Cooperación', 'icon' => 'Handshake'],
+                ['key' => 'comunicacion', 'label' => 'Comunicación', 'icon' => 'MessageCircle'],
+                ['key' => 'responsabilidad', 'label' => 'Responsabilidad', 'icon' => 'Shield'],
+                ['key' => 'apoyo', 'label' => 'Apoyo al equipo', 'icon' => 'Heart'],
+            ],
+            'peso_admin'      => 70,
+            'peso_peer'       => 30,
+            'umbral_verde'    => 80,
+            'umbral_amarillo' => 60,
+        ];
+    }
+
+    /**
+     * GET /semaforo/config
+     * Cualquier usuario autenticado puede leer.
+     */
+    public function configShow(Request $request)
+    {
+        $u = $request->user();
+        $config = SemaforoConfig::where('empresa_id', $u->empresa_id)->first();
+
+        if (!$config) {
+            return response()->json($this->defaultSemaforoConfig());
+        }
+
+        return response()->json([
+            'criterios_admin' => $config->criterios_admin,
+            'criterios_peer'  => $config->criterios_peer,
+            'peso_admin'      => $config->peso_admin,
+            'peso_peer'       => $config->peso_peer,
+            'umbral_verde'    => $config->umbral_verde,
+            'umbral_amarillo' => $config->umbral_amarillo,
+            'updated_at'      => $config->updated_at,
+        ]);
+    }
+
+    /**
+     * POST /semaforo/config
+     * Solo admin/superadmin pueden guardar.
+     */
+    public function configStore(Request $request)
+    {
+        $u = $request->user();
+        if (!in_array($u->role, ['admin', 'superadmin'])) {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'criterios_admin' => ['required', 'array', 'min:1'],
+            'criterios_admin.*.key'   => ['required', 'string', 'regex:/^[a-z0-9_]+$/', 'max:50'],
+            'criterios_admin.*.label' => ['required', 'string', 'max:50'],
+            'criterios_peer'  => ['required', 'array', 'min:1'],
+            'criterios_peer.*.key'   => ['required', 'string', 'regex:/^[a-z0-9_]+$/', 'max:50'],
+            'criterios_peer.*.label' => ['required', 'string', 'max:50'],
+            'criterios_peer.*.icon'  => ['required', 'string', 'max:50'],
+            'peso_admin'      => ['required', 'integer', 'min:0', 'max:100'],
+            'peso_peer'       => ['required', 'integer', 'min:0', 'max:100'],
+            'umbral_verde'    => ['required', 'integer', 'min:0', 'max:100'],
+            'umbral_amarillo' => ['required', 'integer', 'min:0', 'max:100'],
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Error de validación',
+                'errors'  => $validator->errors(),
+            ], 422);
+        }
+
+        $data = $validator->validated();
+
+        if ($data['peso_admin'] + $data['peso_peer'] !== 100) {
+            return response()->json([
+                'message' => 'Los pesos deben sumar 100',
+                'errors'  => ['peso_admin' => ['peso_admin + peso_peer debe sumar 100']],
+            ], 422);
+        }
+
+        if ($data['umbral_verde'] <= $data['umbral_amarillo']) {
+            return response()->json([
+                'message' => 'El umbral verde debe ser mayor que el umbral amarillo',
+                'errors'  => ['umbral_verde' => ['umbral_verde debe ser mayor que umbral_amarillo']],
+            ], 422);
+        }
+
+        $config = SemaforoConfig::updateOrCreate(
+            ['empresa_id' => $u->empresa_id],
+            [
+                'created_by'      => $u->id,
+                'criterios_admin' => $data['criterios_admin'],
+                'criterios_peer'  => $data['criterios_peer'],
+                'peso_admin'      => $data['peso_admin'],
+                'peso_peer'       => $data['peso_peer'],
+                'umbral_verde'    => $data['umbral_verde'],
+                'umbral_amarillo' => $data['umbral_amarillo'],
+            ]
+        );
+
+        return response()->json([
+            'message' => 'Configuración guardada correctamente',
+            'config'  => [
+                'criterios_admin' => $config->criterios_admin,
+                'criterios_peer'  => $config->criterios_peer,
+                'peso_admin'      => $config->peso_admin,
+                'peso_peer'       => $config->peso_peer,
+                'umbral_verde'    => $config->umbral_verde,
+                'umbral_amarillo' => $config->umbral_amarillo,
+                'updated_at'      => $config->updated_at,
+            ],
+        ]);
     }
 }
