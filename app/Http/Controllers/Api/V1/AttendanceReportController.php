@@ -105,9 +105,6 @@ class AttendanceReportController extends Controller
                 'from'                => ['required', 'date_format:Y-m-d'],
                 'to'                  => ['required', 'date_format:Y-m-d', 'after_or_equal:from'],
                 'empleado_ids'        => ['nullable', 'string'],
-                'incluir_retardos'    => ['nullable', 'boolean'],
-                'incluir_tiempos_comida' => ['nullable', 'boolean'],
-                'incluir_admins'      => ['nullable', 'boolean'],
             ]);
 
             $u = $request->user();
@@ -115,9 +112,9 @@ class AttendanceReportController extends Controller
             $from = Carbon::parse($data['from']);
             $to = Carbon::parse($data['to']);
 
-            $incluirRetardos = $data['incluir_retardos'] ?? false;
-            $incluirComida = $data['incluir_tiempos_comida'] ?? false;
-            $incluirAdmins = $data['incluir_admins'] ?? false;
+            $incluirRetardos = in_array(strtolower($request->input('incluir_retardos', '')), ['true', '1', 'yes'], true);
+            $incluirComida = in_array(strtolower($request->input('incluir_tiempos_comida', '')), ['true', '1', 'yes'], true);
+            $incluirAdmins = in_array(strtolower($request->input('incluir_admins', '')), ['true', '1', 'yes'], true);
             $tieneFiltroIds = !empty($data['empleado_ids']);
 
             // Empleados a consultar
@@ -205,8 +202,6 @@ class AttendanceReportController extends Controller
         $data = $request->validate([
             'from'                => ['required', 'date_format:Y-m-d'],
             'to'                  => ['required', 'date_format:Y-m-d', 'after_or_equal:from'],
-            'incluir_retardos'    => ['nullable', 'boolean'],
-            'incluir_tiempos_comida' => ['nullable', 'boolean'],
         ]);
 
         $u = $request->user();
@@ -214,8 +209,8 @@ class AttendanceReportController extends Controller
         $from = Carbon::parse($data['from']);
         $to = Carbon::parse($data['to']);
 
-        $incluirRetardos = filter_var($request->input('incluir_retardos', false), FILTER_VALIDATE_BOOLEAN);
-        $incluirComida = filter_var($request->input('incluir_tiempos_comida', false), FILTER_VALIDATE_BOOLEAN);
+        $incluirRetardos = in_array(strtolower($request->input('incluir_retardos', '')), ['true', '1', 'yes'], true);
+        $incluirComida = in_array(strtolower($request->input('incluir_tiempos_comida', '')), ['true', '1', 'yes'], true);
 
         $emp = Empleado::where('empresa_id', $empresaId)->where('id', $empleadoId)->first();
         if (!$emp) {
