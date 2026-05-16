@@ -167,7 +167,7 @@ class AttendanceReportController extends Controller
         }
 
         return response()->json([
-            'semana' => (int) $from->week,
+            'semana' => (int) $from->format('W'),
             'anio'   => (int) $from->year,
             'rango'  => [
                 'desde' => $from->toDateString(),
@@ -377,7 +377,7 @@ class AttendanceReportController extends Controller
         $nombresDias = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 
         // Determinar el domingo de la semana que contiene a $from
-        $weekStart = $from->copy()->startOfWeek(Carbon::SUNDAY);
+        $weekStart = $from->copy()->startOfWeek(0); // 0 = Sunday
         $weekEnd = $weekStart->copy()->addDays(6);
 
         for ($i = 0; $i <= 6; $i++) {
@@ -436,7 +436,7 @@ class AttendanceReportController extends Controller
             'empleado' => [
                 'id'             => $emp->id,
                 'nombre'         => $emp->full_name,
-                'comida_hora'    => $mealSchedule?->meal_start_time?->format('H:i:s'),
+                'comida_hora'    => $mealSchedule?->meal_start_time,
                 'position_title' => $emp->position_title,
             ],
             'dias'          => $dias,
