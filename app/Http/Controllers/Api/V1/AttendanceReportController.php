@@ -115,17 +115,18 @@ class AttendanceReportController extends Controller
             $from = Carbon::parse($data['from']);
             $to = Carbon::parse($data['to']);
 
-            $incluirRetardos = filter_var($request->input('incluir_retardos', false), FILTER_VALIDATE_BOOLEAN);
-            $incluirComida = filter_var($request->input('incluir_tiempos_comida', false), FILTER_VALIDATE_BOOLEAN);
-            $incluirAdmins = filter_var($request->input('incluir_admins', false), FILTER_VALIDATE_BOOLEAN);
+            $incluirRetardos = $data['incluir_retardos'] ?? false;
+            $incluirComida = $data['incluir_tiempos_comida'] ?? false;
+            $incluirAdmins = $data['incluir_admins'] ?? false;
+            $tieneFiltroIds = !empty($data['empleado_ids']);
 
             // Empleados a consultar
             $empleadoQuery = Empleado::where('empresa_id', $empresaId)
-                ->whereHas('user', function ($q) use ($incluirAdmins, $data) {
+                ->whereHas('user', function ($q) use ($incluirAdmins, $tieneFiltroIds) {
                     $q->where('is_active', true);
-                    // Si no se filtra por IDs específicos y no se piden admins, excluir roles admin/superadmin
-                    if (empty($data['empleado_ids']) && !$incluirAdmins) {
-                        $q->whereNotIn('role', ['admin', 'superadmin']);
+                    // Si no se filtra por IDs específicos y no se piden admins, excluir roles admin/supervisor
+                    if (!$tieneFiltroIds && !$incluirAdmins) {
+                        $q->whereNotIn('role', ['admin', 'supervisor']);
                     }
                 });
 
