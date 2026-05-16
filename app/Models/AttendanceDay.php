@@ -13,6 +13,7 @@ class AttendanceDay extends Model
         'first_check_in_at','last_check_out_at','totals',
         'lunch_start_at','lunch_end_at',
         'late_minutes',
+        'admin_closed','admin_closed_by','admin_closed_reason',
     ];
 
     protected $casts = [
@@ -23,10 +24,21 @@ class AttendanceDay extends Model
         'lunch_end_at'      => 'datetime',
         'totals'            => 'array',
         'late_minutes'      => 'integer',
+        'admin_closed'      => 'boolean',
     ];
 
     public function events()
     {
         return $this->hasMany(AttendanceEvent::class, 'attendance_day_id');
+    }
+
+    public function empleado()
+    {
+        return $this->belongsTo(Empleado::class, 'empleado_id');
+    }
+
+    public function adminClosedBy()
+    {
+        return $this->belongsTo(User::class, 'admin_closed_by');
     }
 }

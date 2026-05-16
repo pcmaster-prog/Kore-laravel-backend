@@ -55,6 +55,7 @@ use App\Http\Controllers\Api\V1\TardinessReportController;
 // Horarios de comida
 use App\Http\Controllers\Api\V1\MealScheduleController;
 use App\Http\Controllers\Api\V1\HolidayController;
+use App\Http\Controllers\Api\V1\AttendanceReportController;
 
 // 🔥 Nuevo controlador para revisiones
 //use App\Http\Controllers\Api\V1\TaskReviewsController;
@@ -224,6 +225,13 @@ Route::prefix('v1')->group(function () {
 
                 // Retardos — empleado
                 Route::get('/asistencia/mis-retardos', [AttendanceControllerV2::class, 'myLateInfo']);
+
+                // Cierre masivo + Reportes (admin/supervisor)
+                Route::middleware('role:admin,supervisor')->group(function () {
+                    Route::post('/asistencia/cerrar-masivo', [AttendanceReportController::class, 'cerrarMasivo']);
+                    Route::get('/reportes/asistencia-semanal', [AttendanceReportController::class, 'asistenciaSemanal']);
+                    Route::get('/reportes/empleado/{empleado_id}', [AttendanceReportController::class, 'reporteEmpleado'])->whereUuid('empleado_id');
+                });
 
                 // Solicitudes de ausencia justificada
                 Route::post('/asistencia/ausencias',              [AbsenceRequestController::class, 'store']);
