@@ -98,83 +98,94 @@ class AttendanceReportController extends Controller
     // ============================================================
     public function asistenciaSemanal(Request $request)
     {
-        Gate::authorize('supervisor');
+        try {
+            Gate::authorize('supervisor');
 
-        $data = $request->validate([
-            'from'                => ['required', 'date_format:Y-m-d'],
-            'to'                  => ['required', 'date_format:Y-m-d', 'after_or_equal:from'],
-            'empleado_ids'        => ['nullable', 'string'],
-            'incluir_retardos'    => ['nullable', 'boolean'],
-            'incluir_tiempos_comida' => ['nullable', 'boolean'],
-        ]);
+            $data = $request->validate([
+                'from'                => ['required', 'date_format:Y-m-d'],
+                'to'                  => ['required', 'date_format:Y-m-d', 'after_or_equal:from'],
+                'empleado_ids'        => ['nullable', 'string'],
+                'incluir_retardos'    => ['nullable', 'boolean'],
+                'incluir_tiempos_comida' => ['nullable', 'boolean'],
+            ]);
 
-        $u = $request->user();
-        $empresaId = $u->empresa_id;
-        $from = Carbon::parse($data['from']);
-        $to = Carbon::parse($data['to']);
+            $u = $request->user();
+            $empresaId = $u->empresa_id;
+            $from = Carbon::parse($data['from']);
+            $to = Carbon::parse($data['to']);
 
-        $incluirRetardos = filter_var($request->input('incluir_retardos', false), FILTER_VALIDATE_BOOLEAN);
-        $incluirComida = filter_var($request->input('incluir_tiempos_comida', false), FILTER_VALIDATE_BOOLEAN);
+            $incluirRetardos = filter_var($request->input('incluir_retardos', false), FILTER_VALIDATE_BOOLEAN);
+            $incluirComida = filter_var($request->input('incluir_tiempos_comida', false), FILTER_VALIDATE_BOOLEAN);
 
-        // Empleados a consultar
-        $empleadoQuery = Empleado::where('empresa_id', $empresaId)
-            ->whereHas('user', function ($q) {
-                $q->where('is_active', true)->where('role', 'empleado');
-            });
+            // Empleados a consultar
+            $empleadoQuery = Empleado::where('empresa_id', $empresaId)
+                ->whereHas('user', function ($q) {
+                    $q->where('is_active', true)->where('role', 'empleado');
+                });
 
-        if (!empty($data['empleado_ids'])) {
-            $ids = array_filter(explode(',', $data['empleado_ids']));
-            $empleadoQuery->whereIn('id', $ids);
-        }
-
-        $empleados = $empleadoQuery->with('user')->get();
-
-        // Validar que los empleado_ids pertenezcan a la empresa
-        if (!empty($data['empleado_ids'])) {
-            $ids = array_filter(explode(',', $data['empleado_ids']));
-            $countValid = Empleado::where('empresa_id', $empresaId)->whereIn('id', $ids)->count();
-            if ($countValid !== count($ids)) {
-                return response()->json(['message' => 'Uno o más empleados no pertenecen a tu empresa'], 403);
+            if (!empty($data['empleado_ids'])) {
+                $ids = array_filter(explode(',', $data['empleado_ids']));
+                $empleadoQuery->whereIn('id', $ids);
             }
+
+            $empleados = $empleadoQuery->with('user')->get();
+
+            // Validar que los empleado_ids pertenezcan a la empresa
+            if (!empty($data['empleado_ids'])) {
+                $ids = array_filter(explode(',', $data['empleado_ids']));
+                $countValid = Empleado::where('empresa_id', $empresaId)->whereIn('id', $ids)->count();
+                if ($countValid !== count($ids)) {
+                    return response()->json(['message' => 'Uno o más empleados no pertenecen a tu empresa'], 403);
+                }
+            }
+
+            // Precargar datos globales de la empresa para el rango
+            $holidays = Holiday::where('empresa_id', $empresaId)
+                ->whereBetween('date', [$from->toDateString(), $to->toDateString()])
+                ->pluck('name', 'date')
+                ->toArray();
+
+            $mealSchedules = MealSchedule::where('empresa_id', $empresaId)
+                ->get()
+                ->keyBy('employee_id');
+
+            $filas = [];
+
+            foreach ($empleados as $emp) {
+                $fila = $this->buildEmployeeWeeklyRow(
+                    $emp,
+                    $from,
+                    $to,
+                    $empresaId,
+                    $holidays,
+                    null,
+                    null,
+                    $mealSchedules,
+                    $incluirRetardos,
+                    $incluirComida
+                );
+                $filas[] = $fila;
+            }
+
+            return response()->json([
+                'semana' => (int) $from->format('W'),
+                'anio'   => (int) $from->year,
+                'rango'  => [
+                    'desde' => $from->toDateString(),
+                    'hasta' => $to->toDateString(),
+                ],
+                'filas'  => $filas,
+            ]);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('ERROR asistenciaSemanal: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return response()->json([
+                'message' => 'Error interno: ' . $e->getMessage(),
+                'file'    => $e->getFile(),
+                'line'    => $e->getLine(),
+            ], 500);
         }
-
-        // Precargar datos globales de la empresa para el rango
-        $holidays = Holiday::where('empresa_id', $empresaId)
-            ->whereBetween('date', [$from->toDateString(), $to->toDateString()])
-            ->pluck('name', 'date')
-            ->toArray();
-
-        $mealSchedules = MealSchedule::where('empresa_id', $empresaId)
-            ->get()
-            ->keyBy('employee_id');
-
-        $filas = [];
-
-        foreach ($empleados as $emp) {
-            $fila = $this->buildEmployeeWeeklyRow(
-                $emp,
-                $from,
-                $to,
-                $empresaId,
-                $holidays,
-                null,
-                null,
-                $mealSchedules,
-                $incluirRetardos,
-                $incluirComida
-            );
-            $filas[] = $fila;
-        }
-
-        return response()->json([
-            'semana' => (int) $from->format('W'),
-            'anio'   => (int) $from->year,
-            'rango'  => [
-                'desde' => $from->toDateString(),
-                'hasta' => $to->toDateString(),
-            ],
-            'filas'  => $filas,
-        ]);
     }
 
     // ============================================================
