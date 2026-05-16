@@ -171,9 +171,20 @@ class AttendanceReportController extends Controller
                 $filas[] = $fila;
             }
 
+            // Calcular número de semana respetando el week_start de la empresa
+            $weekStart = AttendanceService::weekStartIndex($empresaId);
+            $mondayReference = $from->copy();
+            if ($weekStart === 0) {
+                // Semana domingo-sábado: usar el lunes siguiente al domingo de inicio
+                $mondayReference = $from->copy()->startOfWeek(0)->addDay();
+            } else {
+                // Para lunes o cualquier otro día, usar el lunes de esa semana
+                $mondayReference = $from->copy()->startOfWeek(1);
+            }
+
             return response()->json([
-                'semana' => (int) $from->format('W'),
-                'anio'   => (int) $from->year,
+                'semana' => (int) $mondayReference->format('W'),
+                'anio'   => (int) $mondayReference->format('o'),
                 'rango'  => [
                     'desde' => $from->toDateString(),
                     'hasta' => $to->toDateString(),
