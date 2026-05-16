@@ -470,16 +470,15 @@ class AttendanceReportController extends Controller
             ? $absenceRequests->get($date, collect())
             : ($absenceRequests[$date] ?? collect());
 
+        $firstAbsence = null;
         if ($absences instanceof \Illuminate\Support\Collection && $absences->isNotEmpty()) {
-            $motivo = strtolower($absences->first()->motivo ?? '');
-            if (str_contains($motivo, 'vacacion')) {
-                return 'vacaciones';
-            }
-            if (str_contains($motivo, 'incapacidad') || str_contains($motivo, 'enfermedad')) {
-                return 'incapacidad';
-            }
-        } elseif (!empty($absences)) {
-            $motivo = strtolower($absences->motivo ?? '');
+            $firstAbsence = $absences->first();
+        } elseif (is_array($absences) && !empty($absences)) {
+            $firstAbsence = reset($absences);
+        }
+
+        if ($firstAbsence) {
+            $motivo = strtolower($firstAbsence->motivo ?? '');
             if (str_contains($motivo, 'vacacion')) {
                 return 'vacaciones';
             }
