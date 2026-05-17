@@ -11,7 +11,7 @@ class TaskTemplate extends Model
 
     protected $fillable = [
         'empresa_id','created_by','title','description','instructions',
-        'estimated_minutes','priority','is_active','show_in_dashboard','tags','meta'
+        'estimated_minutes','priority','section','department','is_active','show_in_dashboard','tags','meta'
     ];
 
     protected $casts = [

@@ -25,6 +25,11 @@ class TaskCatalogController extends Controller
         $date = $request->input('date', now()->toDateString());
         $dow = \Carbon\Carbon::parse($date)->dayOfWeek;
 
+        $section = $request->input('section');
+        if ($u->role === 'supervisor' && !$section && $u->section) {
+            $section = $u->section;
+        }
+
         $routines = TaskRoutine::where('empresa_id',$empresaId)
             ->where('is_active', true)
             ->get()
@@ -55,11 +60,15 @@ class TaskCatalogController extends Controller
 
         $templateIds = $items->pluck('template_id')->unique()->values()->all();
 
-        $templates = TaskTemplate::where('empresa_id',$empresaId)
+        $templatesQuery = TaskTemplate::where('empresa_id',$empresaId)
             ->whereIn('id',$templateIds)
-            ->where('is_active', true)
-            ->get()
-            ->keyBy('id');
+            ->where('is_active', true);
+
+        if ($section) {
+            $templatesQuery->where('section', $section);
+        }
+
+        $templates = $templatesQuery->get()->keyBy('id');
 
         $catalog = $items->map(function ($it) use ($templates, $routinesById) {
             $t = $templates->get($it->template_id);
@@ -99,6 +108,8 @@ class TaskCatalogController extends Controller
 
         $tpl = TaskTemplate::where('empresa_id',$empresaId)->where('id',$data['template_id'])->first();
         if (!$tpl) return response()->json(['message'=>'Template no encontrado'], 404);
+
+        \App\Services\TaskService::requireSupervisorSection($u, $tpl->section);
 
         $validEmployees = Empleado::where('empresa_id',$empresaId)
             ->whereIn('id', $data['empleado_ids'])
@@ -212,6 +223,10 @@ class TaskCatalogController extends Controller
             ->where('is_active', true)
             ->get()
             ->keyBy('id');
+
+        foreach ($templates as $tpl) {
+            \App\Services\TaskService::requireSupervisorSection($u, $tpl->section);
+        }
 
         $results = [
             'created_tasks' => [],

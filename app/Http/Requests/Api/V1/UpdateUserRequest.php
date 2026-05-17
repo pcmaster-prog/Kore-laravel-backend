@@ -20,6 +20,7 @@ class UpdateUserRequest extends FormRequest
             'email'          => ['sometimes', 'email', 'max:200', Rule::unique('users', 'email')->ignore($this->route('id'))],
             'password'       => ['sometimes', 'nullable', 'string', Password::min(8)->mixedCase()->numbers()->symbols()],
             'role'           => ['sometimes', Rule::in(['admin', 'supervisor', 'empleado'])],
+            'section'        => ['sometimes', 'nullable', 'string', 'max:120'],
             'employee_code'  => ['sometimes', 'nullable', 'string', 'max:50'],
             'position_title' => ['sometimes', 'nullable', 'string', 'max:120'],
             'hired_at'       => ['sometimes', 'nullable', 'date'],

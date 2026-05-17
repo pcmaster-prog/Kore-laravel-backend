@@ -92,6 +92,7 @@ class UsersController extends Controller
                 'email'      => $data['email'],
                 'password'   => Hash::make($passwordTemporal),
                 'role'       => $data['role'],
+                'section'    => $data['section'] ?? null,
                 'is_active'  => true,
             ]);
 
@@ -150,6 +151,7 @@ class UsersController extends Controller
             if (isset($data['name']))      $target->name = $data['name'];
             if (isset($data['email']))     $target->email = $data['email'];
             if (isset($data['role']))      $target->role = $data['role'];
+            if (array_key_exists('section', $data)) $target->section = $data['section'];
             if (isset($data['is_active'])) $target->is_active = $data['is_active'];
             if (!empty($data['password'])) $target->password = Hash::make($data['password']);
             $target->save();

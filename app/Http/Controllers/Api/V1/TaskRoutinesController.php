@@ -224,6 +224,16 @@ class TaskRoutinesController extends Controller
         return response()->json(['message'=>'La rutina no tiene tareas'], 422);
     }
 
+    // Validar sección para supervisores
+    $templateIds = $items->pluck('template_id')->unique()->values()->all();
+    $templates = TaskTemplate::where('empresa_id', $empresaId)
+        ->whereIn('id', $templateIds)
+        ->get();
+
+    foreach ($templates as $tpl) {
+        \App\Services\TaskService::requireSupervisorSection($u, $tpl->section);
+    }
+
     // Reusar el bulk assign
     $bulkRequest = new Request([
         'date' => $data['date'],

@@ -11,6 +11,19 @@ use Illuminate\Support\Facades\DB;
 class TaskService
 {
     /**
+     * Valida que un supervisor solo asigne tareas de su propia sección.
+     * Lanza HttpException 403 si no coincide.
+     */
+    public static function requireSupervisorSection(User $authUser, ?string $templateSection): void
+    {
+        if ($authUser->role === 'supervisor' && $authUser->section) {
+            if ($templateSection !== $authUser->section) {
+                abort(403, "No puedes asignar tareas de otra sección. Tu sección asignada es: {$authUser->section}");
+            }
+        }
+    }
+
+    /**
      * Valida si un usuario puede asignar una tarea a un empleado según jerarquía.
      */
     public static function canAssignTo(User $authUser, Empleado $empleado): bool

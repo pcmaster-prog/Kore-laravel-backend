@@ -155,6 +155,7 @@ Route::prefix('v1')->group(function () {
                 Route::get('/task-templates/{id}', [TaskTemplatesController::class, 'show'])->whereUuid('id');
                 Route::patch('/task-templates/{id}', [TaskTemplatesController::class, 'update'])->whereUuid('id');
                 Route::delete('/task-templates/{id}', [TaskTemplatesController::class, 'destroy'])->whereUuid('id');
+                Route::get('/sections', [TaskTemplatesController::class, 'sections']);
 
                 // Routines
                 Route::get('/task-routines', [TaskRoutinesController::class, 'index']);

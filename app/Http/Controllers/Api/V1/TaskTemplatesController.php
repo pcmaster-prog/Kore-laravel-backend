@@ -31,6 +31,10 @@ class TaskTemplatesController extends Controller
             $q->where('title','ilike',"%{$s}%");
         }
 
+        if ($request->filled('section')) {
+            $q->where('section', $request->string('section'));
+        }
+
         return response()->json($q->orderBy('title')->paginate(20));
     }
 
@@ -45,6 +49,8 @@ class TaskTemplatesController extends Controller
             'instructions' => ['nullable'], // JSON
             'estimated_minutes' => ['nullable','integer','min:1','max:1440'],
             'priority' => ['nullable', Rule::in(['low','medium','high','urgent'])],
+            'section' => ['nullable','string','max:120'],
+            'department' => ['nullable','string','max:120'],
             'tags' => ['nullable'],
             'is_active' => ['nullable','boolean'],
             'show_in_dashboard' => ['nullable','boolean'],
@@ -58,6 +64,8 @@ class TaskTemplatesController extends Controller
             'instructions'=>$data['instructions'] ?? null,
             'estimated_minutes'=>$data['estimated_minutes'] ?? null,
             'priority'=>$data['priority'] ?? 'medium',
+            'section'=>$data['section'] ?? null,
+            'department'=>$data['department'] ?? null,
             'tags'=>$data['tags'] ?? null,
             'is_active'=>$data['is_active'] ?? true,
             'show_in_dashboard'=>$data['show_in_dashboard'] ?? false,
@@ -92,6 +100,8 @@ class TaskTemplatesController extends Controller
             'instructions' => ['sometimes','nullable'],
             'estimated_minutes' => ['sometimes','nullable','integer','min:1','max:1440'],
             'priority' => ['sometimes', Rule::in(['low','medium','high','urgent'])],
+            'section' => ['sometimes','nullable','string','max:120'],
+            'department' => ['sometimes','nullable','string','max:120'],
             'tags' => ['sometimes','nullable'],
             'is_active' => ['sometimes','boolean'],
             'show_in_dashboard' => ['sometimes','boolean'],
@@ -114,5 +124,24 @@ class TaskTemplatesController extends Controller
         $t->delete();
 
         return response()->json(['message'=>'Eliminado']);
+    }
+
+    public function sections(Request $request)
+    {
+        $u = $request->user();
+        Gate::authorize('supervisor');
+
+        $rows = TaskTemplate::where('empresa_id', $u->empresa_id)
+            ->whereNotNull('section')
+            ->selectRaw('DISTINCT section, department')
+            ->get();
+
+        $data = $rows->map(fn($r) => [
+            'id' => \Illuminate\Support\Str::slug($r->section),
+            'name' => $r->section,
+            'department' => $r->department,
+        ])->values();
+
+        return response()->json(['data' => $data]);
     }
 }

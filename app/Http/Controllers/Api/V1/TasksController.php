@@ -149,6 +149,15 @@ class TasksController extends Controller
         $task = Task::where('empresa_id', $u->empresa_id)->where('id', $id)->first();
         if (!$task) return response()->json(['message'=>'Tarea no encontrada'], 404);
 
+        // Validar sección del template asociado (si existe) para supervisores
+        $tplId = data_get($task->meta, 'template_id');
+        if ($tplId) {
+            $tpl = \App\Models\TaskTemplate::where('empresa_id', $u->empresa_id)->where('id', $tplId)->first();
+            if ($tpl) {
+                TaskService::requireSupervisorSection($u, $tpl->section);
+            }
+        }
+
         $result = TaskService::assignTask($task, $data['empleado_ids'], $u);
 
         if (!$result['success']) {
