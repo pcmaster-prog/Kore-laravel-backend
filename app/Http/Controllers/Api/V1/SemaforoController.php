@@ -266,6 +266,7 @@ class SemaforoController extends Controller
     {
         Gate::authorize('supervisor');
 
+        $u = $request->user();
         $data = $request->validate([
             'empleado_id'             => ['required', 'uuid'],
             'puntualidad'             => ['required', 'integer', 'min:1', 'max:5'],
@@ -340,6 +341,7 @@ class SemaforoController extends Controller
     {
         Gate::authorize('supervisor');
 
+        $u = $request->user();
         // Evaluaciones activas de la empresa
         $activeEvaluations = EmployeeEvaluation::where('empresa_id', $u->empresa_id)
             ->where('is_active', true)
