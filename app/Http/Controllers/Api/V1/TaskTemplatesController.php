@@ -35,7 +35,15 @@ class TaskTemplatesController extends Controller
             $q->where('section', $request->string('section'));
         }
 
-        return response()->json($q->orderBy('title')->paginate(20));
+        if ($request->filled('area_id')) {
+            $q->where('area_id', $request->string('area_id'));
+        }
+
+        if ($request->filled('section_id')) {
+            $q->where('section_id', $request->string('section_id'));
+        }
+
+        return response()->json($q->with(['area', 'section'])->orderBy('title')->paginate(20));
     }
 
     public function store(Request $request)
@@ -51,6 +59,9 @@ class TaskTemplatesController extends Controller
             'priority' => ['nullable', Rule::in(['low','medium','high','urgent'])],
             'section' => ['nullable','string','max:120'],
             'department' => ['nullable','string','max:120'],
+            'area_id' => ['nullable','uuid','exists:areas,id'],
+            'section_id' => ['nullable','uuid','exists:sections,id'],
+            'voice_note_enabled' => ['nullable','boolean'],
             'tags' => ['nullable'],
             'is_active' => ['nullable','boolean'],
             'show_in_dashboard' => ['nullable','boolean'],
@@ -66,6 +77,9 @@ class TaskTemplatesController extends Controller
             'priority'=>$data['priority'] ?? 'medium',
             'section'=>$data['section'] ?? null,
             'department'=>$data['department'] ?? null,
+            'area_id'=>$data['area_id'] ?? null,
+            'section_id'=>$data['section_id'] ?? null,
+            'voice_note_enabled'=>$data['voice_note_enabled'] ?? false,
             'tags'=>$data['tags'] ?? null,
             'is_active'=>$data['is_active'] ?? true,
             'show_in_dashboard'=>$data['show_in_dashboard'] ?? false,
@@ -102,6 +116,9 @@ class TaskTemplatesController extends Controller
             'priority' => ['sometimes', Rule::in(['low','medium','high','urgent'])],
             'section' => ['sometimes','nullable','string','max:120'],
             'department' => ['sometimes','nullable','string','max:120'],
+            'area_id' => ['sometimes','nullable','uuid','exists:areas,id'],
+            'section_id' => ['sometimes','nullable','uuid','exists:sections,id'],
+            'voice_note_enabled' => ['sometimes','boolean'],
             'tags' => ['sometimes','nullable'],
             'is_active' => ['sometimes','boolean'],
             'show_in_dashboard' => ['sometimes','boolean'],

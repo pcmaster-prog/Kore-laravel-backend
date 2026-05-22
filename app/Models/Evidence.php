@@ -14,7 +14,7 @@ class Evidence extends Model
     protected $fillable = [
         'empresa_id','uploaded_by','empleado_id',
         'task_id','task_assignee_id',
-        'disk','path','original_name','mime','size','meta'
+        'evidence_type','disk','path','original_name','mime','size','meta'
     ];
 
     protected $casts = [

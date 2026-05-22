@@ -13,6 +13,7 @@ class Empleado extends Model
     protected $fillable = [
         'empresa_id',
         'user_id',
+        'position_id',
         'full_name',
         'employee_code',
         'position_title',
@@ -46,5 +47,10 @@ class Empleado extends Model
     public function evaluations()
     {
         return $this->hasMany(EmployeeEvaluation::class, 'empleado_id');
+    }
+
+    public function position()
+    {
+        return $this->belongsTo(Position::class, 'position_id');
     }
 }

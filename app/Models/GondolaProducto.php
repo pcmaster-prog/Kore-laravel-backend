@@ -12,7 +12,7 @@ class GondolaProducto extends Model
     protected $table = 'gondola_productos';
 
     protected $fillable = [
-        'empresa_id', 'gondola_id', 'clave', 'nombre',
+        'empresa_id', 'gondola_id', 'product_id', 'clave', 'nombre',
         'descripcion', 'unidad', 'foto_url', 'orden', 'activo',
     ];
 
@@ -23,5 +23,10 @@ class GondolaProducto extends Model
     public function gondola()
     {
         return $this->belongsTo(Gondola::class);
+    }
+
+    public function product()
+    {
+        return $this->belongsTo(Product::class, 'product_id');
     }
 }

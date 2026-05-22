@@ -11,7 +11,8 @@ class Task extends Model
     use HasUuids, SoftDeletes;
 
     protected $fillable = [
-        'empresa_id','created_by','title','description','priority','status','due_at','meta'
+        'empresa_id','created_by','title','description','priority','status','due_at','meta',
+        'area_id','section_id','gondola_orden_id','task_source','actual_minutes','started_at','incident_count'
     ];
 
     protected $casts = [
@@ -56,5 +57,25 @@ class Task extends Model
     public function assignees()
     {
         return $this->hasMany(TaskAssignee::class, 'task_id');
+    }
+
+    public function area()
+    {
+        return $this->belongsTo(Area::class, 'area_id');
+    }
+
+    public function section()
+    {
+        return $this->belongsTo(Section::class, 'section_id');
+    }
+
+    public function incidents()
+    {
+        return $this->hasMany(Incident::class, 'task_id');
+    }
+
+    public function gondolaOrden()
+    {
+        return $this->belongsTo(GondolaOrden::class, 'gondola_orden_id');
     }
 }

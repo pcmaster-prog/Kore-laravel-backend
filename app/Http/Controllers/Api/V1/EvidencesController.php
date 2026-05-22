@@ -38,16 +38,20 @@ class EvidencesController extends Controller
         $folder = "kore/{$empresaId}/evidences/" . now()->format('Y/m/d');
         $path = $file->store($folder, $disk);
 
+        $mime = $file->getMimeType();
+        $evidenceType = $this->detectEvidenceType($mime);
+
         $e = Evidence::create([
             'empresa_id' => $empresaId,
             'uploaded_by' => $u->id,
             'empleado_id' => $empleadoId,
             'task_id' => null,
             'task_assignee_id' => null,
+            'evidence_type' => $evidenceType,
             'disk' => $disk,
             'path' => $path,
             'original_name' => $file->getClientOriginalName(),
-            'mime' => $file->getMimeType(),
+            'mime' => $mime,
             'size' => $file->getSize(),
             'meta' => $this->parseMeta($data['meta'] ?? null),
         ]);
@@ -183,6 +187,14 @@ class EvidencesController extends Controller
             'size' => $e->size,
             'created_at' => $e->created_at?->toISOString(),
         ];
+    }
+
+    private function detectEvidenceType(string $mime): string
+    {
+        if (str_starts_with($mime, 'image/')) return 'photo';
+        if (str_starts_with($mime, 'audio/')) return 'voice_note';
+        if (str_starts_with($mime, 'video/')) return 'video';
+        return 'file';
     }
 
     private function parseMeta($meta)

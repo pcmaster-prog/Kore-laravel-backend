@@ -18,6 +18,13 @@ use App\Http\Controllers\Api\V1\TaskTemplatesController;
 use App\Http\Controllers\Api\V1\TaskRoutinesController;
 use App\Http\Controllers\Api\V1\TaskCatalogController;
 use App\Http\Controllers\Api\V1\ActivityLogsController;
+use App\Http\Controllers\Api\V1\AreasController;
+use App\Http\Controllers\Api\V1\SectionsController;
+use App\Http\Controllers\Api\V1\PositionsController;
+use App\Http\Controllers\Api\V1\SupervisorSectionsController;
+use App\Http\Controllers\Api\V1\TaskAssignmentRulesController;
+use App\Http\Controllers\Api\V1\RoutineSchedulesController;
+use App\Http\Controllers\Api\V1\IncidentsController;
 
 // Controlador del dashboard (nuevo)
 use App\Http\Controllers\Api\V1\DashboardController;
@@ -35,6 +42,7 @@ use App\Http\Controllers\Api\V1\ProfileController;
 // Módulo Góndolas
 use App\Http\Controllers\Api\V1\GondolasController;
 use App\Http\Controllers\Api\V1\GondolaOrdenesController;
+use App\Http\Controllers\Api\V1\ProductsController;
 
 // Módulo Semáforo de Desempeño
 use App\Http\Controllers\Api\V1\SemaforoController;
@@ -149,6 +157,33 @@ Route::prefix('v1')->group(function () {
 
                 // Panel combinado tareas + góndolas
                 Route::get('/mi-panel', [TasksController::class, 'miPanel']);
+                // Áreas y Secciones
+                Route::get('/areas', [AreasController::class, 'index']);
+                Route::get('/areas/with-sections', [AreasController::class, 'withSections']);
+                Route::post('/areas', [AreasController::class, 'store']);
+                Route::patch('/areas/{id}', [AreasController::class, 'update'])->whereUuid('id');
+                Route::delete('/areas/{id}', [AreasController::class, 'destroy'])->whereUuid('id');
+
+                Route::get('/task-sections', [SectionsController::class, 'index']);
+                Route::get('/task-sections/by-area/{areaId}', [SectionsController::class, 'byArea'])->whereUuid('areaId');
+                Route::post('/task-sections', [SectionsController::class, 'store']);
+                Route::patch('/task-sections/{id}', [SectionsController::class, 'update'])->whereUuid('id');
+                Route::delete('/task-sections/{id}', [SectionsController::class, 'destroy'])->whereUuid('id');
+
+                // Puestos
+                Route::get('/positions', [PositionsController::class, 'index']);
+                Route::post('/positions', [PositionsController::class, 'store']);
+                Route::get('/positions/{id}', [PositionsController::class, 'show'])->whereUuid('id');
+                Route::patch('/positions/{id}', [PositionsController::class, 'update'])->whereUuid('id');
+                Route::delete('/positions/{id}', [PositionsController::class, 'destroy'])->whereUuid('id');
+                Route::get('/positions/{id}/base-tasks', [PositionsController::class, 'baseTasks'])->whereUuid('id');
+                Route::post('/positions/{id}/base-tasks', [PositionsController::class, 'syncBaseTasks'])->whereUuid('id');
+
+                // Supervisor - Secciones
+                Route::get('/my-sections', [SupervisorSectionsController::class, 'mySections']);
+                Route::post('/supervisor-sections/assign', [SupervisorSectionsController::class, 'assign']);
+                Route::delete('/supervisor-sections/{id}', [SupervisorSectionsController::class, 'destroy'])->whereUuid('id');
+
                 // Templates
                 Route::get('/task-templates', [TaskTemplatesController::class, 'index']);
                 Route::post('/task-templates', [TaskTemplatesController::class, 'store']);
@@ -173,6 +208,27 @@ Route::prefix('v1')->group(function () {
                 Route::post('/tareas/crear-desde-catalogo-bulk', [TaskCatalogController::class, 'createBulkFromTemplates']);
                 Route::post('/task-routines/{id}/assign', [TaskRoutinesController::class, 'assignRoutine'])->whereUuid('id');
 
+                // Reglas de asignación automática
+                Route::get('/task-assignment-rules', [TaskAssignmentRulesController::class, 'index']);
+                Route::post('/task-assignment-rules', [TaskAssignmentRulesController::class, 'store']);
+                Route::post('/task-assignment-rules/bulk', [TaskAssignmentRulesController::class, 'bulkStore']);
+                Route::get('/task-assignment-rules/{id}', [TaskAssignmentRulesController::class, 'show'])->whereUuid('id');
+                Route::patch('/task-assignment-rules/{id}', [TaskAssignmentRulesController::class, 'update'])->whereUuid('id');
+                Route::delete('/task-assignment-rules/{id}', [TaskAssignmentRulesController::class, 'destroy'])->whereUuid('id');
+
+                // Rutinas automáticas
+                Route::get('/routine-schedules', [RoutineSchedulesController::class, 'index']);
+                Route::post('/routine-schedules', [RoutineSchedulesController::class, 'store']);
+                Route::get('/routine-schedules/{id}', [RoutineSchedulesController::class, 'show'])->whereUuid('id');
+                Route::patch('/routine-schedules/{id}', [RoutineSchedulesController::class, 'update'])->whereUuid('id');
+                Route::delete('/routine-schedules/{id}', [RoutineSchedulesController::class, 'destroy'])->whereUuid('id');
+
+                // Nuevos endpoints de tareas
+                Route::get('/tareas/tree', [TasksController::class, 'tree']);
+                Route::get('/tareas/by-section/{sectionId}', [TasksController::class, 'bySection'])->whereUuid('sectionId');
+                Route::post('/tareas/{id}/iniciar', [TasksController::class, 'iniciar'])->whereUuid('id');
+                Route::post('/tareas/{id}/finalizar', [TasksController::class, 'finalizar'])->whereUuid('id');
+
                 Route::get('/activity-logs', [ActivityLogsController::class, 'index']);
                 Route::patch('/tareas/{id}/status', [TasksController::class, 'updateStatus'])->whereUuid('id');
 
@@ -190,6 +246,12 @@ Route::prefix('v1')->group(function () {
                 // Evidencias (ahora parte de tareas)
                 Route::post('/evidencias/upload', [EvidencesController::class, 'upload']);
                 Route::get('/evidencias/{id}', [EvidencesController::class, 'show']);
+
+                // Incidencias
+                Route::get('/incidents', [IncidentsController::class, 'index']);
+                Route::post('/incidents', [IncidentsController::class, 'store']);
+                Route::patch('/incidents/{id}/resolve', [IncidentsController::class, 'resolve'])->whereUuid('id');
+                Route::patch('/incidents/{id}/dismiss', [IncidentsController::class, 'dismiss'])->whereUuid('id');
 
                 // Empleado: ligar evidencia a SU asignación
                 Route::post('/mis-tareas/asignacion/{assignmentId}/evidencia', [EvidencesController::class, 'attachToMyAssignment']);
@@ -327,6 +389,14 @@ Route::prefix('v1')->group(function () {
 
             // ── Módulo Góndolas ───────────────────────────────────────────────────────
             Route::middleware(['module:gondolas'])->group(function () {
+                // Productos maestros
+                Route::get('/products',                              [ProductsController::class, 'index']);
+                Route::post('/products',                             [ProductsController::class, 'store']);
+                Route::get('/products/{id}',                         [ProductsController::class, 'show'])->whereUuid('id');
+                Route::patch('/products/{id}',                       [ProductsController::class, 'update'])->whereUuid('id');
+                Route::delete('/products/{id}',                      [ProductsController::class, 'destroy'])->whereUuid('id');
+                Route::get('/products/{id}/locations',               [ProductsController::class, 'locations'])->whereUuid('id');
+
                 // Góndolas CRUD
                 Route::get('/gondolas',                              [GondolasController::class, 'index']);
                 Route::post('/gondolas',                             [GondolasController::class, 'store']);
@@ -353,6 +423,9 @@ Route::prefix('v1')->group(function () {
 
                 // Auto-relleno por iniciativa propia
                 Route::post('/gondolas/{gondolaId}/auto-rellenar',   [GondolaOrdenesController::class, 'autoRellenar']);
+
+                // Generar tarea de relleno
+                Route::post('/gondolas/{id}/generar-tarea',          [GondolaOrdenesController::class, 'generarTarea']);
             });
 
             // ── Módulo Semáforo de Desempeño ─────────────────────────────────────────

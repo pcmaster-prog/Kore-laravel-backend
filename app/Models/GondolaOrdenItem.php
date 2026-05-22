@@ -12,8 +12,8 @@ class GondolaOrdenItem extends Model
     protected $table = 'gondola_orden_items';
 
     protected $fillable = [
-        'empresa_id', 'orden_id', 'gondola_producto_id',
-        'clave', 'nombre', 'unidad', 'cantidad',
+        'empresa_id', 'orden_id', 'gondola_producto_id', 'product_id',
+        'clave', 'nombre', 'unidad', 'unit', 'cantidad',
     ];
 
     protected $casts = [
@@ -23,5 +23,10 @@ class GondolaOrdenItem extends Model
     public function producto()
     {
         return $this->belongsTo(GondolaProducto::class, 'gondola_producto_id');
+    }
+
+    public function product()
+    {
+        return $this->belongsTo(Product::class, 'product_id');
     }
 }

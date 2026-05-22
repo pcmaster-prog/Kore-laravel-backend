@@ -75,4 +75,10 @@ class User extends Authenticatable
     {
         return $this->hasOne(MealSchedule::class, 'employee_id');
     }
+
+    public function supervisedSections()
+    {
+        return $this->belongsToMany(Section::class, 'supervisor_sections', 'supervisor_user_id', 'section_id')
+            ->withTimestamps();
+    }
 }

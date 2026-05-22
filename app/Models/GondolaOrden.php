@@ -42,4 +42,9 @@ class GondolaOrden extends Model
     {
         return $this->belongsTo(User::class, 'approved_by');
     }
+
+    public function task()
+    {
+        return $this->hasOne(Task::class, 'gondola_orden_id');
+    }
 }

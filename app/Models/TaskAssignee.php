@@ -27,6 +27,7 @@ class TaskAssignee extends Model
         'review_note',
         'note',
         'meta',
+        'actual_minutes',
     ];
 
     protected $casts = [

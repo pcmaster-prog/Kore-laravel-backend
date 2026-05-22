@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use App\Models\Gondola;
 use App\Models\GondolaProducto;
+use App\Models\Product;
 use Illuminate\Support\Facades\Gate;
 use App\Http\Resources\GondolaResource;
 use App\Http\Resources\GondolaOrdenResource;
@@ -144,7 +145,8 @@ class GondolasController extends Controller
 
     /**
      * GET /gondolas/{id}/productos
-     * Lista productos activos de la góndola.
+     * Lista productos de la góndola.
+     * Retrocompatibilidad: si no tiene product_id, devuelve datos legacy.
      */
     public function productos(Request $request, string $id)
     {
@@ -152,14 +154,45 @@ class GondolasController extends Controller
             ->where('activo', true)
             ->findOrFail($id);
 
-        $productos = $gondola->productos()->get();
+        $productos = $gondola->productos()->with('product')->get()->map(function ($gp) {
+            if ($gp->product_id && $gp->product) {
+                return [
+                    'id'           => $gp->product->id,
+                    'location_id'  => $gp->id,
+                    'sku'          => $gp->product->sku,
+                    'name'         => $gp->product->name,
+                    'description'  => $gp->product->description,
+                    'default_unit' => $gp->product->default_unit,
+                    'photo_url'    => $gp->product->photo_url,
+                    'orden'        => $gp->orden,
+                    'activo'       => $gp->activo,
+                ];
+            }
+
+            // Legacy: datos almacenados directamente en gondola_productos
+            return [
+                'id'          => $gp->id,
+                'location_id' => $gp->id,
+                'empresa_id'  => $gp->empresa_id,
+                'gondola_id'  => $gp->gondola_id,
+                'clave'       => $gp->clave,
+                'nombre'      => $gp->nombre,
+                'descripcion' => $gp->descripcion,
+                'unidad'      => $gp->unidad,
+                'foto_url'    => $gp->foto_url,
+                'orden'       => $gp->orden,
+                'activo'      => $gp->activo,
+                'created_at'  => $gp->created_at,
+                'updated_at'  => $gp->updated_at,
+            ];
+        });
 
         return response()->json($productos);
     }
 
     /**
      * POST /gondolas/{id}/productos
-     * Agregar producto a la góndola.
+     * Agregar producto maestro a la góndola.
      * Acceso: admin / supervisor
      */
     public function addProducto(Request $request, string $id)
@@ -175,20 +208,39 @@ class GondolasController extends Controller
             ->findOrFail($id);
 
         $data = $request->validate([
-            'nombre'      => ['required', 'string', 'max:150'],
-            'clave'       => ['nullable', 'string', 'max:50'],
-            'descripcion' => ['nullable', 'string', 'max:300'],
-            'unidad'      => ['required', 'string', 'in:pz,kg,caja,media_caja'],
-            'orden'       => ['nullable', 'integer'],
+            'product_id' => ['required', 'uuid', 'exists:products,id'],
+            'orden'      => ['nullable', 'integer'],
         ]);
+
+        $productoMaestro = Product::where('empresa_id', $user->empresa_id)
+            ->where('is_active', true)
+            ->findOrFail($data['product_id']);
+
+        $existente = GondolaProducto::where('empresa_id', $user->empresa_id)
+            ->where('gondola_id', $gondola->id)
+            ->where('product_id', $productoMaestro->id)
+            ->first();
+
+        if ($existente) {
+            if ($existente->activo) {
+                return response()->json([
+                    'message' => 'El producto ya está activo en esta góndola.',
+                ], 409);
+            }
+
+            $existente->update(['activo' => true]);
+            return response()->json($existente, 200);
+        }
 
         $producto = GondolaProducto::create([
             'empresa_id'  => $user->empresa_id,
             'gondola_id'  => $gondola->id,
-            'nombre'      => $data['nombre'],
-            'clave'       => $data['clave'] ?? null,
-            'descripcion' => $data['descripcion'] ?? null,
-            'unidad'      => $data['unidad'],
+            'product_id'  => $productoMaestro->id,
+            'clave'       => $productoMaestro->sku,
+            'nombre'      => $productoMaestro->name,
+            'descripcion' => $productoMaestro->description,
+            'unidad'      => $productoMaestro->default_unit,
+            'foto_url'    => $productoMaestro->photo_url,
             'orden'       => $data['orden'] ?? 0,
             'activo'      => true,
         ]);
@@ -198,7 +250,8 @@ class GondolasController extends Controller
 
     /**
      * PATCH /gondolas/{gId}/productos/{pId}
-     * Editar producto.
+     * Editar ubicación del producto en la góndola.
+     * {pId} es el ID de gondola_productos.
      * Acceso: admin / supervisor
      */
     public function updateProducto(Request $request, string $gId, string $pId)
@@ -214,11 +267,8 @@ class GondolasController extends Controller
             ->findOrFail($pId);
 
         $data = $request->validate([
-            'nombre'      => ['sometimes', 'string', 'max:150'],
-            'clave'       => ['nullable', 'string', 'max:50'],
-            'descripcion' => ['nullable', 'string', 'max:300'],
-            'unidad'      => ['sometimes', 'string', 'in:pz,kg,caja,media_caja'],
-            'orden'       => ['nullable', 'integer'],
+            'orden'  => ['sometimes', 'nullable', 'integer'],
+            'activo' => ['sometimes', 'boolean'],
         ]);
 
         $producto->update($data);
@@ -228,7 +278,9 @@ class GondolasController extends Controller
 
     /**
      * DELETE /gondolas/{gId}/productos/{pId}
-     * Soft delete de producto (activo = false).
+     * Soft delete de la ubicación (activo = false).
+     * {pId} es el ID de gondola_productos.
+     * NO borra el producto maestro.
      * Acceso: admin / supervisor
      */
     public function removeProducto(Request $request, string $gId, string $pId)
@@ -245,12 +297,13 @@ class GondolasController extends Controller
 
         $producto->update(['activo' => false]);
 
-        return response()->json(['message' => 'Producto desactivado correctamente.']);
+        return response()->json(['message' => 'Producto removido de la góndola correctamente.']);
     }
 
     /**
      * POST /gondolas/{gId}/productos/{pId}/foto
-     * Subir foto de referencia del producto a S3/Backblaze B2.
+     * Subir foto al producto maestro.
+     * {pId} es el product_id (producto maestro).
      * Acceso: admin / supervisor
      */
     public function uploadFoto(Request $request, string $gId, string $pId)
@@ -261,8 +314,8 @@ class GondolasController extends Controller
             return response()->json(['message' => 'Acceso denegado.'], 403);
         }
 
-        $producto = GondolaProducto::where('empresa_id', $user->empresa_id)
-            ->where('gondola_id', $gId)
+        $producto = Product::where('empresa_id', $user->empresa_id)
+            ->where('is_active', true)
             ->findOrFail($pId);
 
         $request->validate([
@@ -270,15 +323,13 @@ class GondolasController extends Controller
         ]);
 
         $path = $request->file('file')->store(
-            "kore/{$user->empresa_id}/gondola-productos/{$pId}",
+            "kore/{$user->empresa_id}/products/{$pId}/photo",
             's3'
         );
 
-        // PENDIENTE: Requiere bucket público en Backblaze B2.
-        // Cuando se active el acceso público funcionará automáticamente sin cambios.
         $url = Storage::disk('s3')->url($path);
 
-        $producto->update(['foto_url' => $url]);
+        $producto->update(['photo_url' => $url]);
 
         return response()->json(['foto_url' => $url]);
     }

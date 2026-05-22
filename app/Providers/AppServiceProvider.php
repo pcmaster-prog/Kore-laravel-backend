@@ -6,6 +6,7 @@ use App\Events\AttendanceCheckedIn;
 use App\Events\TaskAssigned;
 use App\Listeners\SendCheckInNotificationToManagers;
 use App\Listeners\SendTaskAssignedNotification;
+use App\Listeners\AssignTasksOnCheckIn;
 use App\Observers\AuditObserver;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -37,6 +38,7 @@ class AppServiceProvider extends ServiceProvider
         // ── Event listeners ──────────────────────────────────────────────
         Event::listen(TaskAssigned::class, SendTaskAssignedNotification::class);
         Event::listen(AttendanceCheckedIn::class, SendCheckInNotificationToManagers::class);
+        Event::listen(AttendanceCheckedIn::class, AssignTasksOnCheckIn::class);
 
         // ── Section 3.2: Per-user/IP rate limiting ───────────────────────
         RateLimiter::for('api', function (Request $request) {

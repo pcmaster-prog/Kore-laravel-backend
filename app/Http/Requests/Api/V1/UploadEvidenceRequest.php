@@ -14,7 +14,7 @@ class UploadEvidenceRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'file' => ['required', 'file', 'mimes:jpg,jpeg,png,pdf,mp4,webm', 'max:10240'],
+            'file' => ['required', 'file', 'mimes:jpg,jpeg,png,pdf,mp4,webm,mp3,m4a,wav,ogg', 'max:10240'],
             'meta' => ['nullable'],
         ];
     }
