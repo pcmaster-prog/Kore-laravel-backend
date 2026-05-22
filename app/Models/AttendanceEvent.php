@@ -17,4 +17,9 @@ class AttendanceEvent extends Model
         'occurred_at' => 'datetime',
         'meta' => 'array',
     ];
+
+    public function attendanceDay()
+    {
+        return $this->belongsTo(AttendanceDay::class, 'attendance_day_id');
+    }
 }

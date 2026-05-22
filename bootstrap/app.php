@@ -69,15 +69,9 @@ return Application::configure(basePath: dirname(__DIR__))
                 }
 
                 // Todo lo demás → 500 genérico (sin stack trace)
-                // DEBUG: temporalmente expone el error real para diagnóstico
                 return response()->json([
-                    'message'  => $e->getMessage() ?: 'Error interno del servidor',
+                    'message'  => 'Error interno del servidor',
                     'error_id' => $errorId,
-                    'debug'    => [
-                        'exception' => get_class($e),
-                        'file'      => $e->getFile(),
-                        'line'      => $e->getLine(),
-                    ],
                 ], 500);
             }
         });
