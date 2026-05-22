@@ -407,7 +407,7 @@ class TasksController extends Controller
             }
         }
 
-        $pag->getCollection()->transform(function($a) use ($evidenceAgg, $latestEvidenceByAssignee, $empresaId) {
+        $pag->getCollection()->transform(function($a) use ($evidenceAgg, $latestEvidenceByAssignee, $empresaId, $hasCheckIn) {
             $assId = $a->id;
             $count = $evidenceAgg[$assId] ?? 0;
             $hasEvidence = $count > 0;
@@ -419,7 +419,8 @@ class TasksController extends Controller
 
             // --- CHECKLIST CONTEXT FOR UI ---
             $checklistDef = $checklistState = $checklistProgress = null;
-            $tplId = data_get($a->task->meta, 'template_id');
+            $task = $a->task;
+            $tplId = data_get($task?->meta, 'template_id');
 
             if ($tplId && $tpl = \App\Models\TaskTemplate::where('empresa_id', $empresaId)
                 ->where('id', $tplId)
@@ -432,7 +433,8 @@ class TasksController extends Controller
                     
                     $required = array_filter($checklistDef, fn($i) => ($i['required'] ?? false) === true);
                     $doneCount = array_reduce($required, function($carry, $item) use ($checklistState) {
-                        return $carry + (data_get($checklistState, "{$item['id']}.done", false) ? 1 : 0);
+                        $itemId = $item['id'] ?? null;
+                        return $carry + ($itemId && data_get($checklistState, "{$itemId}.done", false) ? 1 : 0);
                     }, 0);
                     
                     $checklistProgress = [
@@ -444,7 +446,7 @@ class TasksController extends Controller
 
             // Determinar si la tarea está bloqueada (requiere check-in pero no lo tiene)
             $isBlocked = false;
-            $triggerEvent = data_get($a->task->meta, 'trigger_event', 'time');
+            $triggerEvent = data_get($task?->meta, 'trigger_event', 'time');
             if ($triggerEvent === 'attendance_checkin' && !$hasCheckIn) {
                 $isBlocked = true;
             }
@@ -468,11 +470,11 @@ class TasksController extends Controller
                     'latest_evidence_url' => $latestUrl,
                     'is_blocked' => $isBlocked,
                 ],
-                'task' => array_merge($this->presentTask($a->task), [
-                    'id' => $a->task->id,
-                    'area' => $a->task->area ? ['id' => $a->task->area->id, 'name' => $a->task->area->name] : null,
-                    'section' => $a->task->section ? ['id' => $a->task->section->id, 'name' => $a->task->section->name] : null,
-                ]),
+                'task' => $task ? array_merge($this->presentTask($task), [
+                    'id' => $task->id,
+                    'area' => $task->area ? ['id' => $task->area->id, 'name' => $task->area->name] : null,
+                    'section' => $task->section ? ['id' => $task->section->id, 'name' => $task->section->name] : null,
+                ]) : null,
                 'checklist_def' => $checklistDef,
                 'checklist_state' => $checklistState,
                 'checklist_progress' => $checklistProgress,
@@ -512,7 +514,7 @@ class TasksController extends Controller
         ]);
 
         // Fetch checklist definition ONLY from template (Task has no instructions column)
-        $tplId = data_get($a->task->meta, 'template_id');
+        $tplId = data_get($a->task?->meta, 'template_id');
         if (!$tplId) {
             return response()->json(['message' => 'Esta tarea no tiene checklist'], 422);
         }
@@ -599,7 +601,8 @@ class TasksController extends Controller
             }
 
             // ✅ BLOCK DELIVERY IF REQUIRED CHECKLIST ITEMS ARE INCOMPLETE
-            $tplId = data_get($a->task->meta, 'template_id');
+            $task = $a->task;
+            $tplId = data_get($task?->meta, 'template_id');
             if ($tplId) {
                 $tpl = \App\Models\TaskTemplate::where('empresa_id', $u->empresa_id)
                     ->where('id', $tplId)
@@ -614,7 +617,8 @@ class TasksController extends Controller
                     
                     $checklistState = data_get($a->meta, 'checklist', []);
                     $missing = array_filter($requiredItems, function($item) use ($checklistState) {
-                        return !data_get($checklistState, "{$item['id']}.done", false);
+                        $itemId = $item['id'] ?? null;
+                        return $itemId && !data_get($checklistState, "{$itemId}.done", false);
                     });
 
                     if (count($missing) > 0) {
@@ -632,7 +636,7 @@ class TasksController extends Controller
             SendPushNotificationToManagers::dispatch(
                 $u->empresa_id,
                 '✅ Tarea lista para revisar',
-                ($emp->full_name ?? $u->name) . ' completó: ' . ($a->task->title ?? 'una tarea'),
+                ($emp->full_name ?? $u->name) . ' completó: ' . ($task?->title ?? 'una tarea'),
                 [
                     'type'          => 'task.done_pending',
                     'task_id'       => $a->task_id,
