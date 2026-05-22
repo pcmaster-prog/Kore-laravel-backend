@@ -9,15 +9,14 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('task_assignees', function (Blueprint $table) {
-            $table->timestamp('started_at')->nullable()->after('reviewed_at');
-            $table->integer('actual_minutes')->nullable()->after('started_at');
+            $table->integer('actual_minutes')->nullable()->after('done_at');
         });
     }
 
     public function down(): void
     {
         Schema::table('task_assignees', function (Blueprint $table) {
-            $table->dropColumn(['started_at', 'actual_minutes']);
+            $table->dropColumn('actual_minutes');
         });
     }
 };
