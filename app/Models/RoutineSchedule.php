@@ -18,6 +18,10 @@ class RoutineSchedule extends Model
         'auto_assign',
         'notify_push',
         'is_active',
+        'assignee_type',
+        'assignee_id',
+        'area_id',
+        'section_id',
     ];
 
     protected $casts = [
@@ -41,5 +45,25 @@ class RoutineSchedule extends Model
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function area()
+    {
+        return $this->belongsTo(Area::class, 'area_id');
+    }
+
+    public function section()
+    {
+        return $this->belongsTo(Section::class, 'section_id');
+    }
+
+    public function empleado()
+    {
+        return $this->belongsTo(Empleado::class, 'assignee_id');
+    }
+
+    public function position()
+    {
+        return $this->belongsTo(Position::class, 'assignee_id');
     }
 }

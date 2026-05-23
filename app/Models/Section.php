@@ -47,4 +47,11 @@ class Section extends Model
         return $this->belongsToMany(User::class, 'supervisor_sections', 'section_id', 'supervisor_user_id')
             ->withTimestamps();
     }
+
+    public function empleados()
+    {
+        return $this->belongsToMany(Empleado::class, 'empleado_sections', 'section_id', 'empleado_id')
+            ->withPivot('is_primary')
+            ->withTimestamps();
+    }
 }

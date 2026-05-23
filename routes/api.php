@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\V1\TaskCatalogController;
 use App\Http\Controllers\Api\V1\ActivityLogsController;
 use App\Http\Controllers\Api\V1\AreasController;
 use App\Http\Controllers\Api\V1\SectionsController;
+use App\Http\Controllers\Api\V1\EmpleadoSectionsController;
 use App\Http\Controllers\Api\V1\PositionsController;
 use App\Http\Controllers\Api\V1\SupervisorSectionsController;
 use App\Http\Controllers\Api\V1\TaskAssignmentRulesController;
@@ -222,6 +223,16 @@ Route::prefix('v1')->group(function () {
                 Route::get('/routine-schedules/{id}', [RoutineSchedulesController::class, 'show'])->whereUuid('id');
                 Route::patch('/routine-schedules/{id}', [RoutineSchedulesController::class, 'update'])->whereUuid('id');
                 Route::delete('/routine-schedules/{id}', [RoutineSchedulesController::class, 'destroy'])->whereUuid('id');
+
+                // Empleado-Secciones
+                Route::get('/empleados/{id}/sections', [EmpleadoSectionsController::class, 'index'])->whereUuid('id');
+                Route::post('/empleados/{id}/sections', [EmpleadoSectionsController::class, 'store'])->whereUuid('id');
+                Route::delete('/empleados/{id}/sections/{sectionId}', [EmpleadoSectionsController::class, 'destroy'])->whereUuid(['id', 'sectionId']);
+                Route::get('/sections/{id}/empleados', [EmpleadoSectionsController::class, 'sectionEmpleados'])->whereUuid('id');
+
+                // Tareas huérfanas
+                Route::get('/tareas/huerfanas', [TasksController::class, 'huerfanas']);
+                Route::post('/tareas/{id}/reasignar', [TasksController::class, 'reasignar'])->whereUuid('id');
 
                 // Nuevos endpoints de tareas
                 Route::get('/tareas/tree', [TasksController::class, 'tree']);

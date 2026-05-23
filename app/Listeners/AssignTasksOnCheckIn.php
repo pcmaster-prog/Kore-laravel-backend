@@ -38,6 +38,14 @@ class AssignTasksOnCheckIn
                                ->where('id', $empleadoId)
                                ->whereNotNull('position_id');
                        });
+                })
+                ->orWhere(function ($q2) use ($empleadoId) {
+                    $q2->where('assignee_type', 'section_supervisor')
+                       ->whereIn('section_id', function ($sub) use ($empleadoId) {
+                           $sub->select('section_id')
+                               ->from('empleado_sections')
+                               ->where('empleado_id', $empleadoId);
+                       });
                 });
             })
             ->with('taskTemplate')
@@ -79,6 +87,7 @@ class AssignTasksOnCheckIn
                     'catalog_date' => now()->toDateString(),
                     'source' => 'auto_rule',
                     'trigger_event' => 'attendance_checkin',
+                    'resolved_by' => 'checkin',
                 ],
             ]);
 

@@ -49,7 +49,36 @@ class ProcessTaskAssignmentRules extends Command
             $empleadoIds = $this->resolveAssignees($rule);
 
             if (empty($empleadoIds)) {
-                // No hay asignado disponible: crear incidencia para supervisor
+                // Crear tarea sin asignado para trazabilidad
+                $alreadyExistsUnassigned = Task::where('empresa_id', $empresaId)
+                    ->whereRaw("meta->>'template_id' = ?", [$template->id])
+                    ->whereRaw("meta->>'catalog_date' = ?", [$now->toDateString()])
+                    ->whereRaw("meta->>'unassigned_reason' = ?", ['missing_assignee'])
+                    ->exists();
+
+                if (!$alreadyExistsUnassigned) {
+                    Task::create([
+                        'empresa_id' => $empresaId,
+                        'created_by' => $rule->created_by,
+                        'title' => $template->title,
+                        'description' => $template->description,
+                        'priority' => $template->priority ?? 'medium',
+                        'status' => 'open',
+                        'area_id' => $template->area_id,
+                        'section_id' => $template->section_id,
+                        'meta' => [
+                            'template_id' => $template->id,
+                            'catalog_date' => $now->toDateString(),
+                            'source' => 'auto_rule',
+                            'trigger_event' => $rule->trigger_event,
+                            'resolved_by' => 'cron',
+                            'unassigned_reason' => 'missing_assignee',
+                            'rule_id' => $rule->id,
+                        ],
+                    ]);
+                }
+
+                // No hay asignado disponible: notificar a supervisores
                 $this->createMissingAssigneeIncident($rule, $template, $empresaId);
                 $missingAssigneeCount++;
                 continue;
@@ -84,6 +113,7 @@ class ProcessTaskAssignmentRules extends Command
                         'catalog_date' => $now->toDateString(),
                         'source' => 'auto_rule',
                         'trigger_event' => $rule->trigger_event,
+                        'resolved_by' => 'cron',
                     ],
                 ]);
 
@@ -134,20 +164,9 @@ class ProcessTaskAssignmentRules extends Command
         }
 
         if ($rule->assignee_type === 'section_supervisor') {
-            // Los supervisores de sección no reciben tareas directamente
-            // Esta regla se usaría para asignar a todos los empleados de la sección
             if (!$rule->section_id) return [];
             return Empleado::where('status', 'active')
-                ->whereHas('user', function ($q) use ($rule) {
-                    $q->where('role', 'empleado');
-                })
-                ->whereExists(function ($query) use ($rule) {
-                    // Esto es simplificado; en realidad necesitaríamos vincular empleados a secciones
-                    // Por ahora, devolvemos vacío para este tipo
-                    $query->selectRaw('1')
-                        ->from('task_templates')
-                        ->where('section_id', $rule->section_id);
-                })
+                ->whereHas('sections', fn($q) => $q->where('section_id', $rule->section_id))
                 ->pluck('id')
                 ->all();
         }

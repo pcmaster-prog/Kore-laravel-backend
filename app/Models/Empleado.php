@@ -53,4 +53,11 @@ class Empleado extends Model
     {
         return $this->belongsTo(Position::class, 'position_id');
     }
+
+    public function sections()
+    {
+        return $this->belongsToMany(Section::class, 'empleado_sections', 'empleado_id', 'section_id')
+            ->withPivot('is_primary')
+            ->withTimestamps();
+    }
 }

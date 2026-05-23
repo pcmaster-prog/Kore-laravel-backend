@@ -1011,6 +1011,112 @@ class TasksController extends Controller
         return response()->json(['message' => 'Tarea finalizada', 'actual_minutes' => $a->actual_minutes]);
     }
 
+    public function huerfanas(Request $request)
+    {
+        $u = $request->user();
+        Gate::authorize('supervisor');
+
+        $q = Task::where('empresa_id', $u->empresa_id)
+            ->where(function ($query) {
+                $query->whereRaw("meta->>'unassigned_reason' IS NOT NULL")
+                      ->orWhereDoesntHave('assignees');
+            })
+            ->whereIn('status', ['open', 'in_progress'])
+            ->with(['area', 'section']);
+
+        // Si es supervisor, filtrar por sus secciones asignadas
+        if ($u->role === 'supervisor') {
+            $sectionIds = \App\Models\SupervisorSection::where('supervisor_user_id', $u->id)
+                ->pluck('section_id')->all();
+            $q->where(function ($sq) use ($sectionIds) {
+                $sq->whereIn('section_id', $sectionIds)
+                   ->orWhereNull('section_id');
+            });
+        }
+
+        $tasks = $q->orderByDesc('created_at')->paginate(20);
+
+        return response()->json([
+            'data' => $tasks->map(fn($t) => [
+                'id' => $t->id,
+                'title' => $t->title,
+                'description' => $t->description,
+                'priority' => $t->priority,
+                'area' => $t->area ? ['id' => $t->area->id, 'name' => $t->area->name] : null,
+                'section' => $t->section ? ['id' => $t->section->id, 'name' => $t->section->name] : null,
+                'unassigned_reason' => $t->meta['unassigned_reason'] ?? 'sin_asignacion',
+                'created_at' => $t->created_at?->toISOString(),
+            ]),
+            'total' => $tasks->total(),
+            'last_page' => $tasks->lastPage(),
+        ]);
+    }
+
+    public function reasignar(Request $request, string $id)
+    {
+        $u = $request->user();
+        Gate::authorize('supervisor');
+
+        $data = $request->validate([
+            'empleado_ids' => ['required', 'array', 'min:1'],
+            'empleado_ids.*' => ['uuid'],
+        ]);
+
+        $task = Task::where('empresa_id', $u->empresa_id)->where('id', $id)->first();
+        if (!$task) return response()->json(['message' => 'No encontrado'], 404);
+
+        // Validar sección para supervisores
+        if ($u->role === 'supervisor' && $task->section_id) {
+            $hasSection = \App\Models\SupervisorSection::where('supervisor_user_id', $u->id)
+                ->where('section_id', $task->section_id)
+                ->exists();
+            if (!$hasSection) {
+                return response()->json(['message' => 'No tienes asignada esta sección'], 403);
+            }
+        }
+
+        // Validar que empleados pertenezcan a la empresa
+        $validEmpleados = Empleado::where('empresa_id', $u->empresa_id)
+            ->whereIn('id', $data['empleado_ids'])
+            ->where('status', 'active')
+            ->pluck('id')->all();
+
+        if (count($validEmpleados) !== count($data['empleado_ids'])) {
+            return response()->json(['message' => 'Uno o más empleados no válidos'], 422);
+        }
+
+        // Crear asignaciones
+        foreach ($validEmpleados as $empId) {
+            TaskAssignee::firstOrCreate(
+                ['empresa_id' => $u->empresa_id, 'task_id' => $task->id, 'empleado_id' => $empId],
+                ['status' => 'assigned']
+            );
+        }
+
+        // Quitar flag de huérfana si existe
+        $meta = $task->meta ?? [];
+        if (isset($meta['unassigned_reason'])) {
+            unset($meta['unassigned_reason']);
+            $task->meta = $meta;
+            $task->save();
+        }
+
+        // Notificar a los nuevos asignados
+        foreach ($validEmpleados as $empId) {
+            $emp = Empleado::where('id', $empId)->first();
+            if ($emp && $emp->user_id) {
+                SendPushNotification::dispatch(
+                    $emp->user_id,
+                    '📋 Tarea reasignada',
+                    "Se te asignó: {$task->title}",
+                    ['type' => 'task.reassigned', 'task_id' => $task->id]
+                );
+            }
+        }
+
+        return response()->json(['message' => 'Reasignación exitosa']);
+    }
+
     private function evidenceFileUrl(Evidence $evidence): ?string
     {
         if (!$evidence->path) return null;

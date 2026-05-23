@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use App\Models\Section;
+use App\Models\Empleado;
 
 class SectionsController extends Controller
 {
@@ -108,6 +109,29 @@ class SectionsController extends Controller
         $section->save();
 
         return response()->json(['item' => $section]);
+    }
+
+    public function empleados(Request $request, string $id)
+    {
+        $u = $request->user();
+        Gate::authorize('supervisor');
+
+        $section = Section::where('empresa_id', $u->empresa_id)->where('id', $id)->first();
+        if (!$section) return response()->json(['message' => 'No encontrado'], 404);
+
+        $empleados = Empleado::where('empresa_id', $u->empresa_id)
+            ->where('status', 'active')
+            ->whereHas('sections', fn($q) => $q->where('section_id', $id))
+            ->with('user')
+            ->get()
+            ->map(fn($emp) => [
+                'id' => $emp->id,
+                'full_name' => $emp->full_name,
+                'position_title' => $emp->position_title,
+                'avatar_url' => $emp->user?->avatar_url,
+            ]);
+
+        return response()->json(['data' => $empleados]);
     }
 
     public function destroy(Request $request, string $id)

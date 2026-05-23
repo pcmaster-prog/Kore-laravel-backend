@@ -101,6 +101,10 @@ class TaskAssignmentRulesController extends Controller
             }
         }
 
+        if ($data['assignee_type'] === 'section_supervisor' && empty($data['section_id'])) {
+            return response()->json(['message' => 'section_id es requerido para section_supervisor'], 422);
+        }
+
         $rule = TaskAssignmentRule::create([
             'empresa_id' => $user->empresa_id,
             'task_template_id' => $data['task_template_id'],
