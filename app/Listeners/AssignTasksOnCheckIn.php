@@ -4,6 +4,7 @@ namespace App\Listeners;
 
 use App\Events\AttendanceCheckedIn;
 use App\Models\TaskAssignmentRule;
+use App\Models\TaskTemplate;
 use App\Models\Task;
 use App\Models\TaskAssignee;
 use App\Models\Empleado;
@@ -48,7 +49,7 @@ class AssignTasksOnCheckIn
                        });
                 });
             })
-            ->with('taskTemplate')
+            ->with(['items' => fn($q) => $q->where('is_active', true)->orderBy('sort_order')])
             ->get();
 
         if ($rules->isEmpty()) {
@@ -59,56 +60,68 @@ class AssignTasksOnCheckIn
         $createdTasks = [];
 
         foreach ($rules as $rule) {
-            $template = $rule->taskTemplate;
-            if (!$template || !$template->is_active) continue;
+            // Obtener todos los templates de la regla
+            $templateIds = [];
 
-            // Verificar que no exista ya una tarea hoy para este template+empleado
-            $alreadyExists = Task::where('empresa_id', $empresaId)
-                ->whereHas('assignees', function ($q) use ($empleadoId) {
-                    $q->where('empleado_id', $empleadoId);
-                })
-                ->whereRaw("meta->>'template_id' = ?", [$template->id])
-                ->whereRaw("meta->>'catalog_date' = ?", [now()->toDateString()])
-                ->exists();
+            if ($rule->task_template_id) {
+                $templateIds[] = $rule->task_template_id;
+            }
 
-            if ($alreadyExists) continue;
+            $itemTemplateIds = $rule->items->pluck('template_id')->all();
+            $templateIds = array_values(array_unique(array_merge($templateIds, $itemTemplateIds)));
 
-            $task = Task::create([
-                'empresa_id' => $empresaId,
-                'created_by' => $rule->created_by,
-                'title' => $template->title,
-                'description' => $template->description,
-                'priority' => $template->priority ?? 'medium',
-                'status' => 'open',
-                'area_id' => $template->area_id,
-                'section_id' => $template->section_id,
-                'meta' => [
-                    'template_id' => $template->id,
-                    'catalog_date' => now()->toDateString(),
-                    'source' => 'auto_rule',
-                    'trigger_event' => 'attendance_checkin',
-                    'resolved_by' => 'checkin',
-                ],
-            ]);
+            foreach ($templateIds as $templateId) {
+                $template = TaskTemplate::where('id', $templateId)->where('is_active', true)->first();
+                if (!$template) continue;
 
-            TaskAssignee::create([
-                'empresa_id' => $empresaId,
-                'task_id' => $task->id,
-                'empleado_id' => $empleadoId,
-                'status' => 'assigned',
-                'meta' => null,
-            ]);
+                // Verificar que no exista ya una tarea hoy para este template+empleado
+                $alreadyExists = Task::where('empresa_id', $empresaId)
+                    ->whereHas('assignees', function ($q) use ($empleadoId) {
+                        $q->where('empleado_id', $empleadoId);
+                    })
+                    ->whereRaw("meta->>'template_id' = ?", [$templateId])
+                    ->whereRaw("meta->>'catalog_date' = ?", [now()->toDateString()])
+                    ->exists();
 
-            $createdTasks[] = $task;
+                if ($alreadyExists) continue;
 
-            // Notificar al empleado
-            if ($empleado && $empleado->user_id) {
-                SendPushNotification::dispatch(
-                    $empleado->user_id,
-                    '📋 Nueva tarea asignada',
-                    "Se te asignó: {$task->title}",
-                    ['type' => 'task.assigned', 'task_id' => $task->id]
-                );
+                $task = Task::create([
+                    'empresa_id' => $empresaId,
+                    'created_by' => $rule->created_by,
+                    'title' => $template->title,
+                    'description' => $template->description,
+                    'priority' => $template->priority ?? 'medium',
+                    'status' => 'open',
+                    'area_id' => $template->area_id,
+                    'section_id' => $template->section_id,
+                    'meta' => [
+                        'template_id' => $template->id,
+                        'catalog_date' => now()->toDateString(),
+                        'source' => 'auto_rule',
+                        'trigger_event' => 'attendance_checkin',
+                        'resolved_by' => 'checkin',
+                    ],
+                ]);
+
+                TaskAssignee::create([
+                    'empresa_id' => $empresaId,
+                    'task_id' => $task->id,
+                    'empleado_id' => $empleadoId,
+                    'status' => 'assigned',
+                    'meta' => null,
+                ]);
+
+                $createdTasks[] = $task;
+
+                // Notificar al empleado
+                if ($empleado && $empleado->user_id) {
+                    SendPushNotification::dispatch(
+                        $empleado->user_id,
+                        '📋 Nueva tarea asignada',
+                        "Se te asignó: {$task->title}",
+                        ['type' => 'task.assigned', 'task_id' => $task->id]
+                    );
+                }
             }
         }
 

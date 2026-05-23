@@ -57,4 +57,17 @@ class TaskAssignmentRule extends Model
     {
         return $this->belongsTo(Position::class, 'assignee_id');
     }
+
+    public function items()
+    {
+        return $this->hasMany(TaskAssignmentRuleItem::class, 'rule_id')
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->with('template');
+    }
+
+    public function allTemplates()
+    {
+        return $this->items->pluck('template_id')->all();
+    }
 }
