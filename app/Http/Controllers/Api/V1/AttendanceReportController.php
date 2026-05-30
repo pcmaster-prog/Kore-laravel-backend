@@ -31,6 +31,7 @@ class AttendanceReportController extends Controller
 
         $data = $request->validate([
             'date'   => ['required', 'date_format:Y-m-d'],
+            'time'   => ['nullable', 'date_format:H:i'],
             'motivo' => ['required', 'string', 'max:500'],
         ]);
 
@@ -55,10 +56,12 @@ class AttendanceReportController extends Controller
 
         $closedCount = 0;
         $employeeNames = [];
-        $now = now();
+        $closeTime = isset($data['time'])
+            ? Carbon::parse($date . ' ' . $data['time'])
+            : now();
 
         foreach ($days as $day) {
-            $day->last_check_out_at = $now;
+            $day->last_check_out_at = $closeTime;
             $day->status = 'closed';
             $day->admin_closed = true;
             $day->admin_closed_by = $u->id;
@@ -78,6 +81,7 @@ class AttendanceReportController extends Controller
             null,
             [
                 'date'          => $date,
+                'time'          => $closeTime->format('H:i'),
                 'motivo'        => $motivo,
                 'closed_count'  => $closedCount,
                 'employee_names'=> $employeeNames,

@@ -164,6 +164,42 @@ class AttendanceReportTest extends TestCase
             ->assertJsonPath('message', 'No hay empleados en turno para cerrar en esta fecha');
     }
 
+    public function test_cerrar_masivo_usa_hora_especifica_cuando_se_envia(): void
+    {
+        [$empresa, $admin] = $this->setupEmpresaYAdmin();
+        [, $emp1] = $this->crearEmpleado($empresa, 'Juan Pérez', 'juan@test.com');
+
+        $date = now()->toDateString();
+        $horaCierre = '17:30';
+
+        AttendanceDay::create([
+            'id'                => Str::uuid(),
+            'empresa_id'        => $empresa->id,
+            'empleado_id'       => $emp1->id,
+            'date'              => $date,
+            'status'            => 'open',
+            'first_check_in_at' => now()->subHours(8),
+        ]);
+
+        $response = $this->actingAs($admin, 'sanctum')
+            ->postJson('/api/v1/asistencia/cerrar-masivo', [
+                'date'   => $date,
+                'time'   => $horaCierre,
+                'motivo' => 'Cierre de turno por fin de jornada laboral',
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('closed_count', 1);
+
+        $this->assertDatabaseHas('attendance_days', [
+            'empleado_id'        => $emp1->id,
+            'status'             => 'closed',
+            'admin_closed'       => true,
+            'admin_closed_by'    => $admin->id,
+            'last_check_out_at'  => $date . ' ' . $horaCierre . ':00',
+        ]);
+    }
+
     // ─────────────────────────────────────────────
     // Reporte Semanal
     // ─────────────────────────────────────────────
