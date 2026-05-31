@@ -9,6 +9,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Carbon\Carbon;
 use Tests\TestCase;
 
 class AttendanceReportTest extends TestCase
@@ -221,8 +222,8 @@ class AttendanceReportTest extends TestCase
         [, $emp1] = $this->crearEmpleado($empresa, 'Juan Pérez', 'juan@test.com');
         [, $emp2] = $this->crearEmpleado($empresa, 'María García', 'maria@test.com');
 
-        $from = now()->startOfWeek(Carbon\Carbon::SUNDAY)->toDateString();
-        $to = now()->endOfWeek(Carbon\Carbon::SATURDAY)->toDateString();
+        $from = now()->startOfWeek(Carbon::SUNDAY)->toDateString();
+        $to = now()->endOfWeek(Carbon::SATURDAY)->toDateString();
 
         $response = $this->actingAs($admin, 'sanctum')
             ->getJson("/api/v1/reportes/asistencia-semanal?from={$from}&to={$to}");
@@ -239,8 +240,8 @@ class AttendanceReportTest extends TestCase
         [, $emp1] = $this->crearEmpleado($empresa, 'Juan Pérez', 'juan@test.com');
         [, $emp2] = $this->crearEmpleado($empresa, 'María García', 'maria@test.com');
 
-        $from = now()->startOfWeek(Carbon\Carbon::SUNDAY)->toDateString();
-        $to = now()->endOfWeek(Carbon\Carbon::SATURDAY)->toDateString();
+        $from = now()->startOfWeek(Carbon::SUNDAY)->toDateString();
+        $to = now()->endOfWeek(Carbon::SATURDAY)->toDateString();
 
         $response = $this->actingAs($admin, 'sanctum')
             ->getJson("/api/v1/reportes/asistencia-semanal?from={$from}&to={$to}&empleado_ids={$emp1->id}");

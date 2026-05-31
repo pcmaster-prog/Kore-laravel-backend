@@ -56,13 +56,59 @@ class AttendanceService
             }
         }
 
+        $empresa = Empresa::find($day->empresa_id);
+        $settings = is_array($empresa?->settings) ? $empresa->settings : [];
+        $breakPausesClock = $settings['operativo']['break_pauses_clock'] ?? true;
+
         $totalSeconds  = max(0, $checkIn->diffInSeconds($effectiveCheckOut));
-        $workedSeconds = max(0, $totalSeconds - $breakSeconds);
+
+        if ($breakPausesClock) {
+            $workedSeconds = max(0, $totalSeconds - $breakSeconds);
+        } else {
+            $workedSeconds = $totalSeconds;
+        }
 
         return [
             'worked_minutes' => (int) round($workedSeconds / 60),
             'break_minutes'  => (int) round($breakSeconds  / 60),
         ];
+    }
+
+    /**
+     * Calcula la hora estimada de salida considerando:
+     * - hora real de entrada
+     * - max_hours configurado
+     * - exceso de comida (meal_overtime_minutes)
+     * - descansos (si pausan reloj)
+     */
+    public static function calculateExpectedExitTime(AttendanceDay $day): ?Carbon
+    {
+        if (!$day->first_check_in_at) {
+            return null;
+        }
+
+        $empresa = Empresa::find($day->empresa_id);
+        $settings = is_array($empresa?->settings) ? $empresa->settings : [];
+        $operativo = $settings['operativo'] ?? [];
+        $maxHours = (int)($operativo['max_hours'] ?? 8);
+        $mealDuration = (int)($operativo['meal_duration_minutes'] ?? 30);
+        $breakPausesClock = (bool)($operativo['break_pauses_clock'] ?? true);
+
+        $baseMinutes = $maxHours * 60;
+
+        // Sumar exceso de comida
+        $mealOvertime = (int)($day->meal_overtime_minutes ?? 0);
+
+        // Calcular minutos de break para compensar si pausa reloj
+        $breakCompensation = 0;
+        if ($breakPausesClock) {
+            $totals = self::computeDayTotals($day);
+            $breakCompensation = $totals['break_minutes'];
+        }
+
+        $totalShiftMinutes = $baseMinutes + $mealDuration + $mealOvertime + $breakCompensation;
+
+        return $day->first_check_in_at->copy()->addMinutes($totalShiftMinutes);
     }
 
     /**

@@ -294,6 +294,45 @@ class AttendanceControllerV2 extends Controller
 
         $this->addEvent($empresaId, $day->id, 'break_end', $request);
 
+        // Detectar exceso de descanso
+        $events = AttendanceEvent::where('attendance_day_id', $day->id)
+            ->whereIn('type', ['break_start', 'break_end'])
+            ->orderBy('occurred_at')
+            ->get();
+
+        $breakStart = null;
+        $totalBreakSeconds = 0;
+        foreach ($events as $e) {
+            if ($e->type === 'break_start') $breakStart = $e->occurred_at;
+            if ($e->type === 'break_end' && $breakStart) {
+                $totalBreakSeconds += max(0, $breakStart->diffInSeconds($e->occurred_at));
+                $breakStart = null;
+            }
+        }
+
+        $empresa = Empresa::find($empresaId);
+        $settings = is_array($empresa?->settings) ? $empresa->settings : [];
+        $breakDuration = (int)($settings['operativo']['break_duration_minutes'] ?? 10);
+        $totalBreakMinutes = (int) round($totalBreakSeconds / 60);
+
+        if ($totalBreakMinutes > $breakDuration) {
+            $exceso = $totalBreakMinutes - $breakDuration;
+            try {
+                SendPushNotificationToManagers::dispatch(
+                    $empresaId,
+                    '⚠️ Exceso de descanso',
+                    ($emp->full_name ?? $u->name) . " excedió el descanso en {$exceso} min (límite: {$breakDuration} min)",
+                    [
+                        'type'        => 'attendance.break_overtime',
+                        'empleado_id' => $emp->id,
+                        'exceso_min'  => (string) $exceso,
+                    ]
+                );
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error('Error notificación exceso descanso: ' . $e->getMessage());
+            }
+        }
+
         // 🔔 PARCHE 1: Logging para break_end
         \App\Services\ActivityLogger::log(
             $empresaId,
@@ -337,8 +376,16 @@ class AttendanceControllerV2 extends Controller
 
         $this->addEvent($empresaId, $day->id, 'check_out', $request);
 
-        $day->last_check_out_at = now();
+        $now = now();
+        $day->last_check_out_at = $now;
         $day->status = 'closed';
+
+        // Salida anticipada
+        $expectedExit = AttendanceService::calculateExpectedExitTime($day);
+        if ($expectedExit && $now->lessThan($expectedExit)) {
+            $day->early_departure_minutes = (int) ceil($expectedExit->diffInMinutes($now));
+        }
+
         $day->save();
 
         // 🔔 PARCHE 1 FIX: calcular totales reales con computeTotals()
@@ -495,18 +542,41 @@ class AttendanceControllerV2 extends Controller
             $state = 'closed';
         }
 
+        // Settings operativos
+        $empresa = Empresa::find($empresaId);
+        $settings = is_array($empresa?->settings) ? $empresa->settings : [];
+        $operativo = $settings['operativo'] ?? [];
+        $mealDuration = (int)($operativo['meal_duration_minutes'] ?? 30);
+        $breakDuration = (int)($operativo['break_duration_minutes'] ?? 10);
+        $breakPausesClock = (bool)($operativo['break_pauses_clock'] ?? true);
+
+        // Calcular expected_exit_time
+        $expectedExitTime = null;
+        if ($day) {
+            $expectedExitTime = AttendanceService::calculateExpectedExitTime($day);
+        }
+
+        // Condicionar check_out por hora
+        $canCheckOut = !$isRest && !$adminClosed && $state === 'working';
+        if ($canCheckOut && $expectedExitTime) {
+            $canCheckOut = now()->greaterThanOrEqualTo($expectedExitTime->copy()->subMinute());
+        }
+
         // acciones permitidas según estado + descanso
         $actions = [
             'check_in'    => !$isRest && !$adminClosed && $state === 'out',
             'break_start' => !$isRest && !$adminClosed && $state === 'working',
             'break_end'   => !$isRest && !$adminClosed && $state === 'break',
-            'check_out'   => !$isRest && !$adminClosed && $state === 'working',
+            'check_out'   => $canCheckOut,
         ];
 
         $totals = null;
         $hasCheckIn = false;
         if ($day) {
             $hasCheckIn = $day->first_check_in_at !== null;
+            if ($hasCheckIn) {
+                $totals = AttendanceService::computeDayTotals($day);
+            }
         }
 
         [$weekStart, $weekEnd] = AttendanceService::weekRangeForDate($empresaId, $today);
@@ -531,6 +601,14 @@ class AttendanceControllerV2 extends Controller
             'actions'            => $actions,
             'day'                => $day ? $this->presentDay($day) : null,
             'totals'             => $totals,
+            'expected_exit_time' => $expectedExitTime?->toISOString(),
+            'early_departure_minutes' => $day?->early_departure_minutes,
+            'break_pauses_clock' => $breakPausesClock,
+            'meal_duration_minutes' => $mealDuration,
+            'break_duration_minutes'=> $breakDuration,
+            'lunch_reminder_sent'   => (bool)$day?->lunch_reminder_sent,
+            'exit_reminder_sent'    => (bool)$day?->exit_reminder_sent,
+            'exit_available_sent'   => (bool)$day?->exit_available_sent,
         ]);
     }
 
@@ -919,7 +997,7 @@ class AttendanceControllerV2 extends Controller
 
     /**
      * POST /asistencia/comida/iniciar
-     * El empleado inicia su tiempo de comida (máx. 30 min).
+     * El empleado inicia su tiempo de comida.
      */
     public function iniciarComida(Request $request)
     {
@@ -942,6 +1020,11 @@ class AttendanceControllerV2 extends Controller
         $day->lunch_start_at = now();
         $day->save();
 
+        // Leer duración configurada
+        $empresa = Empresa::find($empresaId);
+        $settings = is_array($empresa?->settings) ? $empresa->settings : [];
+        $mealDuration = (int)($settings['operativo']['meal_duration_minutes'] ?? 30);
+
         // 🔔 Notificar al supervisor
         try {
             SendPushNotificationToManagers::dispatch(
@@ -957,13 +1040,13 @@ class AttendanceControllerV2 extends Controller
         return response()->json([
             'message'        => 'Tiempo de comida iniciado',
             'lunch_start_at' => $day->lunch_start_at->toISOString(),
-            'lunch_limit_at' => $day->lunch_start_at->copy()->addMinutes(30)->toISOString(),
+            'lunch_limit_at' => $day->lunch_start_at->copy()->addMinutes($mealDuration)->toISOString(),
         ]);
     }
 
     /**
      * POST /asistencia/comida/terminar
-     * El empleado termina su tiempo de comida. Notifica si excedió 30 min.
+     * El empleado termina su tiempo de comida.
      */
     public function terminarComida(Request $request)
     {
@@ -986,16 +1069,24 @@ class AttendanceControllerV2 extends Controller
         $day->lunch_end_at = now();
         $day->save();
 
-        $minutos = (int) round($day->lunch_start_at->diffInMinutes($day->lunch_end_at));
-        $excedio = $minutos > 30;
+        // Leer duración configurada
+        $empresa = Empresa::find($empresaId);
+        $settings = is_array($empresa?->settings) ? $empresa->settings : [];
+        $mealDuration = (int)($settings['operativo']['meal_duration_minutes'] ?? 30);
 
-        // 🔔 Notificar si se pasó del tiempo
+        $minutos = (int) round($day->lunch_start_at->diffInMinutes($day->lunch_end_at));
+        $excedio = $minutos > $mealDuration;
+
         if ($excedio) {
+            $day->meal_overtime_minutes = max(0, $minutos - $mealDuration);
+            $day->save();
+
+            // 🔔 Notificar si se pasó del tiempo
             try {
                 SendPushNotificationToManagers::dispatch(
                     $empresaId,
                     '⚠️ Tiempo de comida excedido',
-                    ($emp->full_name ?? $u->name) . " tardó {$minutos} min en comida (límite: 30 min)",
+                    ($emp->full_name ?? $u->name) . " tardó {$minutos} min en comida (límite: {$mealDuration} min)",
                     [
                         'type'        => 'attendance.lunch_overtime',
                         'empleado_id' => $emp->id,
@@ -1167,6 +1258,11 @@ class AttendanceControllerV2 extends Controller
             $effectiveStatus = 'late';
         }
 
+        // Leer duración configurada para overtime de comida
+        $empresa = Empresa::find($d->empresa_id);
+        $settings = is_array($empresa?->settings) ? $empresa->settings : [];
+        $mealDuration = (int)($settings['operativo']['meal_duration_minutes'] ?? 30);
+
         return [
             'id'                => $d->id,
             'empleado_id'       => $d->empleado_id,
@@ -1176,13 +1272,16 @@ class AttendanceControllerV2 extends Controller
             'last_check_out_at' => $d->last_check_out_at?->toISOString(),
             // Retardo
             'late_minutes'      => $lateMins,
+            // Salida anticipada y exceso comida
+            'early_departure_minutes' => $d->early_departure_minutes,
+            'meal_overtime_minutes'   => $d->meal_overtime_minutes,
             // Campos de comida
             'lunch_start_at'    => $d->lunch_start_at?->toISOString(),
             'lunch_end_at'      => $d->lunch_end_at?->toISOString(),
             'lunch_minutes'     => $lunchMinutes,
             'lunch_active'      => $d->lunch_start_at && !$d->lunch_end_at,
             'lunch_overtime'    => $d->lunch_start_at && !$d->lunch_end_at
-                ? now()->diffInMinutes($d->lunch_start_at) > 30
+                ? now()->diffInMinutes($d->lunch_start_at) > $mealDuration
                 : false,
         ];
     }

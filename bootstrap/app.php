@@ -82,5 +82,11 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // Notificaciones de hora de comida — revisa cada minuto quién debe salir a comer
         $schedule->command('meals:notify')->everyMinute()->withoutOverlapping();
+
+        // Recordatorios de salida (5 min antes + disponible)
+        $schedule->command('attendance:reminders')->everyMinute()->withoutOverlapping();
+
+        // Exceso de descanso en tiempo real
+        $schedule->command('breaks:check-overtime')->everyMinute()->withoutOverlapping();
     })
     ->create();

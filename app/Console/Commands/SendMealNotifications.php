@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use App\Models\MealSchedule;
+use App\Models\AttendanceDay;
 use App\Services\NotificationService;
 use Illuminate\Support\Facades\Log;
 
@@ -15,6 +16,7 @@ class SendMealNotifications extends Command
     public function handle(): void
     {
         $now = now()->format('H:i');
+        $today = now()->toDateString();
 
         $schedules = MealSchedule::where('meal_start_time', 'LIKE', $now . '%')
             ->with('employee')
@@ -39,6 +41,17 @@ class SendMealNotifications extends Command
 
             if (!$user || !$user->is_active) {
                 continue;
+            }
+
+            // Marcar reminder enviado en attendance_day
+            $day = AttendanceDay::where('empresa_id', $empleado->empresa_id)
+                ->where('empleado_id', $empleado->id)
+                ->where('date', $today)
+                ->first();
+
+            if ($day && !$day->lunch_reminder_sent) {
+                $day->lunch_reminder_sent = true;
+                $day->save();
             }
 
             try {

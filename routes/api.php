@@ -65,6 +65,8 @@ use App\Http\Controllers\Api\V1\TardinessReportController;
 use App\Http\Controllers\Api\V1\MealScheduleController;
 use App\Http\Controllers\Api\V1\HolidayController;
 use App\Http\Controllers\Api\V1\AttendanceReportController;
+use App\Http\Controllers\Api\V1\MealSwapRequestController;
+use App\Http\Controllers\Api\V1\OvertimeRequestController;
 
 // 🔥 Nuevo controlador para revisiones
 //use App\Http\Controllers\Api\V1\TaskReviewsController;
@@ -369,6 +371,24 @@ Route::prefix('v1')->group(function () {
                 Route::get('/meal-schedules',       [MealScheduleController::class, 'index']);
                 Route::post('/meal-schedules/bulk', [MealScheduleController::class, 'bulkStore']);
             });
+
+            // Cambio de horario de comida
+            Route::middleware('module:asistencia')->group(function () {
+                Route::post('/meal-swaps',                [MealSwapRequestController::class, 'store']);
+                Route::get('/meal-swaps/mis-solicitudes', [MealSwapRequestController::class, 'myRequests']);
+                Route::post('/meal-swaps/{id}/aceptar',   [MealSwapRequestController::class, 'accept'])->whereUuid('id');
+                Route::get('/meal-swaps/pendientes',      [MealSwapRequestController::class, 'pending'])->middleware('role:admin,supervisor');
+                Route::patch('/meal-swaps/{id}/revisar',  [MealSwapRequestController::class, 'review'])->whereUuid('id')->middleware('role:admin,supervisor');
+            });
+
+            // Horas extras
+            Route::middleware('module:asistencia')->group(function () {
+                Route::post('/overtime-requests',               [OvertimeRequestController::class, 'store']);
+                Route::get('/overtime-requests/mias',           [OvertimeRequestController::class, 'myRequests']);
+                Route::get('/overtime-requests/pendientes',     [OvertimeRequestController::class, 'pending'])->middleware('role:admin,supervisor');
+                Route::patch('/overtime-requests/{id}',         [OvertimeRequestController::class, 'review'])->whereUuid('id')->middleware('role:admin,supervisor');
+            });
+
             // Festivos
             Route::get('/empresa/festivos', [HolidayController::class, 'index']);
             Route::post('/empresa/festivos', [HolidayController::class, 'store']);

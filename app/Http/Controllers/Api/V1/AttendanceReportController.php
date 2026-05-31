@@ -41,7 +41,7 @@ class AttendanceReportController extends Controller
         $motivo = $data['motivo'];
 
         $days = AttendanceDay::where('empresa_id', $empresaId)
-            ->where('date', $date)
+            ->whereDate('date', $date)
             ->whereNotNull('first_check_in_at')
             ->whereNull('last_check_out_at')
             ->whereNotIn('status', ['day_off', 'holiday'])
@@ -195,6 +195,8 @@ class AttendanceReportController extends Controller
                 ],
                 'filas'  => $filas,
             ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            throw $e;
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::error('ERROR asistenciaSemanal: ' . $e->getMessage(), [
                 'trace' => $e->getTraceAsString(),
@@ -239,7 +241,8 @@ class AttendanceReportController extends Controller
         // Precargar datos
         $attendanceDays = AttendanceDay::where('empresa_id', $empresaId)
             ->where('empleado_id', $emp->id)
-            ->whereBetween('date', [$from->toDateString(), $to->toDateString()])
+            ->whereDate('date', '>=', $from->toDateString())
+            ->whereDate('date', '<=', $to->toDateString())
             ->get()
             ->keyBy(fn($d) => $d->date->toDateString());
 

@@ -47,13 +47,16 @@ class EmpresaSettingsController extends Controller
 
         $settings = is_array($empresa->settings) ? $empresa->settings : [];
         $operativo = $settings['operativo'] ?? [
-            'check_in_time'       => '08:00',
-            'check_out_time'      => '17:00',
-            'late_tolerance'      => 10,
-            'max_hours'           => 8,
-            'auto_close_enabled'  => false,
-            'auto_close_time'     => '17:00',
-            'auto_close_weekday'  => null,
+            'check_in_time'         => '08:00',
+            'check_out_time'        => '17:00',
+            'late_tolerance'        => 10,
+            'max_hours'             => 8,
+            'auto_close_enabled'    => false,
+            'auto_close_time'       => '17:00',
+            'auto_close_weekday'    => null,
+            'meal_duration_minutes' => 30,
+            'break_duration_minutes'=> 10,
+            'break_pauses_clock'    => true,
         ];
         $calendar = $settings['calendar'] ?? [
             'week_start' => 0 // Domingo
@@ -71,27 +74,34 @@ class EmpresaSettingsController extends Controller
         Gate::authorize('admin');
 
         $data = $request->validate([
-            'check_in_time'       => ['required', 'string', 'regex:/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/'],
-            'check_out_time'      => ['required', 'string', 'regex:/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/'],
-            'late_tolerance'      => ['required', 'integer', 'min:0'],
-            'max_hours'           => ['required', 'integer', 'min:1', 'max:24'],
-            'auto_close_enabled'  => ['sometimes', 'boolean'],
-            'auto_close_time'     => ['nullable', 'string', 'regex:/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/'],
-            'auto_close_weekday'  => ['nullable', 'integer', 'min:0', 'max:6'],
+            'check_in_time'         => ['required', 'string', 'regex:/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/'],
+            'check_out_time'        => ['required', 'string', 'regex:/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/'],
+            'late_tolerance'        => ['required', 'integer', 'min:0'],
+            'max_hours'             => ['required', 'integer', 'min:1', 'max:24'],
+            'auto_close_enabled'    => ['sometimes', 'boolean'],
+            'auto_close_time'       => ['nullable', 'string', 'regex:/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/'],
+            'auto_close_weekday'    => ['nullable', 'integer', 'min:0', 'max:6'],
+            'meal_duration_minutes' => ['sometimes', 'integer', 'min:1', 'max:180'],
+            'break_duration_minutes'=> ['sometimes', 'integer', 'min:1', 'max:60'],
+            'break_pauses_clock'    => ['sometimes', 'boolean'],
         ]);
 
         $empresa = Empresa::where('id', $u->empresa_id)->first();
         if (!$empresa) return response()->json(['message'=>'Empresa no encontrada'], 404);
 
         $settings = is_array($empresa->settings) ? $empresa->settings : [];
+        $oldOperativo = $settings['operativo'] ?? [];
         $settings['operativo'] = [
-            'check_in_time'      => $data['check_in_time'],
-            'check_out_time'     => $data['check_out_time'],
-            'late_tolerance'     => (int)$data['late_tolerance'],
-            'max_hours'          => (int)$data['max_hours'],
-            'auto_close_enabled' => (bool)($data['auto_close_enabled'] ?? false),
-            'auto_close_time'    => $data['auto_close_time'] ?? null,
-            'auto_close_weekday' => isset($data['auto_close_weekday']) ? (int)$data['auto_close_weekday'] : null,
+            'check_in_time'          => $data['check_in_time'],
+            'check_out_time'         => $data['check_out_time'],
+            'late_tolerance'         => (int)$data['late_tolerance'],
+            'max_hours'              => (int)$data['max_hours'],
+            'auto_close_enabled'     => (bool)($data['auto_close_enabled'] ?? false),
+            'auto_close_time'        => $data['auto_close_time'] ?? null,
+            'auto_close_weekday'     => isset($data['auto_close_weekday']) ? (int)$data['auto_close_weekday'] : null,
+            'meal_duration_minutes'  => (int)($data['meal_duration_minutes'] ?? ($oldOperativo['meal_duration_minutes'] ?? 30)),
+            'break_duration_minutes' => (int)($data['break_duration_minutes'] ?? ($oldOperativo['break_duration_minutes'] ?? 10)),
+            'break_pauses_clock'     => (bool)($data['break_pauses_clock'] ?? ($oldOperativo['break_pauses_clock'] ?? true)),
         ];
 
         $empresa->settings = $settings;
