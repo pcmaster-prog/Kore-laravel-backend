@@ -75,11 +75,59 @@ class AttendanceService
     }
 
     /**
+     * Obtiene el horario configurado para un día específico de la semana.
+     * Considera week_schedule si existe, o fallback al horario base.
+     */
+    public static function getDaySchedule(string $empresaId, string $date): ?array
+    {
+        $empresa = Empresa::find($empresaId);
+        $settings = is_array($empresa?->settings) ? $empresa->settings : [];
+        $operativo = $settings['operativo'] ?? [];
+        $weekSchedule = $operativo['week_schedule'] ?? null;
+
+        $weekday = (int) Carbon::parse($date)->dayOfWeek;
+
+        if ($weekSchedule && is_array($weekSchedule)) {
+            $daySchedule = collect($weekSchedule)->firstWhere('weekday', $weekday);
+            if ($daySchedule) {
+                return [
+                    'check_in_time'  => $daySchedule['check_in_time'] ?? null,
+                    'check_out_time' => $daySchedule['check_out_time'] ?? null,
+                    'is_working_day' => (bool) ($daySchedule['is_working_day'] ?? true),
+                ];
+            }
+        }
+
+        // Fallback al horario base
+        $checkInTime = $operativo['check_in_time'] ?? null;
+        if (!$checkInTime) {
+            return null;
+        }
+
+        return [
+            'check_in_time'  => $checkInTime,
+            'check_out_time' => $operativo['check_out_time'] ?? null,
+            'is_working_day' => true,
+        ];
+    }
+
+    /**
+     * Determina si una fecha es día no laborable según week_schedule.
+     */
+    public static function isNonWorkingDay(string $empresaId, string $date): bool
+    {
+        $schedule = self::getDaySchedule($empresaId, $date);
+        return $schedule !== null && $schedule['is_working_day'] === false;
+    }
+
+    /**
      * Calcula la hora estimada de salida considerando:
      * - hora real de entrada
      * - max_hours configurado
      * - exceso de comida (meal_overtime_minutes)
      * - descansos (si pausan reloj)
+     *
+     * @deprecated Usar calculateOfficialExitTime o calculateRequiredExitTime
      */
     public static function calculateExpectedExitTime(AttendanceDay $day): ?Carbon
     {
@@ -109,6 +157,54 @@ class AttendanceService
         $totalShiftMinutes = $baseMinutes + $mealDuration + $mealOvertime + $breakCompensation;
 
         return $day->first_check_in_at->copy()->addMinutes($totalShiftMinutes);
+    }
+
+    /**
+     * Calcula la hora oficial de salida basada en el horario programado
+     * del día de la semana (check_out_time de week_schedule).
+     * No considera la hora real de entrada ni retardos.
+     */
+    public static function calculateOfficialExitTime(AttendanceDay $day): ?Carbon
+    {
+        $schedule = self::getDaySchedule($day->empresa_id, $day->date->toDateString());
+
+        if (!$schedule || !$schedule['is_working_day'] || !$schedule['check_out_time']) {
+            return null;
+        }
+
+        return Carbon::parse($day->date->toDateString() . ' ' . $schedule['check_out_time']);
+    }
+
+    /**
+     * Calcula la hora de salida requerida que el empleado debe cumplir
+     * para completar su jornada. Considera:
+     * - hora oficial de salida
+     * - minutos de retardo (late_minutes)
+     * - exceso de comida (meal_overtime_minutes)
+     * - descansos (si pausan reloj)
+     */
+    public static function calculateRequiredExitTime(AttendanceDay $day): ?Carbon
+    {
+        $officialExit = self::calculateOfficialExitTime($day);
+        if (!$officialExit) {
+            return null;
+        }
+
+        $lateMinutes = (int)($day->late_minutes ?? 0);
+        $mealOvertime = (int)($day->meal_overtime_minutes ?? 0);
+
+        $empresa = Empresa::find($day->empresa_id);
+        $settings = is_array($empresa?->settings) ? $empresa->settings : [];
+        $operativo = $settings['operativo'] ?? [];
+        $breakPausesClock = (bool)($operativo['break_pauses_clock'] ?? true);
+
+        $breakCompensation = 0;
+        if ($breakPausesClock) {
+            $totals = self::computeDayTotals($day);
+            $breakCompensation = $totals['break_minutes'];
+        }
+
+        return $officialExit->copy()->addMinutes($lateMinutes + $mealOvertime + $breakCompensation);
     }
 
     /**

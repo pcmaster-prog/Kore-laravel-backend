@@ -31,30 +31,36 @@ class AttendanceControllerV2 extends Controller
 
         // 🛡️ VALIDACIÓN: No permitir entrada antes de la hora configurada (-15 min margen)
         // ni después de la hora de salida configurada
-        $settings = is_array($empresa->settings) ? $empresa->settings : [];
-        $operativo = $settings['operativo'] ?? null;
-        if ($operativo && isset($operativo['check_in_time'])) {
-            $checkInTimeStr = $operativo['check_in_time']; // E.g., "08:20"
-
-            $todayCheckIn  = \Carbon\Carbon::parse($today . ' ' . $checkInTimeStr);
-            $todayEarliest = $todayCheckIn->copy()->subMinutes(15);
-
-            $now = now(); // Hora actual del servidor (timezone de config/app.php)
-
-            // ❌ Demasiado temprano
-            if ($now->lessThan($todayEarliest)) {
+        $daySchedule = AttendanceService::getDaySchedule($empresaId, $today);
+        if ($daySchedule) {
+            if (!$daySchedule['is_working_day']) {
                 return response()->json([
-                    'message' => "Entrada bloqueada: Aún es muy temprano. El acceso para las " . $todayCheckIn->format('H:i') . " se permite desde las " . $todayEarliest->format('H:i') . ". Tu hora actual es: " . $now->format('H:i'),
-                    'code'                => 'CHECK_IN_TOO_EARLY',
-                    'earliest_allowed'    => $todayEarliest->toTimeString(),
-                    'current_server_time' => $now->toTimeString(),
+                    'message' => 'Hoy no es día laborable según el horario configurado.',
+                    'code' => 'NON_WORKING_DAY',
                 ], 409);
             }
 
-            // ❌ Demasiado tarde (después de la hora de salida configurada)
-            if (isset($operativo['check_out_time'])) {
-                $checkOutTimeStr = $operativo['check_out_time']; // E.g., "17:10"
-                $todayCheckOut   = \Carbon\Carbon::parse($today . ' ' . $checkOutTimeStr);
+            $checkInTimeStr = $daySchedule['check_in_time'];
+            $checkOutTimeStr = $daySchedule['check_out_time'];
+
+            if ($checkInTimeStr) {
+                $todayCheckIn  = \Carbon\Carbon::parse($today . ' ' . $checkInTimeStr);
+                $todayEarliest = $todayCheckIn->copy()->subMinutes(15);
+
+                $now = now();
+
+                if ($now->lessThan($todayEarliest)) {
+                    return response()->json([
+                        'message' => "Entrada bloqueada: Aún es muy temprano. El acceso para las " . $todayCheckIn->format('H:i') . " se permite desde las " . $todayEarliest->format('H:i') . ". Tu hora actual es: " . $now->format('H:i'),
+                        'code'                => 'CHECK_IN_TOO_EARLY',
+                        'earliest_allowed'    => $todayEarliest->toTimeString(),
+                        'current_server_time' => $now->toTimeString(),
+                    ], 409);
+                }
+            }
+
+            if ($checkOutTimeStr) {
+                $todayCheckOut = \Carbon\Carbon::parse($today . ' ' . $checkOutTimeStr);
 
                 if ($now->greaterThan($todayCheckOut)) {
                     return response()->json([
@@ -122,11 +128,10 @@ class AttendanceControllerV2 extends Controller
             ]
         );
 
-        $freshSettings = is_array($empresa->settings) ? $empresa->settings : [];
-        $freshOperativo = $freshSettings['operativo'] ?? null;
+        $freshSchedule = AttendanceService::getDaySchedule($empresaId, $today);
 
-        if ($freshOperativo && isset($freshOperativo['check_in_time'])) {
-            $scheduledTime = \Carbon\Carbon::parse($today . ' ' . $freshOperativo['check_in_time']);
+        if ($freshSchedule && $freshSchedule['is_working_day'] && $freshSchedule['check_in_time']) {
+            $scheduledTime = \Carbon\Carbon::parse($today . ' ' . $freshSchedule['check_in_time']);
             $graceLimit    = $scheduledTime->copy()->addMinutes($tardinessConfig->grace_period_minutes);
             $lateThreshold = $graceLimit->copy()->addMinutes($tardinessConfig->late_threshold_minutes);
             $nowTs         = now();
@@ -380,10 +385,12 @@ class AttendanceControllerV2 extends Controller
         $day->last_check_out_at = $now;
         $day->status = 'closed';
 
-        // Salida anticipada
-        $expectedExit = AttendanceService::calculateExpectedExitTime($day);
-        if ($expectedExit && $now->lessThan($expectedExit)) {
-            $day->early_departure_minutes = (int) ceil($expectedExit->diffInMinutes($now));
+        // Salida anticipada: calcular contra required_exit_time
+        $requiredExit = AttendanceService::calculateRequiredExitTime($day);
+        if ($requiredExit && $now->lessThan($requiredExit)) {
+            $day->early_departure_minutes = (int) ceil($requiredExit->diffInMinutes($now));
+        } else {
+            $day->early_departure_minutes = null;
         }
 
         $day->save();
@@ -424,7 +431,11 @@ class AttendanceControllerV2 extends Controller
             \Illuminate\Support\Facades\Log::error('Error de notificaciones en salida: ' . $e->getMessage());
         }
 
-        return response()->json(['message'=>'Salida OK', 'day'=>$this->presentDay($day)]);
+        return response()->json([
+            'message' => 'Salida OK',
+            'day' => $this->presentDay($day),
+            'early_departure_minutes' => $day->early_departure_minutes,
+        ]);
     }
 
     // EMPLEADO: mis días (rango)
@@ -528,6 +539,8 @@ class AttendanceControllerV2 extends Controller
         }
 
         $isRest = AttendanceService::isRestDay($empresaId, $emp->id, $today);
+        $isNonWorking = AttendanceService::isNonWorkingDay($empresaId, $today);
+        $isBlocked = $isRest || $isNonWorking;
 
         $day = \App\Models\AttendanceDay::where('empresa_id',$empresaId)
             ->where('empleado_id',$emp->id)
@@ -550,23 +563,22 @@ class AttendanceControllerV2 extends Controller
         $breakDuration = (int)($operativo['break_duration_minutes'] ?? 10);
         $breakPausesClock = (bool)($operativo['break_pauses_clock'] ?? true);
 
-        // Calcular expected_exit_time
+        // Calcular expected_exit_time (oficial) y required_exit_time (con compensaciones)
         $expectedExitTime = null;
+        $requiredExitTime = null;
         if ($day) {
-            $expectedExitTime = AttendanceService::calculateExpectedExitTime($day);
+            $expectedExitTime = AttendanceService::calculateOfficialExitTime($day);
+            $requiredExitTime = AttendanceService::calculateRequiredExitTime($day);
         }
 
-        // Condicionar check_out por hora
-        $canCheckOut = !$isRest && !$adminClosed && $state === 'working';
-        if ($canCheckOut && $expectedExitTime) {
-            $canCheckOut = now()->greaterThanOrEqualTo($expectedExitTime->copy()->subMinute());
-        }
+        // El botón de salida está habilitado si hay entrada y no está cerrado
+        $canCheckOut = !$isBlocked && !$adminClosed && $state === 'working';
 
-        // acciones permitidas según estado + descanso
+        // acciones permitidas según estado + descanso / día no laborable
         $actions = [
-            'check_in'    => !$isRest && !$adminClosed && $state === 'out',
-            'break_start' => !$isRest && !$adminClosed && $state === 'working',
-            'break_end'   => !$isRest && !$adminClosed && $state === 'break',
+            'check_in'    => !$isBlocked && !$adminClosed && $state === 'out',
+            'break_start' => !$isBlocked && !$adminClosed && $state === 'working',
+            'break_end'   => !$isBlocked && !$adminClosed && $state === 'break',
             'check_out'   => $canCheckOut,
         ];
 
@@ -586,14 +598,15 @@ class AttendanceControllerV2 extends Controller
             ->where('type', 'rest')
             ->exists();
 
-        $canMarkRest = ($emp->payment_type === 'daily' && !$hasCheckIn && !$restUsedThisWeek && !$isRest && !$adminClosed);
+        $canMarkRest = ($emp->payment_type === 'daily' && !$hasCheckIn && !$restUsedThisWeek && !$isBlocked && !$adminClosed);
 
         return response()->json([
             'date'               => $today,
             'is_rest_day'        => $isRest,
+            'is_non_working_day' => $isNonWorking,
             'is_holiday'         => false,
-            'state'              => $isRest ? 'rest_day' : $state,
-            'status'             => $isRest ? 'rest_day' : $state,
+            'state'              => $isBlocked ? ($isRest ? 'rest_day' : 'non_working_day') : $state,
+            'status'             => $isBlocked ? ($isRest ? 'rest_day' : 'non_working_day') : $state,
             'admin_closed'       => $adminClosed,
             'is_paid_rest'       => $isRest,
             'can_mark_rest'      => $canMarkRest,
@@ -602,6 +615,7 @@ class AttendanceControllerV2 extends Controller
             'day'                => $day ? $this->presentDay($day) : null,
             'totals'             => $totals,
             'expected_exit_time' => $expectedExitTime?->toISOString(),
+            'required_exit_time' => $requiredExitTime?->toISOString(),
             'early_departure_minutes' => $day?->early_departure_minutes,
             'break_pauses_clock' => $breakPausesClock,
             'meal_duration_minutes' => $mealDuration,
@@ -1245,9 +1259,8 @@ class AttendanceControllerV2 extends Controller
         $lateMins = (int)($d->late_minutes ?? 0);
 
         if ($lateMins === 0 && $d->first_check_in_at) {
-            $empresa = Empresa::find($d->empresa_id);
-            $settings = is_array($empresa->settings) ? $empresa->settings : [];
-            $checkInTimeStr = $settings['operativo']['check_in_time'] ?? null;
+            $daySchedule = AttendanceService::getDaySchedule($d->empresa_id, $d->date->toDateString());
+            $checkInTimeStr = $daySchedule['check_in_time'] ?? null;
 
             if ($checkInTimeStr) {
                 $lateMins = AttendanceService::calculateLateMinutes($d->first_check_in_at, $checkInTimeStr);
@@ -1275,6 +1288,7 @@ class AttendanceControllerV2 extends Controller
             // Salida anticipada y exceso comida
             'early_departure_minutes' => $d->early_departure_minutes,
             'meal_overtime_minutes'   => $d->meal_overtime_minutes,
+            'required_exit_time' => \App\Services\AttendanceService::calculateRequiredExitTime($d)?->toISOString(),
             // Campos de comida
             'lunch_start_at'    => $d->lunch_start_at?->toISOString(),
             'lunch_end_at'      => $d->lunch_end_at?->toISOString(),

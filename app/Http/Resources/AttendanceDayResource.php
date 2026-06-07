@@ -14,6 +14,10 @@ class AttendanceDayResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $totals = \App\Services\AttendanceService::computeDayTotals($this->resource);
+        $expectedExit = \App\Services\AttendanceService::calculateOfficialExitTime($this->resource);
+        $requiredExit = \App\Services\AttendanceService::calculateRequiredExitTime($this->resource);
+
         return [
             'id' => $this->id,
             'empresa_id' => $this->empresa_id,
@@ -24,6 +28,11 @@ class AttendanceDayResource extends JsonResource
             'last_check_out_at' => $this->last_check_out_at,
             'lunch_start_at' => $this->lunch_start_at,
             'lunch_end_at' => $this->lunch_end_at,
+            'late_minutes' => $this->late_minutes,
+            'early_departure_minutes' => $this->early_departure_minutes,
+            'expected_exit_time' => $expectedExit?->toISOString(),
+            'required_exit_time' => $requiredExit?->toISOString(),
+            'totals' => $totals,
             'created_at' => $this->created_at,
         ];
     }

@@ -43,7 +43,7 @@ class SendAttendanceReminders extends Command
             $user = \App\Models\User::find($emp->user_id);
             if (!$user || !$user->is_active) continue;
 
-            $expectedExit = AttendanceService::calculateExpectedExitTime($day);
+            $expectedExit = AttendanceService::calculateRequiredExitTime($day);
             if (!$expectedExit) continue;
 
             $diffMinutes = $now->diffInMinutes($expectedExit, false);
