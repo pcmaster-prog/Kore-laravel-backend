@@ -15,8 +15,9 @@ class MaderasProduccionController extends Controller
      */
     public function index()
     {
-        $produccion = MaderasProduccion::with(['empleado.user', 'catalogo'])->orderBy('fecha_registro', 'desc')->get();
-        return response()->json($produccion);
+        // $produccion = MaderasProduccion::with(['empleado.user', 'catalogo'])->orderBy('fecha_registro', 'desc')->get();
+        // return response()->json($produccion);
+        return response()->json([]);
     }
 
     /**
