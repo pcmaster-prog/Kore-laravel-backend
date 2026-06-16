@@ -26,7 +26,18 @@ class PositionsController extends Controller
             $q->where('name', 'ilike', "%{$s}%");
         }
 
-        return response()->json($q->orderBy('name')->get());
+        $positions = $q->orderBy('name')->withCount('empleados')->with('modules')->get()->map(function($p) {
+            return [
+                'id' => $p->id,
+                'nombre' => $p->name,
+                'descripcion' => $p->description,
+                'activo' => $p->is_active,
+                'empleados_count' => $p->empleados_count,
+                'modulos' => $p->modules->pluck('module_slug'),
+            ];
+        });
+
+        return response()->json(['data' => $positions]);
     }
 
     public function store(Request $request)
@@ -47,7 +58,13 @@ class PositionsController extends Controller
             'is_active' => $data['is_active'] ?? true,
         ]);
 
-        return response()->json(['item' => $position], 201);
+        return response()->json(['data' => [
+            'id' => $position->id,
+            'nombre' => $position->name,
+            'descripcion' => $position->description,
+            'activo' => $position->is_active,
+            'modulos' => [],
+        ]], 201);
     }
 
     public function show(Request $request, string $id)
@@ -58,7 +75,17 @@ class PositionsController extends Controller
         $position = Position::where('empresa_id', $u->empresa_id)->where('id', $id)->first();
         if (!$position) return response()->json(['message' => 'No encontrado'], 404);
 
-        return response()->json(['item' => $position]);
+        $position->loadCount('empleados');
+        $position->load('modules');
+
+        return response()->json(['data' => [
+            'id' => $position->id,
+            'nombre' => $position->name,
+            'descripcion' => $position->description,
+            'activo' => $position->is_active,
+            'empleados_count' => $position->empleados_count,
+            'modulos' => $position->modules->pluck('module_slug'),
+        ]]);
     }
 
     public function update(Request $request, string $id)
@@ -78,7 +105,17 @@ class PositionsController extends Controller
         $position->fill($data);
         $position->save();
 
-        return response()->json(['item' => $position]);
+        $position->loadCount('empleados');
+        $position->load('modules');
+
+        return response()->json(['data' => [
+            'id' => $position->id,
+            'nombre' => $position->name,
+            'descripcion' => $position->description,
+            'activo' => $position->is_active,
+            'empleados_count' => $position->empleados_count,
+            'modulos' => $position->modules->pluck('module_slug'),
+        ]]);
     }
 
     public function destroy(Request $request, string $id)

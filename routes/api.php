@@ -563,6 +563,10 @@ Route::prefix('v1')->group(function () {
                 Route::apiResource('maderas/inventario', App\Http\Controllers\Api\V1\MaderasInventarioController::class);
                 Route::apiResource('maderas/produccion', App\Http\Controllers\Api\V1\MaderasProduccionController::class);
                 Route::apiResource('maderas/ensambles', App\Http\Controllers\Api\V1\MaderasEnsambleController::class);
+                
+                // Pedidos (Rutas personalizadas antes del apiResource)
+                Route::get('maderas/pedidos/calcular', [App\Http\Controllers\Api\V1\MaderasPedidoController::class, 'calcular']);
+                Route::get('maderas/pedidos/{id}/pdf', [App\Http\Controllers\Api\V1\MaderasPedidoController::class, 'pdf']);
                 Route::apiResource('maderas/pedidos', App\Http\Controllers\Api\V1\MaderasPedidoController::class);
             });
 
