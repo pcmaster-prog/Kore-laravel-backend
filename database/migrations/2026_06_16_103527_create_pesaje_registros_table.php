@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('pesaje_registros', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('empleado_id')->constrained('empleados')->onDelete('cascade');
+            $table->foreignUuid('empleado_id')->constrained('empleados')->onDelete('cascade');
             $table->foreignId('sabor_id')->constrained('pesaje_sabors')->onDelete('cascade');
             $table->decimal('peso', 8, 3);
             $table->timestamp('fecha_registro');

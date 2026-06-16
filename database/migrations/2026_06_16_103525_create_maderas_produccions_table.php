@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('maderas_produccions', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('empleado_id')->constrained('empleados')->onDelete('cascade');
+            $table->foreignUuid('empleado_id')->constrained('empleados')->onDelete('cascade');
             $table->foreignId('catalogo_id')->constrained('maderas_catalogos')->onDelete('cascade');
             $table->string('maquina')->nullable();
             $table->integer('cantidad');
