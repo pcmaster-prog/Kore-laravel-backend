@@ -16,7 +16,7 @@ return new class extends Migration
             $table->date('fecha');
             $table->foreignId('sabor_id')->constrained('sabor_pesajes');
             $table->integer('gramos');
-            $table->foreignId('empleado_id')->constrained('empleados');
+            $table->foreignUuid('empleado_id')->constrained('empleados');
             $table->foreignUuid('user_id')->constrained('users');
             $table->timestamps();
         });
