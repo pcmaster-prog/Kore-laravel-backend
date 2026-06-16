@@ -59,25 +59,33 @@ class MaderasCatalogoController extends Controller
 
     public function dashboard()
     {
-        $totalProductos = \Illuminate\Support\Facades\DB::table('maderas_productos')->count();
-        $totalBastones = \Illuminate\Support\Facades\DB::table('bastones_madera')->count();
-        $totalMaterias = \Illuminate\Support\Facades\DB::table('maderas_materias_primas')->count();
-        
-        $produccionHoy = 0; 
-        $pedidosPendientes = \Illuminate\Support\Facades\DB::table('pedidos_madera')->where('status', 'pendiente')->count();
-        
-        $stockBajo = \Illuminate\Support\Facades\DB::table('maderas_materias_primas')->whereColumn('stock_actual', '<=', 'alerta_minimo')->count() +
-                     \Illuminate\Support\Facades\DB::table('bastones_madera')->whereColumn('stock', '<=', 'alerta_minimo')->count();
-        
-        $ensamblesProceso = 0;
+        try {
+            $totalProductos = \Illuminate\Support\Facades\DB::table('maderas_productos')->count();
+            $totalBastones = \Illuminate\Support\Facades\DB::table('bastones_madera')->count();
+            $totalMaterias = \Illuminate\Support\Facades\DB::table('maderas_materias_primas')->count();
+            
+            $produccionHoy = 0; 
+            $pedidosPendientes = \Illuminate\Support\Facades\DB::table('pedidos_madera')->where('status', 'pendiente')->count();
+            
+            $stockBajo = \Illuminate\Support\Facades\DB::table('maderas_materias_primas')->whereColumn('stock_actual', '<=', 'alerta_minimo')->count() +
+                         \Illuminate\Support\Facades\DB::table('bastones_madera')->whereColumn('stock', '<=', 'alerta_minimo')->count();
+            
+            $ensamblesProceso = 0;
 
-        return response()->json([
-            'total_productos' => $totalProductos,
-            'total_bastones' => $totalBastones + $totalMaterias,
-            'produccion_hoy' => $produccionHoy,
-            'pedidos_pendientes' => $pedidosPendientes,
-            'stock_bajo' => $stockBajo,
-            'ensambles_proceso' => $ensamblesProceso,
-        ]);
+            return response()->json([
+                'total_productos' => $totalProductos,
+                'total_bastones' => $totalBastones + $totalMaterias,
+                'produccion_hoy' => $produccionHoy,
+                'pedidos_pendientes' => $pedidosPendientes,
+                'stock_bajo' => $stockBajo,
+                'ensambles_proceso' => $ensamblesProceso,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Error real del server: ' . $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ], 500);
+        }
     }
 }
