@@ -13,8 +13,9 @@ class MaderasTablaCorteController extends Controller
      */
     public function index()
     {
-        $tablas = MaderasTablaCorte::orderBy('nombre')->get();
-        return response()->json(['data' => $tablas]);
+        // $tablas = MaderasTablaCorte::orderBy('nombre')->get();
+        // return response()->json(['data' => $tablas]);
+        return response()->json(['data' => []]);
     }
 
     /**

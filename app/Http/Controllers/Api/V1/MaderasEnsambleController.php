@@ -16,8 +16,9 @@ class MaderasEnsambleController extends Controller
      */
     public function index()
     {
-        $ensambles = MaderasEnsamble::with(['catalogo', 'piezas.catalogo'])->orderBy('created_at', 'desc')->get();
-        return response()->json($ensambles);
+        // $ensambles = MaderasEnsamble::with(['catalogo', 'piezas.catalogo'])->orderBy('created_at', 'desc')->get();
+        // return response()->json($ensambles);
+        return response()->json([]);
     }
 
     /**
