@@ -57,8 +57,23 @@ use App\Http\Controllers\Api\V1\EmpresaDocumentosController;
 // Solicitudes de ausencia
 use App\Http\Controllers\Api\V1\AbsenceRequestController;
 
+// Maderas Fase 2
+use App\Http\Controllers\Api\MaderasDashboardController;
+use App\Http\Controllers\Api\InventarioController;
+use App\Http\Controllers\Api\ProduccionController;
+use App\Http\Controllers\Api\EnsamblajeController;
+use App\Http\Controllers\Api\PedidosController;
+use App\Http\Controllers\Api\TemporadasController;
+use App\Http\Controllers\Api\CatalogoController;
+
+// Pesaje Fase 3
+use App\Http\Controllers\Api\PesajeDashboardController;
+use App\Http\Controllers\Api\PesajeController;
+use App\Http\Controllers\Api\SaboresController;
+
 // Sistema de retardos
 use App\Http\Controllers\Api\V1\TardinessConfigController;
+use App\Http\Controllers\Api\PositionModuleController;
 use App\Http\Controllers\Api\V1\TardinessReportController;
 
 // Horarios de comida
@@ -86,6 +101,12 @@ Route::prefix('v1')->group(function () {
 
         Route::get('/auth/me', [AuthController::class, 'me']);
         Route::post('/auth/logout', [AuthController::class, 'logout']);
+
+        // Módulos por Puesto (DecorArte Fase 1)
+        Route::get('/me/modulos', [PositionModuleController::class, 'myModules']);
+        Route::get('/puestos/modulos-disponibles', [PositionModuleController::class, 'index'])->middleware('role:admin');
+        Route::get('/puestos/{id}/modulos', [PositionModuleController::class, 'show'])->middleware('role:admin');
+        Route::post('/puestos/{id}/modulos/sync', [PositionModuleController::class, 'sync'])->middleware('role:admin');
 
         // Rutas con tenant (empresa activa)
         Route::middleware('tenant')->group(function () {
@@ -142,6 +163,38 @@ Route::prefix('v1')->group(function () {
 
             // Rutas del módulo "tasks"
             Route::middleware('module:tareas')->group(function () {
+                
+                // ── DecorArte Fase 2: Módulo Maderas ──
+                Route::middleware([\App\Http\Middleware\EnsurePositionModule::class.':produccion_maderas'])->prefix('maderas')->group(function () {
+                    Route::get('/dashboard', [MaderasDashboardController::class, 'index']);
+                    Route::get('/inventario', [InventarioController::class, 'index']);
+                    Route::post('/inventario/ajuste', [InventarioController::class, 'store']);
+                    Route::get('/productos', [CatalogoController::class, 'productos']);
+                    Route::get('/bastones', [CatalogoController::class, 'bastones']);
+                    Route::get('/temporadas', [TemporadasController::class, 'index']);
+                    Route::get('/temporadas/activa', [TemporadasController::class, 'activa']);
+                    Route::get('/tablas-cortes', [CatalogoController::class, 'tablasCortes']);
+                    
+                    Route::get('/produccion', [ProduccionController::class, 'index']);
+                    Route::post('/produccion', [ProduccionController::class, 'store']);
+                    Route::put('/produccion/{id}/anular', [ProduccionController::class, 'anular']);
+                    
+                    Route::get('/ensamblaje', [EnsamblajeController::class, 'index']);
+                    Route::post('/ensamblaje', [EnsamblajeController::class, 'store']);
+                    
+                    Route::get('/pedidos', [PedidosController::class, 'index']);
+                    Route::get('/pedidos/calcular', [PedidosController::class, 'calcular']);
+                    Route::get('/pedidos/{id}/pdf', [PedidosController::class, 'downloadPdf']);
+                });
+
+                // ── DecorArte Fase 3: Módulo Pesaje ──
+                Route::middleware([\App\Http\Middleware\EnsurePositionModule::class.':produccion_pesaje'])->prefix('pesaje')->group(function () {
+                    Route::get('/dashboard', [PesajeDashboardController::class, 'index']);
+                    Route::get('/historial', [PesajeController::class, 'index']);
+                    Route::post('/', [PesajeController::class, 'store']);
+                    Route::get('/sabores', [SaboresController::class, 'index']);
+                });
+
                 // Tareas existentes (asignaciones, etc.)
                 Route::get('/tareas', [TasksController::class, 'index']);
                 Route::post('/tareas', [TasksController::class, 'store']);

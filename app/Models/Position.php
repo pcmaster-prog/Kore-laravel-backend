@@ -37,4 +37,9 @@ class Position extends Model
             ->withTimestamps()
             ->orderByPivot('sort_order');
     }
+
+    public function modules()
+    {
+        return $this->hasMany(ModulePosition::class, 'position_id');
+    }
 }
