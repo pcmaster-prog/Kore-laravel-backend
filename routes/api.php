@@ -177,9 +177,12 @@ Route::prefix('v1')->group(function () {
                     Route::post('/inventario/ajuste', [InventarioController::class, 'store']);
                     Route::get('/productos', [CatalogoController::class, 'productos']);
                     Route::get('/bastones', [CatalogoController::class, 'bastones']);
+                    Route::post('/catalogo', [CatalogoController::class, 'storeCatalogo']);
                     Route::get('/temporadas', [TemporadasController::class, 'index']);
+                    Route::post('/temporadas', [TemporadasController::class, 'store']);
                     Route::get('/temporadas/activa', [TemporadasController::class, 'activa']);
                     Route::get('/tablas-cortes', [CatalogoController::class, 'tablasCortes']);
+                    Route::post('/tablas-cortes', [CatalogoController::class, 'storeTablaCorte']);
                     
                     Route::get('/produccion', [ProduccionController::class, 'index']);
                     Route::post('/produccion', [ProduccionController::class, 'store']);
@@ -199,6 +202,8 @@ Route::prefix('v1')->group(function () {
                     Route::get('/historial', [PesajeController::class, 'index']);
                     Route::post('/', [PesajeController::class, 'store']);
                     Route::get('/sabores', [SaboresController::class, 'index']);
+                    Route::post('/sabores', [SaboresController::class, 'store']);
+                    Route::put('/sabores/{id}', [SaboresController::class, 'update']);
                 });
 
                 // Tareas existentes (asignaciones, etc.)
