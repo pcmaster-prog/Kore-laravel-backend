@@ -43,15 +43,31 @@ class PositionModuleController extends Controller
     public function myModules(Request $request)
     {
         $user = $request->user();
+        
+        // Obtener los modulos a nivel empresa que estan habilitados
+        $companyModules = \Illuminate\Support\Facades\DB::table('empresa_modules')
+            ->where('empresa_id', $user->empresa_id)
+            ->where('enabled', true)
+            ->pluck('module_slug')
+            ->toArray();
+
         if ($user->role === 'admin') {
-            return response()->json(['modulos' => ['produccion_maderas', 'produccion_pesaje']]);
+            // Asegurar que el admin siempre tenga acceso a todo lo de la empresa 
+            // mas maderas y pesaje para que pueda ver los dashboards
+            return response()->json([
+                'modulos' => array_unique(array_merge($companyModules, ['produccion_maderas', 'produccion_pesaje']))
+            ]);
         }
 
         $empleado = $user->empleado;
         if (!$empleado) {
-            return response()->json(['modulos' => []]);
+            return response()->json(['modulos' => $companyModules]);
         }
 
-        return response()->json(['modulos' => $empleado->modulos_efectivos]);
+        $modulosEfectivos = $empleado->modulos_efectivos ?? [];
+        
+        return response()->json([
+            'modulos' => array_unique(array_merge($companyModules, $modulosEfectivos))
+        ]);
     }
 }
