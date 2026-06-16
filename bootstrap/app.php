@@ -70,8 +70,9 @@ return Application::configure(basePath: dirname(__DIR__))
 
                 // Todo lo demás → 500 genérico (sin stack trace)
                 return response()->json([
-                    'message'  => 'Error interno del servidor',
+                    'message'  => 'API Error: ' . $e->getMessage(),
                     'error_id' => $errorId,
+                    'file'     => $e->getFile() . ':' . $e->getLine()
                 ], 500);
             }
         });
