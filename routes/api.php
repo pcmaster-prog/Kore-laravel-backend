@@ -539,6 +539,26 @@ Route::prefix('v1')->group(function () {
                 Route::post('/semaforo/config',                              [SemaforoController::class, 'configStore']);
             });
 
+            // ── Módulo Maderas ───────────────────────────────────────────────────────
+            Route::middleware(['module:produccion_maderas'])->group(function () {
+                // Catálogo y Tablas de Corte (Admin/Supervisor)
+                Route::apiResource('maderas/catalogo', App\Http\Controllers\Api\V1\MaderasCatalogoController::class);
+                Route::apiResource('maderas/tablas-corte', App\Http\Controllers\Api\V1\MaderasTablaCorteController::class);
+                Route::apiResource('maderas/temporadas', App\Http\Controllers\Api\V1\MaderasTemporadaController::class);
+                
+                // Operativa
+                Route::apiResource('maderas/inventario', App\Http\Controllers\Api\V1\MaderasInventarioController::class);
+                Route::apiResource('maderas/produccion', App\Http\Controllers\Api\V1\MaderasProduccionController::class);
+                Route::apiResource('maderas/ensambles', App\Http\Controllers\Api\V1\MaderasEnsambleController::class);
+                Route::apiResource('maderas/pedidos', App\Http\Controllers\Api\V1\MaderasPedidoController::class);
+            });
+
+            // ── Módulo Pesaje ────────────────────────────────────────────────────────
+            Route::middleware(['module:produccion_pesaje'])->group(function () {
+                Route::apiResource('pesaje/sabores', App\Http\Controllers\Api\V1\PesajeSaborController::class);
+                Route::apiResource('pesaje/registros', App\Http\Controllers\Api\V1\PesajeRegistroController::class);
+            });
+
             // Ruta de prueba 
             Route::get('/demo/employees-module-check', function () {
                 return response()->json(['ok' => true, 'message' => 'Employees module enabled']);
