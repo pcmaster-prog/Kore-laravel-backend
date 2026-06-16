@@ -13,8 +13,9 @@ class MaderasInventarioController extends Controller
      */
     public function index()
     {
-        $inventario = MaderasInventario::with('catalogo')->get();
-        return response()->json($inventario);
+        // $inventario = MaderasInventario::with('catalogo')->get();
+        // return response()->json($inventario);
+        return response()->json([]);
     }
 
     /**

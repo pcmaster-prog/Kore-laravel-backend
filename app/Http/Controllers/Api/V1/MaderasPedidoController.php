@@ -180,7 +180,7 @@ class MaderasPedidoController extends Controller
     public function index()
     {
         $pedidos = DB::table('pedidos_madera')->orderBy('created_at', 'desc')->get();
-        return response()->json(['data' => $pedidos]);
+        return response()->json($pedidos);
     }
 
     public function show(string $id)
@@ -191,7 +191,7 @@ class MaderasPedidoController extends Controller
         $detalles = DB::table('detalle_pedido_madera')->where('pedido_id', $id)->get();
         $pedido->detalles = $detalles;
 
-        return response()->json(['data' => $pedido]);
+        return response()->json($pedido);
     }
 
     public function update(Request $request, string $id)
