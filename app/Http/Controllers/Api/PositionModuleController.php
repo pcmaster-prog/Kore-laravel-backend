@@ -44,15 +44,14 @@ class PositionModuleController extends Controller
     {
         $user = $request->user();
         if ($user->role === 'admin') {
-            return response()->json(['data' => ['produccion_maderas', 'produccion_pesaje']]);
+            return response()->json(['modulos' => ['produccion_maderas', 'produccion_pesaje']]);
         }
 
         $empleado = $user->empleado;
-        if (!$empleado || !$empleado->position_id) {
-            return response()->json(['data' => []]);
+        if (!$empleado) {
+            return response()->json(['modulos' => []]);
         }
 
-        $slugs = $empleado->position->modules->pluck('module_slug');
-        return response()->json(['data' => $slugs]);
+        return response()->json(['modulos' => $empleado->modulos_efectivos]);
     }
 }

@@ -60,4 +60,19 @@ class Empleado extends Model
             ->withPivot('is_primary')
             ->withTimestamps();
     }
+    public function modulosIndividuales()
+    {
+        return $this->hasMany(EmpleadoModulo::class, 'empleado_id');
+    }
+
+    public function getModulosEfectivosAttribute()
+    {
+        // Get inherited from position
+        $inherited = $this->position ? $this->position->modules->pluck('module_slug')->toArray() : [];
+        
+        // Get individual exceptions
+        $individual = $this->modulosIndividuales->pluck('module_slug')->toArray();
+        
+        return array_values(array_unique(array_merge($inherited, $individual)));
+    }
 }

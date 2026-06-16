@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\V1\EvidencesController;
 use App\Http\Controllers\Api\V1\AttendanceControllerV2;
 use App\Http\Controllers\Api\V1\EmpresaSettingsController;
 use App\Http\Controllers\Api\V1\UsersController;
+use App\Http\Controllers\Api\V1\EmpleadoModuleController;
 
 // Nuevos controladores para templates, rutinas y catálogo
 use App\Http\Controllers\Api\V1\TaskTemplatesController;
@@ -107,6 +108,11 @@ Route::prefix('v1')->group(function () {
         Route::get('/puestos/modulos-disponibles', [PositionModuleController::class, 'index'])->middleware('role:admin');
         Route::get('/puestos/{id}/modulos', [PositionModuleController::class, 'show'])->middleware('role:admin');
         Route::post('/puestos/{id}/modulos/sync', [PositionModuleController::class, 'sync'])->middleware('role:admin');
+
+        // Módulos Excepciones de Empleados
+        Route::get('/empleados/{id}/modulos', [EmpleadoModuleController::class, 'show'])->middleware('role:admin');
+        Route::post('/empleados/{id}/modulos', [EmpleadoModuleController::class, 'store'])->middleware('role:admin');
+        Route::delete('/empleados/{id}/modulos/{modulo_slug}', [EmpleadoModuleController::class, 'destroy'])->middleware('role:admin');
 
         // Rutas con tenant (empresa activa)
         Route::middleware('tenant')->group(function () {
