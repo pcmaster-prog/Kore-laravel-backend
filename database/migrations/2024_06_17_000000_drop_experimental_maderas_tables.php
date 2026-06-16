@@ -20,7 +20,11 @@ return new class extends Migration
         ];
 
         foreach ($tablas as $tabla) {
-            Schema::dropIfExists($tabla);
+            if (\Illuminate\Support\Facades\DB::getDriverName() === 'pgsql') {
+                \Illuminate\Support\Facades\DB::statement('DROP TABLE IF EXISTS "' . $tabla . '" CASCADE');
+            } else {
+                Schema::dropIfExists($tabla);
+            }
         }
 
         Schema::enableForeignKeyConstraints();
