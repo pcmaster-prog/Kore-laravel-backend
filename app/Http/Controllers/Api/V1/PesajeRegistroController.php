@@ -34,19 +34,12 @@ class PesajeRegistroController extends Controller
 
     public function store(Request $request)
     {
-        $user = $request->user();
-        $empleado = $user->empleado;
-
-        if (!$empleado) {
-            return response()->json(['message' => 'Usuario no tiene empleado asociado'], 400);
-        }
-
         $data = $request->validate([
+            'empleado_id' => 'required|exists:empleados,id',
             'sabor_id' => 'required|exists:pesaje_sabors,id',
             'peso' => 'required|numeric|min:0.001',
         ]);
 
-        $data['empleado_id'] = $empleado->id;
         $data['fecha_registro'] = now();
 
         $item = PesajeRegistro::create($data);
