@@ -13,8 +13,8 @@ class MaderasTemporadaController extends Controller
      */
     public function index()
     {
-        $temporadas = MaderasTemporada::all();
-        return response()->json($temporadas);
+        $temporadas = MaderasTemporada::orderBy('mes_inicio')->get();
+        return response()->json(['data' => $temporadas]);
     }
 
     /**
@@ -36,7 +36,7 @@ class MaderasTemporadaController extends Controller
             'multiplicador' => $validated['multiplicador'] ?? 1.0,
         ]);
 
-        return response()->json($temporada, 201);
+        return response()->json(['data' => $temporada], 201);
     }
 
     /**
@@ -45,7 +45,7 @@ class MaderasTemporadaController extends Controller
     public function show(string $id)
     {
         $temporada = MaderasTemporada::findOrFail($id);
-        return response()->json($temporada);
+        return response()->json(['data' => $temporada]);
     }
 
     /**
@@ -64,7 +64,7 @@ class MaderasTemporadaController extends Controller
 
         $temporada->update($validated);
 
-        return response()->json($temporada);
+        return response()->json(['data' => $temporada]);
     }
 
     /**
@@ -76,5 +76,32 @@ class MaderasTemporadaController extends Controller
         $temporada->delete();
 
         return response()->json(null, 204);
+    }
+
+    public function activa()
+    {
+        $currentMonth = (int) date('n');
+        
+        $temporadas = MaderasTemporada::all();
+        $activa = null;
+
+        foreach ($temporadas as $temp) {
+            if ($temp->mes_inicio <= $temp->mes_fin) {
+                if ($currentMonth >= $temp->mes_inicio && $currentMonth <= $temp->mes_fin) {
+                    $activa = $temp;
+                    break;
+                }
+            } else {
+                // Envuelve el fin de año (ej. 11 a 2)
+                if ($currentMonth >= $temp->mes_inicio || $currentMonth <= $temp->mes_fin) {
+                    $activa = $temp;
+                    break;
+                }
+            }
+        }
+
+        return response()->json([
+            'data' => $activa
+        ]);
     }
 }

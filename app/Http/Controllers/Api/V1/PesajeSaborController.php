@@ -4,46 +4,54 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use App\Models\PesajeSabor;
 
 class PesajeSaborController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
     public function index()
     {
-        //
+        return response()->json([
+            'data' => PesajeSabor::orderBy('nombre')->get()
+        ]);
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
-        //
+        $data = $request->validate([
+            'nombre' => 'required|string|max:255',
+            'presentacion' => 'nullable|string|max:255',
+        ]);
+
+        $item = PesajeSabor::create($data);
+
+        return response()->json(['message' => 'Sabor creado', 'data' => $item], 201);
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
+    public function show($id)
     {
-        //
+        $sabor = PesajeSabor::findOrFail($id);
+        return response()->json(['data' => $sabor]);
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
+    public function update(Request $request, $id)
     {
-        //
+        $sabor = PesajeSabor::findOrFail($id);
+
+        $data = $request->validate([
+            'nombre' => 'sometimes|required|string|max:255',
+            'presentacion' => 'nullable|string|max:255',
+            'activo' => 'sometimes|required|boolean',
+        ]);
+
+        $sabor->update($data);
+
+        return response()->json(['message' => 'Sabor actualizado', 'data' => $sabor]);
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
+    public function destroy($id)
     {
-        //
+        $sabor = PesajeSabor::findOrFail($id);
+        $sabor->delete();
+        return response()->json(['message' => 'Sabor eliminado']);
     }
 }

@@ -4,22 +4,21 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\MaderasCatalogo;
+use App\Models\MaderasProduccion;
+use App\Models\MaderasPedido;
+use App\Models\MaderasInventario;
+use App\Models\MaderasEnsamble;
 use Illuminate\Http\Request;
 
 class MaderasCatalogoController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
     public function index()
     {
-        $catalogos = MaderasCatalogo::all();
-        return response()->json($catalogos);
+        return response()->json([
+            'data' => MaderasCatalogo::orderBy('nombre')->get()
+        ]);
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -34,21 +33,25 @@ class MaderasCatalogoController extends Controller
             'unidad_medida' => $validated['unidad_medida'] ?? 'uds',
         ]);
 
-        return response()->json($catalogo, 201);
+        // Automatically create inventory record for this catalog item if it doesn't exist
+        MaderasInventario::firstOrCreate(
+            ['catalogo_id' => $catalogo->id],
+            [
+                'stock' => 0,
+                'stock_minimo' => 5,
+                'status' => 'critical'
+            ]
+        );
+
+        return response()->json(['data' => $catalogo], 201);
     }
 
-    /**
-     * Display the specified resource.
-     */
     public function show(string $id)
     {
         $catalogo = MaderasCatalogo::findOrFail($id);
-        return response()->json($catalogo);
+        return response()->json(['data' => $catalogo]);
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
     public function update(Request $request, string $id)
     {
         $catalogo = MaderasCatalogo::findOrFail($id);
@@ -61,17 +64,48 @@ class MaderasCatalogoController extends Controller
 
         $catalogo->update($validated);
 
-        return response()->json($catalogo);
+        return response()->json(['data' => $catalogo]);
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
     public function destroy(string $id)
     {
         $catalogo = MaderasCatalogo::findOrFail($id);
         $catalogo->delete();
 
         return response()->json(null, 204);
+    }
+
+    public function productos()
+    {
+        return response()->json([
+            'data' => MaderasCatalogo::where('tipo', 'producto_terminado')->orderBy('nombre')->get()
+        ]);
+    }
+
+    public function bastones()
+    {
+        return response()->json([
+            'data' => MaderasCatalogo::whereIn('tipo', ['baston', 'insumo'])->orderBy('nombre')->get()
+        ]);
+    }
+
+    public function dashboard()
+    {
+        $totalProductos = MaderasCatalogo::where('tipo', 'producto_terminado')->count();
+        $totalBastones = MaderasCatalogo::whereIn('tipo', ['baston', 'insumo'])->count();
+        
+        $produccionHoy = MaderasProduccion::whereDate('fecha_registro', now()->startOfDay())->sum('cantidad');
+        $pedidosPendientes = MaderasPedido::where('status', 'pendiente')->count();
+        $stockBajo = MaderasInventario::whereIn('status', ['low', 'critical'])->count();
+        $ensamblesProceso = MaderasEnsamble::where('status', 'en_proceso')->count();
+
+        return response()->json([
+            'total_productos' => $totalProductos,
+            'total_bastones' => $totalBastones,
+            'produccion_hoy' => (int) $produccionHoy,
+            'pedidos_pendientes' => $pedidosPendientes,
+            'stock_bajo' => $stockBajo,
+            'ensambles_proceso' => $ensamblesProceso,
+        ]);
     }
 }

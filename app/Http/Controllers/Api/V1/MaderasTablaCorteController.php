@@ -13,8 +13,8 @@ class MaderasTablaCorteController extends Controller
      */
     public function index()
     {
-        $tablas = MaderasTablaCorte::all();
-        return response()->json($tablas);
+        $tablas = MaderasTablaCorte::orderBy('nombre')->get();
+        return response()->json(['data' => $tablas]);
     }
 
     /**
@@ -32,7 +32,7 @@ class MaderasTablaCorteController extends Controller
             'rendimiento_esperado' => $validated['rendimiento_esperado'] ?? 1.0,
         ]);
 
-        return response()->json($tabla, 201);
+        return response()->json(['data' => $tabla], 201);
     }
 
     /**
@@ -41,7 +41,7 @@ class MaderasTablaCorteController extends Controller
     public function show(string $id)
     {
         $tabla = MaderasTablaCorte::findOrFail($id);
-        return response()->json($tabla);
+        return response()->json(['data' => $tabla]);
     }
 
     /**
@@ -58,7 +58,7 @@ class MaderasTablaCorteController extends Controller
 
         $tabla->update($validated);
 
-        return response()->json($tabla);
+        return response()->json(['data' => $tabla]);
     }
 
     /**

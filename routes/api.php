@@ -546,6 +546,14 @@ Route::prefix('v1')->group(function () {
 
             // ── Módulo Maderas ───────────────────────────────────────────────────────
             Route::middleware(['module:produccion_maderas'])->group(function () {
+                // Rutas personalizadas del frontend
+                Route::get('maderas/productos', [App\Http\Controllers\Api\V1\MaderasCatalogoController::class, 'productos']);
+                Route::get('maderas/bastones', [App\Http\Controllers\Api\V1\MaderasCatalogoController::class, 'bastones']);
+                Route::get('maderas/tablas-cortes', [App\Http\Controllers\Api\V1\MaderasTablaCorteController::class, 'index']);
+                Route::post('maderas/tablas-cortes', [App\Http\Controllers\Api\V1\MaderasTablaCorteController::class, 'store']);
+                Route::get('maderas/temporadas/activa', [App\Http\Controllers\Api\V1\MaderasTemporadaController::class, 'activa']);
+                Route::get('maderas/dashboard', [App\Http\Controllers\Api\V1\MaderasCatalogoController::class, 'dashboard']);
+
                 // Catálogo y Tablas de Corte (Admin/Supervisor)
                 Route::apiResource('maderas/catalogo', App\Http\Controllers\Api\V1\MaderasCatalogoController::class);
                 Route::apiResource('maderas/tablas-corte', App\Http\Controllers\Api\V1\MaderasTablaCorteController::class);
@@ -560,6 +568,11 @@ Route::prefix('v1')->group(function () {
 
             // ── Módulo Pesaje ────────────────────────────────────────────────────────
             Route::middleware(['module:produccion_pesaje'])->group(function () {
+                // Rutas personalizadas del frontend
+                Route::get('pesaje/dashboard', [App\Http\Controllers\Api\V1\PesajeRegistroController::class, 'dashboard']);
+                Route::get('pesaje/historial', [App\Http\Controllers\Api\V1\PesajeRegistroController::class, 'index']);
+                Route::post('pesaje', [App\Http\Controllers\Api\V1\PesajeRegistroController::class, 'store']);
+
                 Route::apiResource('pesaje/sabores', App\Http\Controllers\Api\V1\PesajeSaborController::class);
                 Route::apiResource('pesaje/registros', App\Http\Controllers\Api\V1\PesajeRegistroController::class);
             });
