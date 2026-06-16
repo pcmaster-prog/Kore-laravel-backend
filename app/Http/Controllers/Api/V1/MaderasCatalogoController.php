@@ -80,9 +80,9 @@ class MaderasCatalogoController extends Controller
                 'stock_bajo' => $stockBajo,
                 'ensambles_proceso' => $ensamblesProceso,
             ]);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return response()->json([
-                'message' => 'Error real del server: ' . $e->getMessage(),
+                'message' => 'Error real del server: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine()
             ], 500);
