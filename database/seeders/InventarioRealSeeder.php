@@ -25,7 +25,7 @@ class InventarioRealSeeder extends Seeder
             ->where('tipo', 'like', 'hoja_mdf%')
             ->update(['stock_actual' => 0]);
         DB::table('maderas_productos')->update(['stock_armadas' => 0, 'stock_bolsas' => 0]);
-        DB::table('bastones_madera')->update(['stock_actual' => 0]);
+        DB::table('bastones_madera')->update(['stock' => 0]);
 
         $this->command->info('Cargando stock de hojas MDF...');
 
