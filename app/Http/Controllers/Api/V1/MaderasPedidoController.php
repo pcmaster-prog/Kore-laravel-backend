@@ -196,8 +196,19 @@ class MaderasPedidoController extends Controller
 
     public function update(Request $request, string $id)
     {
-        // No update logic required yet
-        return response()->json(['message' => 'Not implemented'], 501);
+        $pedido = DB::table('pedidos_madera')->where('id', $id)->first();
+        if (!$pedido) return response()->json(['message' => 'Not found'], 404);
+
+        if ($request->has('status')) {
+            DB::table('pedidos_madera')
+                ->where('id', $id)
+                ->update([
+                    'status' => $request->status,
+                    'updated_at' => now()
+                ]);
+        }
+
+        return response()->json(['message' => 'Pedido actualizado exitosamente']);
     }
 
     public function destroy(string $id)
