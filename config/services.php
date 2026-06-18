@@ -42,4 +42,15 @@ return [
         'private_key'  => str_replace('\\n', "\n", env('FIREBASE_PRIVATE_KEY', '')),
     ],
 
+    'google' => [
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+        'redirect' => env('GOOGLE_REDIRECT_URL', 'https://vacantes.decorartereposteria.mx/auth/google/callback'),
+    ],
+
+    'whatsapp' => [
+        'api_key' => env('WHATSAPP_API_KEY'),
+        'phone' => env('WHATSAPP_PHONE'),
+    ],
+
 ];

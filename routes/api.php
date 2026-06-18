@@ -97,11 +97,41 @@ Route::prefix('v1')->group(function () {
     Route::post('/auth/login', [AuthController::class, 'login'])
         ->middleware('throttle:5,1');
 
+    // Reclutamiento (ATS) - Público / OAuth
+    Route::get('/auth/google', [\App\Http\Controllers\Api\V1\GoogleAuthController::class, 'redirect']);
+    Route::get('/auth/google/callback', [\App\Http\Controllers\Api\V1\GoogleAuthController::class, 'callback']);
+    Route::get('/jobs', [\App\Http\Controllers\Api\V1\JobOpeningController::class, 'publicIndex']);
+    Route::get('/jobs/{id}', [\App\Http\Controllers\Api\V1\JobOpeningController::class, 'publicShow']);
+
     // Rutas autenticadas
     Route::middleware(['auth:sanctum','throttle:api'])->group(function () {
 
         Route::get('/auth/me', [AuthController::class, 'me']);
         Route::post('/auth/logout', [AuthController::class, 'logout']);
+
+        // Reclutamiento (ATS) - Portal Aspirantes
+        Route::middleware([\App\Http\Middleware\EnsurePortalAccess::class])->prefix('portal')->group(function () {
+            Route::post('/apply', [\App\Http\Controllers\Api\V1\ApplicationController::class, 'apply'])->middleware('throttle:3,1');
+            Route::get('/applications', [\App\Http\Controllers\Api\V1\ApplicationController::class, 'myApplications']);
+            Route::post('/applications/{id}/documents', [\App\Http\Controllers\Api\V1\ApplicationController::class, 'uploadDocument']);
+            Route::post('/applications/{id}/induction', [\App\Http\Controllers\Api\V1\ApplicationController::class, 'markInductionWatched']);
+            Route::post('/applications/{id}/screening', [\App\Http\Controllers\Api\V1\ApplicationController::class, 'submitScreening']);
+        });
+
+        // Reclutamiento (ATS) - Admin ERP
+        Route::prefix('ats')->group(function () {
+            Route::apiResource('jobs', \App\Http\Controllers\Api\V1\JobOpeningController::class)->except(['index', 'show']);
+            Route::get('jobs', [\App\Http\Controllers\Api\V1\JobOpeningController::class, 'index']);
+            Route::get('jobs/{id}', [\App\Http\Controllers\Api\V1\JobOpeningController::class, 'show']);
+            
+            Route::get('applications', [\App\Http\Controllers\Api\V1\ApplicationController::class, 'index']);
+            Route::get('applications/{id}', [\App\Http\Controllers\Api\V1\ApplicationController::class, 'show']);
+            Route::post('applications/{id}/status', [\App\Http\Controllers\Api\V1\ApplicationController::class, 'changeStatus']);
+            Route::post('applications/{id}/interview', [\App\Http\Controllers\Api\V1\ApplicationController::class, 'scheduleInterview']);
+            Route::post('applications/{id}/interview/result', [\App\Http\Controllers\Api\V1\ApplicationController::class, 'recordInterviewResult']);
+            Route::post('applications/{id}/hire', [\App\Http\Controllers\Api\V1\ApplicationController::class, 'hireTrial']);
+            Route::post('applications/{id}/reject', [\App\Http\Controllers\Api\V1\ApplicationController::class, 'reject']);
+        });
 
         // Módulos por Puesto (DecorArte Fase 1)
         Route::get('/me/modulos', [PositionModuleController::class, 'myModules']);

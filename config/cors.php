@@ -22,6 +22,9 @@ return [
     'allowed_origins' => array_filter([
         'https://kore-react-frontend.vercel.app',
         'capacitor://localhost',
+        // Portales ATS
+        'https://phj3cqi66s6kw.kimi.page',
+        'https://vacantes.decorartereposteria.mx',
         // Localhost solo en desarrollo (con puerto explícito)
         env('APP_ENV') !== 'production' ? 'http://localhost:5173' : null,
         env('APP_ENV') !== 'production' ? 'http://localhost:3000' : null,

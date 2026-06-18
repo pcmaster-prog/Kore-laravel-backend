@@ -26,6 +26,9 @@ class User extends Authenticatable
         'role',
         'section',
         'is_active',
+        'provider',
+        'provider_id',
+        'avatar',
     ];
 
     /**
@@ -80,5 +83,10 @@ class User extends Authenticatable
     {
         return $this->belongsToMany(Section::class, 'supervisor_sections', 'supervisor_user_id', 'section_id')
             ->withTimestamps();
+    }
+
+    public function applications()
+    {
+        return $this->hasMany(Application::class, 'user_id');
     }
 }

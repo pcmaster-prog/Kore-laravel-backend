@@ -19,7 +19,7 @@ class StoreUserRequest extends FormRequest
             'name'           => ['required', 'string', 'max:160'],
             'email'          => ['required', 'email', 'max:200', Rule::unique('users', 'email')],
             'password'       => ['nullable', 'string', Password::min(8)->mixedCase()->numbers()->symbols()],
-            'role'           => ['required', Rule::in(['admin', 'supervisor', 'empleado'])],
+            'role'           => ['required', Rule::in(['admin', 'supervisor', 'empleado', 'aspirante', 'empleado_prueba'])],
             'section'        => ['nullable', 'string', 'max:120'],
             'employee_code'  => ['nullable', 'string', 'max:50'],
             'position_title' => ['nullable', 'string', 'max:120'],
