@@ -98,7 +98,7 @@ Route::prefix('v1')->group(function () {
         ->middleware('throttle:5,1');
 
     // Reclutamiento (ATS) - Público / OAuth
-    Route::get('/auth/google', [\App\Http\Controllers\Api\V1\GoogleAuthController::class, 'redirect']);
+    Route::get('/auth/google/redirect', [\App\Http\Controllers\Api\V1\GoogleAuthController::class, 'redirect']);
     Route::get('/auth/google/callback', [\App\Http\Controllers\Api\V1\GoogleAuthController::class, 'callback']);
     Route::get('/public/jobs', [\App\Http\Controllers\Api\V1\JobOpeningController::class, 'publicIndex']);
     Route::get('/public/jobs/{id}', [\App\Http\Controllers\Api\V1\JobOpeningController::class, 'publicShow']);

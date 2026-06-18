@@ -41,6 +41,7 @@ class JobOpeningController extends Controller
             'salary_range' => 'nullable|string',
             'schedule' => 'nullable|string',
             'status' => 'required|in:draft,open,closed',
+            'image_url' => 'nullable|string|url',
         ]);
 
         $job = JobOpening::create([
@@ -70,6 +71,7 @@ class JobOpeningController extends Controller
             'salary_range' => 'nullable|string',
             'schedule' => 'nullable|string',
             'status' => 'sometimes|in:draft,open,closed',
+            'image_url' => 'nullable|string|url',
         ]);
 
         $job->update($validated);

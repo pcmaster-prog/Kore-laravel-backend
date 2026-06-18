@@ -18,6 +18,7 @@ class JobOpening extends Model
         'salary_range',
         'schedule',
         'status',
+        'image_url',
     ];
 
     protected function casts(): array
