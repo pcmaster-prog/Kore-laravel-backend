@@ -100,8 +100,8 @@ Route::prefix('v1')->group(function () {
     // Reclutamiento (ATS) - Público / OAuth
     Route::get('/auth/google', [\App\Http\Controllers\Api\V1\GoogleAuthController::class, 'redirect']);
     Route::get('/auth/google/callback', [\App\Http\Controllers\Api\V1\GoogleAuthController::class, 'callback']);
-    Route::get('/jobs', [\App\Http\Controllers\Api\V1\JobOpeningController::class, 'publicIndex']);
-    Route::get('/jobs/{id}', [\App\Http\Controllers\Api\V1\JobOpeningController::class, 'publicShow']);
+    Route::get('/public/jobs', [\App\Http\Controllers\Api\V1\JobOpeningController::class, 'publicIndex']);
+    Route::get('/public/jobs/{id}', [\App\Http\Controllers\Api\V1\JobOpeningController::class, 'publicShow']);
 
     // Rutas autenticadas
     Route::middleware(['auth:sanctum','throttle:api'])->group(function () {

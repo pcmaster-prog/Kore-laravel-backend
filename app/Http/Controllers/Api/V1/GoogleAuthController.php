@@ -44,12 +44,19 @@ class GoogleAuthController extends Controller
 
             $token = $user->createToken('portal_token')->plainTextToken;
 
-            $frontendUrl = "https://phj3cqi66s6kw.kimi.page/auth/callback?token=" . $token;
-            return redirect()->away($frontendUrl);
+            $frontendUrl = rtrim(env('FRONTEND_PORTAL_URL', 'https://vacantes.decorartereposteria.mx'), '/') . '/auth/google/callback';
+            $redirectUrl = $frontendUrl . '?token=' . $token . '&user=' . urlencode(json_encode([
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'avatar' => $user->avatar,
+            ]));
+            return redirect()->away($redirectUrl);
 
         } catch (\Exception $e) {
             Log::error("Google Auth Error: " . $e->getMessage());
-            return redirect()->away("https://phj3cqi66s6kw.kimi.page/login?error=auth_failed");
+            $errorUrl = rtrim(env('FRONTEND_PORTAL_URL', 'https://vacantes.decorartereposteria.mx'), '/') . '/login?error=auth_failed';
+            return redirect()->away($errorUrl);
         }
     }
 }

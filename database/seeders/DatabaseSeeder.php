@@ -15,6 +15,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             ModulosSeeder::class,
             BitacoraCriteriosSeeder::class,
+            JobOpeningSeeder::class,
         ]);
     }
 }
