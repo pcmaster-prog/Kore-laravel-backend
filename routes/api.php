@@ -117,6 +117,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/my-application', [\App\Http\Controllers\Api\V1\ApplicationController::class, 'myCurrentApplication']);
             Route::put('/applications/{id}/expediente', [\App\Http\Controllers\Api\V1\ApplicationController::class, 'updateExpediente']);
             Route::post('/applications/{id}/documents', [\App\Http\Controllers\Api\V1\ApplicationController::class, 'uploadDocument']);
+            Route::delete('/applications/{id}/documents', [\App\Http\Controllers\Api\V1\ApplicationController::class, 'deleteDocument']);
             Route::post('/applications/{id}/induction', [\App\Http\Controllers\Api\V1\ApplicationController::class, 'markInductionWatched']);
             Route::post('/applications/{id}/screening', [\App\Http\Controllers\Api\V1\ApplicationController::class, 'submitScreening']);
             Route::post('/applications/{id}/request-interview', [\App\Http\Controllers\Api\V1\ApplicationController::class, 'requestInterview']);

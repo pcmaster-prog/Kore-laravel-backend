@@ -179,7 +179,7 @@ class ApplicationController extends Controller
     {
         $app = Application::where('user_id', $request->user()->id)->findOrFail($id);
 
-        $request->validate([
+        $validated = $request->validate([
             'document_type' => 'required|string|in:' . implode(',', self::DOCUMENT_TYPES),
             'file' => 'required|file|mimes:pdf,jpg,jpeg,png|max:5120'
         ]);
@@ -187,14 +187,51 @@ class ApplicationController extends Controller
         $disk = $this->getStorageDisk();
         $path = $request->file('file')->store('applications/'.$app->id, $disk);
 
-        $doc = ApplicationDocument::create([
-            'application_id' => $app->id,
-            'document_type' => $request->document_type,
-            'file_path' => $path,
-            'original_name' => $request->file('file')->getClientOriginalName(),
-        ]);
+        // Reemplazar documento previo del mismo tipo si existe.
+        $existing = ApplicationDocument::where('application_id', $app->id)
+            ->where('document_type', $validated['document_type'])
+            ->first();
+
+        if ($existing) {
+            Storage::disk($disk)->delete($existing->file_path);
+            $existing->update([
+                'file_path' => $path,
+                'original_name' => $request->file('file')->getClientOriginalName(),
+            ]);
+            $doc = $existing;
+        } else {
+            $doc = ApplicationDocument::create([
+                'application_id' => $app->id,
+                'document_type' => $validated['document_type'],
+                'file_path' => $path,
+                'original_name' => $request->file('file')->getClientOriginalName(),
+            ]);
+        }
 
         return response()->json(['data' => $doc]);
+    }
+
+    public function deleteDocument(Request $request, $id)
+    {
+        $app = Application::where('user_id', $request->user()->id)->findOrFail($id);
+
+        $validated = $request->validate([
+            'document_type' => 'required|string|in:' . implode(',', self::DOCUMENT_TYPES),
+        ]);
+
+        $existing = ApplicationDocument::where('application_id', $app->id)
+            ->where('document_type', $validated['document_type'])
+            ->first();
+
+        if (!$existing) {
+            return response()->json(['message' => 'Documento no encontrado.'], 404);
+        }
+
+        $disk = $this->getStorageDisk();
+        Storage::disk($disk)->delete($existing->file_path);
+        $existing->delete();
+
+        return response()->json(['message' => 'Documento eliminado.']);
     }
 
     /**
