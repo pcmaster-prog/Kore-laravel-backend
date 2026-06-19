@@ -12,8 +12,8 @@ class JobOpeningController extends Controller
     // === PÚBLICO ===
     public function publicIndex()
     {
-        // Solo las vacantes abiertas
-        $jobs = JobOpening::where('status', 'open')->get();
+        // Solo las vacantes abiertas, ordenadas por más recientes
+        $jobs = JobOpening::where('status', 'open')->orderBy('created_at', 'desc')->get();
         return response()->json(['data' => $jobs]);
     }
 
