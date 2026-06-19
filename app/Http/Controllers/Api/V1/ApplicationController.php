@@ -87,6 +87,39 @@ class ApplicationController extends Controller
         return response()->json(['data' => $apps]);
     }
 
+    public function myCurrentApplication(Request $request)
+    {
+        $app = Application::with('jobOpening')
+            ->where('user_id', $request->user()->id)
+            ->latest()
+            ->first();
+            
+        if (!$app) {
+            return response()->json(['message' => 'No application found'], 404);
+        }
+        
+        return response()->json(['data' => $app]);
+    }
+
+    public function updateExpediente(Request $request, $id)
+    {
+        $app = Application::where('user_id', $request->user()->id)->findOrFail($id);
+        
+        $validated = $request->validate([
+            'phone' => 'nullable|string',
+            'rfc' => 'nullable|string',
+            'curp' => 'nullable|string',
+            'nss' => 'nullable|string',
+            'address' => 'nullable|string',
+        ]);
+
+        $app->update([
+            'contact_info' => array_merge($app->contact_info ?? [], $validated)
+        ]);
+
+        return response()->json(['data' => $app]);
+    }
+
     public function uploadDocument(Request $request, $id)
     {
         $app = Application::where('user_id', $request->user()->id)->findOrFail($id);
