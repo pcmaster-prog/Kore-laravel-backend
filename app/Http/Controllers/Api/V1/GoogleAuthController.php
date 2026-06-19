@@ -14,13 +14,6 @@ class GoogleAuthController extends Controller
 {
     public function redirect(Request $request)
     {
-        // Guardamos la URL de retorno del portal si nos la envían, para no depender
-        // exclusivamente de la config en caso de múltiples frontales (staging, etc.).
-        $referer = $request->headers->get('Referer');
-        if ($referer) {
-            $request->session()->put('google_frontend_portal_url', $referer);
-        }
-
         return Socialite::driver('google')->redirect();
     }
 
@@ -53,9 +46,7 @@ class GoogleAuthController extends Controller
 
             $token = $user->createToken('portal_token')->plainTextToken;
 
-            $fallbackUrl = config('services.google.frontend_portal_url', config('app.frontend_portal_url', 'https://vacantes.decorartereposteria.mx'));
-            $sessionUrl = $request->session()->pull('google_frontend_portal_url');
-            $frontendUrl = rtrim($sessionUrl && filter_var($sessionUrl, FILTER_VALIDATE_URL) ? $sessionUrl : $fallbackUrl, '/') . '/auth/google/callback';
+            $frontendUrl = rtrim(config('services.google.frontend_portal_url', config('app.frontend_portal_url', 'https://vacantes.decorartereposteria.mx')), '/') . '/auth/google/callback';
 
             // Enviamos token y datos en el fragmento (#) para que no queden en logs ni referrer.
             $fragment = 'token=' . urlencode($token) . '&user=' . urlencode(json_encode([
