@@ -118,6 +118,13 @@ class ApplicationController extends Controller
             'experience' => $validated['experience'] ?? [],
         ]);
 
+        Log::info("Application created", [
+            'application_id' => $app->id,
+            'empresa_id' => $app->empresa_id,
+            'job_opening_id' => $app->job_opening_id,
+            'user_id' => $app->user_id,
+        ]);
+
         ApplicationStatusLog::create([
             'application_id' => $app->id,
             'to_status' => 'new',
@@ -308,10 +315,25 @@ class ApplicationController extends Controller
     public function index(Request $request)
     {
         Gate::authorize('manage-users');
+
+        $empresaId = $request->user()->empresa_id;
+        if (!$empresaId) {
+            return response()->json([
+                'message' => 'Tu usuario administrador no tiene una empresa asignada. Contacta soporte.'
+            ], 400);
+        }
+
         $apps = Application::with(['jobOpening', 'user'])
-            ->where('empresa_id', $request->user()->empresa_id)
+            ->where('empresa_id', $empresaId)
             ->orderBy('created_at', 'desc')
             ->get();
+
+        Log::info("Admin listed applications", [
+            'admin_id' => $request->user()->id,
+            'empresa_id' => $empresaId,
+            'count' => $apps->count(),
+        ]);
+
         return response()->json(['data' => $apps]);
     }
 

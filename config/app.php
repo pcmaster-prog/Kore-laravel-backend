@@ -127,4 +127,7 @@ return [
 
     'frontend_portal_url' => env('APP_FRONTEND_PORTAL_URL', 'https://vacantes.decorartereposteria.mx'),
 
+    // Empresa por defecto para el portal público cuando no se envía empresa_id ni slug.
+    'default_empresa_slug' => env('DEFAULT_EMPRESA_SLUG'),
+
 ];

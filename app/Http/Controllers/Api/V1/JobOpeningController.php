@@ -21,6 +21,12 @@ class JobOpeningController extends Controller
             return $empresa?->id;
         }
 
+        $defaultSlug = config('app.default_empresa_slug');
+        if ($defaultSlug) {
+            $empresa = \App\Models\Empresa::where('slug', $defaultSlug)->first();
+            return $empresa?->id;
+        }
+
         return null;
     }
 
