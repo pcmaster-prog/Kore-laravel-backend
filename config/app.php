@@ -125,4 +125,6 @@ return [
 
     'frontend_url' => env('APP_FRONTEND_URL', 'https://kore-react-frontend.vercel.app'),
 
+    'frontend_portal_url' => env('APP_FRONTEND_PORTAL_URL', 'https://vacantes.decorartereposteria.mx'),
+
 ];

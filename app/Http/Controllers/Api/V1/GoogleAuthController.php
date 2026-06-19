@@ -12,15 +12,25 @@ use Illuminate\Support\Facades\Log;
 
 class GoogleAuthController extends Controller
 {
-    public function redirect()
+    public function redirect(Request $request)
     {
-        return Socialite::driver('google')->stateless()->redirect();
+        // Guardamos la URL de retorno del portal si nos la envían, para no depender
+        // exclusivamente de la config en caso de múltiples frontales (staging, etc.).
+        $referer = $request->headers->get('Referer');
+        if ($referer) {
+            $request->session()->put('google_frontend_portal_url', $referer);
+        }
+
+        return Socialite::driver('google')->redirect();
     }
 
-    public function callback()
+    public function callback(Request $request)
     {
         try {
-            $googleUser = Socialite::driver('google')->stateless()->user();
+            // Socialite con stateful driver valida automáticamente el parámetro ?state
+            // contra el valor guardado en sesión. No usamos stateless() para evitar
+            // ataques CSRF en el flujo OAuth.
+            $googleUser = Socialite::driver('google')->user();
 
             $user = User::where('email', $googleUser->getEmail())->first();
 
@@ -35,27 +45,32 @@ class GoogleAuthController extends Controller
                     'avatar' => $googleUser->getAvatar(),
                 ]);
             } else {
+                // Solo actualizamos avatar; no sobreescribimos provider si ya existe otro.
                 $user->update([
-                    'provider' => 'google',
-                    'provider_id' => $googleUser->getId(),
                     'avatar' => $googleUser->getAvatar(),
                 ]);
             }
 
             $token = $user->createToken('portal_token')->plainTextToken;
 
-            $frontendUrl = rtrim(env('FRONTEND_PORTAL_URL', 'https://vacantes.decorartereposteria.mx'), '/') . '/auth/google/callback';
-            $redirectUrl = $frontendUrl . '?token=' . $token . '&user=' . urlencode(json_encode([
+            $fallbackUrl = config('services.google.frontend_portal_url', config('app.frontend_portal_url', 'https://vacantes.decorartereposteria.mx'));
+            $sessionUrl = $request->session()->pull('google_frontend_portal_url');
+            $frontendUrl = rtrim($sessionUrl && filter_var($sessionUrl, FILTER_VALIDATE_URL) ? $sessionUrl : $fallbackUrl, '/') . '/auth/google/callback';
+
+            // Enviamos token y datos en el fragmento (#) para que no queden en logs ni referrer.
+            $fragment = 'token=' . urlencode($token) . '&user=' . urlencode(json_encode([
                 'id' => $user->id,
                 'name' => $user->name,
                 'email' => $user->email,
                 'avatar' => $user->avatar,
             ]));
+
+            $redirectUrl = $frontendUrl . '#' . $fragment;
             return redirect()->away($redirectUrl);
 
         } catch (\Exception $e) {
             Log::error("Google Auth Error: " . $e->getMessage());
-            $errorUrl = rtrim(env('FRONTEND_PORTAL_URL', 'https://vacantes.decorartereposteria.mx'), '/') . '/login?error=auth_failed';
+            $errorUrl = rtrim(config('services.google.frontend_portal_url', config('app.frontend_portal_url', 'https://vacantes.decorartereposteria.mx')), '/') . '/login?error=auth_failed';
             return redirect()->away($errorUrl);
         }
     }

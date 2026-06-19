@@ -98,8 +98,9 @@ Route::prefix('v1')->group(function () {
         ->middleware('throttle:5,1');
 
     // Reclutamiento (ATS) - Público / OAuth
-    Route::get('/auth/google/redirect', [\App\Http\Controllers\Api\V1\GoogleAuthController::class, 'redirect']);
-    Route::get('/auth/google/callback', [\App\Http\Controllers\Api\V1\GoogleAuthController::class, 'callback']);
+    // OAuth requiere sesión para el parámetro state anti-CSRF.
+    Route::get('/auth/google/redirect', [\App\Http\Controllers\Api\V1\GoogleAuthController::class, 'redirect'])->middleware('web');
+    Route::get('/auth/google/callback', [\App\Http\Controllers\Api\V1\GoogleAuthController::class, 'callback'])->middleware('web');
     Route::get('/public/jobs', [\App\Http\Controllers\Api\V1\JobOpeningController::class, 'publicIndex']);
     Route::get('/public/jobs/{id}', [\App\Http\Controllers\Api\V1\JobOpeningController::class, 'publicShow']);
 
@@ -118,6 +119,7 @@ Route::prefix('v1')->group(function () {
             Route::post('/applications/{id}/documents', [\App\Http\Controllers\Api\V1\ApplicationController::class, 'uploadDocument']);
             Route::post('/applications/{id}/induction', [\App\Http\Controllers\Api\V1\ApplicationController::class, 'markInductionWatched']);
             Route::post('/applications/{id}/screening', [\App\Http\Controllers\Api\V1\ApplicationController::class, 'submitScreening']);
+            Route::post('/applications/{id}/request-interview', [\App\Http\Controllers\Api\V1\ApplicationController::class, 'requestInterview']);
         });
 
         // Reclutamiento (ATS) - Admin ERP

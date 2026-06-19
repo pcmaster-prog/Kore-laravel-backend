@@ -10,16 +10,45 @@ use Illuminate\Support\Facades\Gate;
 class JobOpeningController extends Controller
 {
     // === PÚBLICO ===
-    public function publicIndex()
+    private function resolveEmpresaId(Request $request): ?string
     {
-        // Solo las vacantes abiertas, ordenadas por más recientes
-        $jobs = JobOpening::where('status', 'open')->orderBy('created_at', 'desc')->get();
+        if ($request->has('empresa_id')) {
+            return $request->input('empresa_id');
+        }
+
+        if ($request->has('empresa_slug')) {
+            $empresa = \App\Models\Empresa::where('slug', $request->input('empresa_slug'))->first();
+            return $empresa?->id;
+        }
+
+        return null;
+    }
+
+    public function publicIndex(Request $request)
+    {
+        $empresaId = $this->resolveEmpresaId($request);
+
+        $query = JobOpening::where('status', 'open');
+
+        if ($empresaId) {
+            $query->where('empresa_id', $empresaId);
+        }
+
+        $jobs = $query->orderBy('created_at', 'desc')->get();
         return response()->json(['data' => $jobs]);
     }
 
-    public function publicShow($id)
+    public function publicShow(Request $request, $id)
     {
-        $job = JobOpening::where('id', $id)->where('status', 'open')->firstOrFail();
+        $empresaId = $this->resolveEmpresaId($request);
+
+        $query = JobOpening::where('id', $id)->where('status', 'open');
+
+        if ($empresaId) {
+            $query->where('empresa_id', $empresaId);
+        }
+
+        $job = $query->firstOrFail();
         return response()->json(['data' => $job]);
     }
 

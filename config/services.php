@@ -45,7 +45,10 @@ return [
     'google' => [
         'client_id' => env('GOOGLE_CLIENT_ID'),
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),
-        'redirect' => env('GOOGLE_REDIRECT_URL', 'https://vacantes.decorartereposteria.mx/auth/google/callback'),
+        // OAuth redirect_uri: Google debe volver al BACKEND, no al portal.
+        'redirect' => env('GOOGLE_REDIRECT_URL', rtrim(env('APP_URL', 'https://api.decorartereposteria.mx'), '/') . '/v1/auth/google/callback'),
+        // URL final del portal a la que redirigimos con el token en fragmento (#).
+        'frontend_portal_url' => env('FRONTEND_PORTAL_URL', 'https://vacantes.decorartereposteria.mx'),
     ],
 
     'whatsapp' => [
