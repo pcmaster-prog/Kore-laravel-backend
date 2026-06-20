@@ -3,14 +3,14 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
 use App\Models\Application;
 use App\Models\ApplicationDocument;
 use App\Models\ApplicationStatusLog;
-use App\Models\JobOpening;
 use App\Models\Empleado;
 use App\Models\EmpleadoModulo;
-use Illuminate\Support\Facades\Storage;
+use App\Models\JobOpening;
+use App\Services\SecureFileStorage;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
@@ -66,16 +66,18 @@ class ApplicationController extends Controller
     {
         $apiKey = config('services.whatsapp.api_key');
         $myPhone = config('services.whatsapp.phone');
-        
-        if (!$apiKey || !$myPhone) return;
+
+        if (! $apiKey || ! $myPhone) {
+            return;
+        }
 
         // CallMeBot normalmente recibe el phone destino o lo asocia directo
-        $url = "https://api.callmebot.com/whatsapp.php?phone=" . $phone . "&text=" . urlencode($message) . "&apikey=" . $apiKey;
-        
+        $url = 'https://api.callmebot.com/whatsapp.php?phone='.$phone.'&text='.urlencode($message).'&apikey='.$apiKey;
+
         try {
             file_get_contents($url);
         } catch (\Exception $e) {
-            Log::error("Error sending WhatsApp via CallMeBot: " . $e->getMessage());
+            Log::error('Error sending WhatsApp via CallMeBot: '.$e->getMessage());
         }
     }
 
@@ -96,7 +98,7 @@ class ApplicationController extends Controller
             ->where('status', 'open')
             ->first();
 
-        if (!$job) {
+        if (! $job) {
             return response()->json(['message' => 'La vacante no está disponible.'], 422);
         }
 
@@ -118,7 +120,7 @@ class ApplicationController extends Controller
             'experience' => $validated['experience'] ?? [],
         ]);
 
-        Log::info("Application created", [
+        Log::info('Application created', [
             'application_id' => $app->id,
             'empresa_id' => $app->empresa_id,
             'job_opening_id' => $app->job_opening_id,
@@ -128,7 +130,7 @@ class ApplicationController extends Controller
         ApplicationStatusLog::create([
             'application_id' => $app->id,
             'to_status' => 'new',
-            'notes' => 'Postulación inicial recibida desde el portal.'
+            'notes' => 'Postulación inicial recibida desde el portal.',
         ]);
 
         return response()->json(['data' => $app], 201);
@@ -139,6 +141,7 @@ class ApplicationController extends Controller
         $apps = Application::with('jobOpening')
             ->where('user_id', $request->user()->id)
             ->get();
+
         return response()->json(['data' => $apps]);
     }
 
@@ -148,11 +151,11 @@ class ApplicationController extends Controller
             ->where('user_id', $request->user()->id)
             ->latest()
             ->first();
-            
-        if (!$app) {
+
+        if (! $app) {
             return response()->json(['message' => 'No application found'], 404);
         }
-        
+
         return response()->json(['data' => $app]);
     }
 
@@ -169,7 +172,7 @@ class ApplicationController extends Controller
         ]);
 
         $app->update([
-            'contact_info' => array_merge($app->contact_info ?? [], $validated)
+            'contact_info' => array_merge($app->contact_info ?? [], $validated),
         ]);
 
         return response()->json(['data' => $app]);
@@ -180,12 +183,13 @@ class ApplicationController extends Controller
         $app = Application::where('user_id', $request->user()->id)->findOrFail($id);
 
         $validated = $request->validate([
-            'document_type' => 'required|string|in:' . implode(',', self::DOCUMENT_TYPES),
-            'file' => 'required|file|mimes:pdf,jpg,jpeg,png|max:5120'
+            'document_type' => 'required|string|in:'.implode(',', self::DOCUMENT_TYPES),
+            'file' => 'required|file|mimes:pdf,jpg,jpeg,png|max:5120',
         ]);
 
-        $disk = $this->getStorageDisk();
-        $path = $request->file('file')->store('applications/'.$app->id, $disk);
+        $folder = 'applications/'.$app->id;
+        $allowedTypes = ['application/pdf', 'image/jpeg', 'image/png'];
+        $stored = SecureFileStorage::upload($request->file('file'), $folder, $allowedTypes, 5120);
 
         // Reemplazar documento previo del mismo tipo si existe.
         $existing = ApplicationDocument::where('application_id', $app->id)
@@ -193,22 +197,27 @@ class ApplicationController extends Controller
             ->first();
 
         if ($existing) {
-            Storage::disk($disk)->delete($existing->file_path);
+            SecureFileStorage::delete($existing->disk ?? SecureFileStorage::disk(), $existing->file_path);
             $existing->update([
-                'file_path' => $path,
-                'original_name' => $request->file('file')->getClientOriginalName(),
+                'file_path' => $stored->path,
+                'disk' => $stored->disk,
+                'original_name' => $stored->original_name,
             ]);
             $doc = $existing;
         } else {
             $doc = ApplicationDocument::create([
                 'application_id' => $app->id,
                 'document_type' => $validated['document_type'],
-                'file_path' => $path,
-                'original_name' => $request->file('file')->getClientOriginalName(),
+                'file_path' => $stored->path,
+                'disk' => $stored->disk,
+                'original_name' => $stored->original_name,
             ]);
         }
 
-        return response()->json(['data' => $doc]);
+        return response()->json([
+            'data' => $doc,
+            'url' => SecureFileStorage::temporaryUrl($doc->disk, $doc->file_path),
+        ]);
     }
 
     public function deleteDocument(Request $request, $id)
@@ -216,48 +225,29 @@ class ApplicationController extends Controller
         $app = Application::where('user_id', $request->user()->id)->findOrFail($id);
 
         $validated = $request->validate([
-            'document_type' => 'required|string|in:' . implode(',', self::DOCUMENT_TYPES),
+            'document_type' => 'required|string|in:'.implode(',', self::DOCUMENT_TYPES),
         ]);
 
         $existing = ApplicationDocument::where('application_id', $app->id)
             ->where('document_type', $validated['document_type'])
             ->first();
 
-        if (!$existing) {
+        if (! $existing) {
             return response()->json(['message' => 'Documento no encontrado.'], 404);
         }
 
-        $disk = $this->getStorageDisk();
-        Storage::disk($disk)->delete($existing->file_path);
+        SecureFileStorage::delete($existing->disk ?? SecureFileStorage::disk(), $existing->file_path);
         $existing->delete();
 
         return response()->json(['message' => 'Documento eliminado.']);
     }
 
     /**
-     * Determina el disco de almacenamiento activo.
-     */
-    private function getStorageDisk(): string
-    {
-        $hasS3 = config('filesystems.disks.s3.key')
-            && config('filesystems.disks.s3.secret')
-            && config('filesystems.disks.s3.bucket');
-
-        return $hasS3 ? 's3' : 'public';
-    }
-
-    /**
      * Genera una URL temporal segura para un documento.
      */
-    private function documentUrl(ApplicationDocument $doc): string
+    private function documentUrl(ApplicationDocument $doc): ?string
     {
-        $disk = $this->getStorageDisk();
-
-        if ($disk === 's3') {
-            return Storage::disk('s3')->temporaryUrl($doc->file_path, now()->addMinutes(30));
-        }
-
-        return Storage::disk('public')->url($doc->file_path);
+        return SecureFileStorage::temporaryUrl($doc->disk ?? SecureFileStorage::disk(), $doc->file_path);
     }
 
     public function markInductionWatched(Request $request, $id)
@@ -270,7 +260,7 @@ class ApplicationController extends Controller
 
         $app->update([
             'has_induction_video_watched' => true,
-            'induction_video_watched_at' => now()
+            'induction_video_watched_at' => now(),
         ]);
 
         return response()->json(['message' => 'Induction marked as watched.']);
@@ -280,7 +270,7 @@ class ApplicationController extends Controller
     {
         $app = Application::where('user_id', $request->user()->id)->findOrFail($id);
 
-        if ($app->status !== 'new' || !$app->has_induction_video_watched) {
+        if ($app->status !== 'new' || ! $app->has_induction_video_watched) {
             return response()->json(['message' => 'Debes ver el video de inducción antes de la autoevaluación.'], 422);
         }
 
@@ -307,7 +297,7 @@ class ApplicationController extends Controller
             'application_id' => $app->id,
             'from_status' => 'new',
             'to_status' => $nextStatus,
-            'notes' => "Aspirante completó la autoevaluación. Score: {$validated['score']}/10. " . ($passed ? 'Aprobado.' : 'No aprobado.'),
+            'notes' => "Aspirante completó la autoevaluación. Score: {$validated['score']}/10. ".($passed ? 'Aprobado.' : 'No aprobado.'),
         ]);
 
         return response()->json([
@@ -339,7 +329,7 @@ class ApplicationController extends Controller
             'application_id' => $app->id,
             'from_status' => $oldStatus,
             'to_status' => 'interview-requested',
-            'notes' => 'Aspirante solicitó entrevista en vivo desde el portal.'
+            'notes' => 'Aspirante solicitó entrevista en vivo desde el portal.',
         ]);
 
         return response()->json(['message' => 'Entrevista solicitada.']);
@@ -354,9 +344,9 @@ class ApplicationController extends Controller
         Gate::authorize('manage-users');
 
         $empresaId = $request->user()->empresa_id;
-        if (!$empresaId) {
+        if (! $empresaId) {
             return response()->json([
-                'message' => 'Tu usuario administrador no tiene una empresa asignada. Contacta soporte.'
+                'message' => 'Tu usuario administrador no tiene una empresa asignada. Contacta soporte.',
             ], 400);
         }
 
@@ -365,7 +355,7 @@ class ApplicationController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
-        Log::info("Admin listed applications", [
+        Log::info('Admin listed applications', [
             'admin_id' => $request->user()->id,
             'empresa_id' => $empresaId,
             'count' => $apps->count(),
@@ -383,6 +373,7 @@ class ApplicationController extends Controller
 
         $app->documents->transform(function ($doc) {
             $doc->url = $this->documentUrl($doc);
+
             return $doc;
         });
 
@@ -395,16 +386,16 @@ class ApplicationController extends Controller
         $app = Application::where('empresa_id', $request->user()->empresa_id)->findOrFail($id);
 
         $validated = $request->validate([
-            'status' => 'required|string|in:' . implode(',', self::VALID_STATUSES),
-            'notes' => 'nullable|string'
+            'status' => 'required|string|in:'.implode(',', self::VALID_STATUSES),
+            'notes' => 'nullable|string',
         ]);
 
         $oldStatus = $app->status;
         $newStatus = $validated['status'];
 
-        if (!$this->canTransition($oldStatus, $newStatus)) {
+        if (! $this->canTransition($oldStatus, $newStatus)) {
             return response()->json([
-                'message' => "No se puede cambiar el estado de '{$oldStatus}' a '{$newStatus}'."
+                'message' => "No se puede cambiar el estado de '{$oldStatus}' a '{$newStatus}'.",
             ], 422);
         }
 
@@ -415,7 +406,7 @@ class ApplicationController extends Controller
             'from_status' => $oldStatus,
             'to_status' => $newStatus,
             'changed_by' => $request->user()->id,
-            'notes' => $validated['notes'] ?? 'Cambio de estado manual.'
+            'notes' => $validated['notes'] ?? 'Cambio de estado manual.',
         ]);
 
         return response()->json(['data' => $app]);
@@ -446,13 +437,13 @@ class ApplicationController extends Controller
         $validated = $request->validate([
             'interview_scheduled_at' => 'required|date',
             'notes' => 'nullable|string',
-            'notify_whatsapp' => 'boolean'
+            'notify_whatsapp' => 'boolean',
         ]);
 
         $oldStatus = $app->status;
-        if (!$this->canTransition($oldStatus, 'interviewing')) {
+        if (! $this->canTransition($oldStatus, 'interviewing')) {
             return response()->json([
-                'message' => "No se puede agendar entrevista desde el estado '{$oldStatus}'."
+                'message' => "No se puede agendar entrevista desde el estado '{$oldStatus}'.",
             ], 422);
         }
 
@@ -467,12 +458,12 @@ class ApplicationController extends Controller
             'from_status' => $oldStatus,
             'to_status' => 'interviewing',
             'changed_by' => $request->user()->id,
-            'notes' => 'Entrevista agendada: ' . $validated['interview_scheduled_at'] . ($validated['notes'] ? ' - ' . $validated['notes'] : '')
+            'notes' => 'Entrevista agendada: '.$validated['interview_scheduled_at'].($validated['notes'] ? ' - '.$validated['notes'] : ''),
         ]);
 
         if ($request->boolean('notify_whatsapp') && isset($app->contact_info['phone'])) {
             $msg = "Hola {$app->user->name}, tienes una entrevista programada para la vacante de {$app->jobOpening->title} el día {$validated['interview_scheduled_at']}. ¡Te esperamos!";
-            $phone = "52" . preg_replace('/[^0-9]/', '', $app->contact_info['phone']);
+            $phone = '52'.preg_replace('/[^0-9]/', '', $app->contact_info['phone']);
             $this->sendWhatsAppNotification($phone, $msg);
         }
 
@@ -486,7 +477,7 @@ class ApplicationController extends Controller
 
         $validated = $request->validate([
             'result' => 'required|string|in:passed,failed,approved,rejected',
-            'notes' => 'nullable|string'
+            'notes' => 'nullable|string',
         ]);
 
         if ($app->status !== 'interviewing') {
@@ -509,7 +500,7 @@ class ApplicationController extends Controller
             'from_status' => $oldStatus,
             'to_status' => $nextStatus,
             'changed_by' => $request->user()->id,
-            'notes' => 'Resultado de entrevista: ' . $result . ($validated['notes'] ? ' - ' . $validated['notes'] : '')
+            'notes' => 'Resultado de entrevista: '.$result.($validated['notes'] ? ' - '.$validated['notes'] : ''),
         ]);
 
         return response()->json(['data' => $app]);
@@ -529,9 +520,9 @@ class ApplicationController extends Controller
         ]);
 
         $oldStatus = $app->status;
-        if (!$this->canTransition($oldStatus, 'hired')) {
+        if (! $this->canTransition($oldStatus, 'hired')) {
             return response()->json([
-                'message' => "No se puede contratar desde el estado '{$oldStatus}'."
+                'message' => "No se puede contratar desde el estado '{$oldStatus}'.",
             ], 422);
         }
 
@@ -544,13 +535,13 @@ class ApplicationController extends Controller
                 'from_status' => $oldStatus,
                 'to_status' => 'hired',
                 'changed_by' => $request->user()->id,
-                'notes' => "Contratado a prueba por {$validated['trial_period_months']} meses."
+                'notes' => "Contratado a prueba por {$validated['trial_period_months']} meses.",
             ]);
 
             $aspiranteUser = $app->user;
             $aspiranteUser->update([
                 'role' => 'empleado_prueba',
-                'empresa_id' => $request->user()->empresa_id
+                'empresa_id' => $request->user()->empresa_id,
             ]);
 
             $empleado = Empleado::create([
@@ -564,11 +555,11 @@ class ApplicationController extends Controller
                 'position_id' => $validated['position_id'] ?? null,
             ]);
 
-            if (!empty($validated['modules'])) {
+            if (! empty($validated['modules'])) {
                 foreach ($validated['modules'] as $moduleSlug) {
                     EmpleadoModulo::updateOrCreate([
                         'empleado_id' => $empleado->id,
-                        'module_slug' => $moduleSlug
+                        'module_slug' => $moduleSlug,
                     ]);
                 }
             }
@@ -577,14 +568,15 @@ class ApplicationController extends Controller
 
             if (isset($app->contact_info['phone'])) {
                 $msg = "¡Felicidades {$aspiranteUser->name}! Has sido aceptado(a) para el puesto de {$app->jobOpening->title}. Inicias tu periodo de prueba. ¡Bienvenido(a) a DecorArte!";
-                $phone = "52" . preg_replace('/[^0-9]/', '', $app->contact_info['phone']);
+                $phone = '52'.preg_replace('/[^0-9]/', '', $app->contact_info['phone']);
                 $this->sendWhatsAppNotification($phone, $msg);
             }
 
             return response()->json(['message' => 'Candidato contratado a prueba exitosamente.']);
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Error en hireTrial: ' . $e->getMessage());
+            Log::error('Error en hireTrial: '.$e->getMessage());
+
             return response()->json(['message' => 'Error al contratar al candidato.'], 500);
         }
     }
@@ -596,13 +588,13 @@ class ApplicationController extends Controller
 
         $validated = $request->validate([
             'reason' => 'required|string',
-            'notify_whatsapp' => 'boolean'
+            'notify_whatsapp' => 'boolean',
         ]);
 
         $oldStatus = $app->status;
-        if (!$this->canTransition($oldStatus, 'rejected')) {
+        if (! $this->canTransition($oldStatus, 'rejected')) {
             return response()->json([
-                'message' => "No se puede rechazar una aplicación en estado '{$oldStatus}'."
+                'message' => "No se puede rechazar una aplicación en estado '{$oldStatus}'.",
             ], 422);
         }
 
@@ -613,12 +605,12 @@ class ApplicationController extends Controller
             'from_status' => $oldStatus,
             'to_status' => 'rejected',
             'changed_by' => $request->user()->id,
-            'notes' => 'Rechazado: ' . $validated['reason']
+            'notes' => 'Rechazado: '.$validated['reason'],
         ]);
 
         if ($request->boolean('notify_whatsapp') && isset($app->contact_info['phone'])) {
             $msg = "Hola {$app->user->name}, gracias por tu interés en la vacante de {$app->jobOpening->title}. Lamentablemente en esta ocasión no continuaremos con tu proceso. Te deseamos éxito.";
-            $phone = "52" . preg_replace('/[^0-9]/', '', $app->contact_info['phone']);
+            $phone = '52'.preg_replace('/[^0-9]/', '', $app->contact_info['phone']);
             $this->sendWhatsAppNotification($phone, $msg);
         }
 

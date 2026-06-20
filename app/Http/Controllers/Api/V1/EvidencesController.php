@@ -1,19 +1,19 @@
 <?php
-//EvidencesController: manejo de evidencias (archivos) subidos por empleados, adjuntos a tareas o asignaciones
+
+// EvidencesController: manejo de evidencias (archivos) subidos por empleados, adjuntos a tareas o asignaciones
+
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Log;
-
-use App\Models\Evidence;
-use App\Models\Empleado;
-use App\Models\TaskAssignee;
-use App\Models\Task;
-
 use App\Http\Requests\Api\V1\UploadEvidenceRequest;
 use App\Http\Resources\EvidenceResource;
+use App\Models\Empleado;
+use App\Models\Evidence;
+use App\Models\Task;
+use App\Models\TaskAssignee;
+use App\Services\ActivityLogger;
+use App\Services\SecureFileStorage;
+use Illuminate\Http\Request;
 
 class EvidencesController extends Controller
 {
@@ -25,8 +25,7 @@ class EvidencesController extends Controller
 
         $data = $request->validated();
 
-        // Toma el disco dinámicamente del .env
-        $disk = config('filesystems.default', 's3');
+        $disk = SecureFileStorage::disk();
         $file = $request->file('file');
 
         $empleadoId = null;
@@ -35,7 +34,7 @@ class EvidencesController extends Controller
             $empleadoId = $emp?->id;
         }
 
-        $folder = "kore/{$empresaId}/evidences/" . now()->format('Y/m/d');
+        $folder = "kore/{$empresaId}/evidences/".now()->format('Y/m/d');
         $path = $file->store($folder, $disk);
 
         $mime = $file->getMimeType();
@@ -67,32 +66,40 @@ class EvidencesController extends Controller
     {
         $u = $request->user();
         if ($u->role !== 'empleado') {
-            return response()->json(['message'=>'No autorizado'], 403);
+            return response()->json(['message' => 'No autorizado'], 403);
         }
 
         $empresaId = $u->empresa_id;
 
-        $emp = Empleado::where('empresa_id',$empresaId)->where('user_id',$u->id)->first();
-        if (!$emp) return response()->json(['message'=>'Empleado no vinculado'], 404);
+        $emp = Empleado::where('empresa_id', $empresaId)->where('user_id', $u->id)->first();
+        if (! $emp) {
+            return response()->json(['message' => 'Empleado no vinculado'], 404);
+        }
 
         $data = $request->validate([
-            'evidence_id' => ['required','uuid'],
+            'evidence_id' => ['required', 'uuid'],
         ]);
 
-        $a = TaskAssignee::where('empresa_id',$empresaId)
-            ->where('id',$assignmentId)
-            ->where('empleado_id',$emp->id)
+        $a = TaskAssignee::where('empresa_id', $empresaId)
+            ->where('id', $assignmentId)
+            ->where('empleado_id', $emp->id)
             ->first();
-        if (!$a) return response()->json(['message'=>'Asignación no encontrada'], 404);
+        if (! $a) {
+            return response()->json(['message' => 'Asignación no encontrada'], 404);
+        }
 
-        $e = Evidence::where('empresa_id',$empresaId)
-            ->where('id',$data['evidence_id'])
-            ->where('uploaded_by',$u->id)
+        $e = Evidence::where('empresa_id', $empresaId)
+            ->where('id', $data['evidence_id'])
+            ->where('uploaded_by', $u->id)
             ->first();
-        if (!$e) return response()->json(['message'=>'Evidencia no encontrada'], 404);
+        if (! $e) {
+            return response()->json(['message' => 'Evidencia no encontrada'], 404);
+        }
 
-        $task = Task::where('empresa_id',$empresaId)->where('id',$a->task_id)->first();
-        if (!$task) return response()->json(['message'=>'Tarea no encontrada'], 404);
+        $task = Task::where('empresa_id', $empresaId)->where('id', $a->task_id)->first();
+        if (! $task) {
+            return response()->json(['message' => 'Tarea no encontrada'], 404);
+        }
 
         $e->task_assignee_id = $a->id;
         $e->task_id = $task->id;
@@ -100,7 +107,7 @@ class EvidencesController extends Controller
         $e->save();
 
         // 🔔 PUNTO 4.4: Logging al adjuntar evidencia a una tarea
-        \App\Services\ActivityLogger::log(
+        ActivityLogger::log(
             $empresaId,
             $u->id,
             $emp->id,
@@ -128,11 +135,13 @@ class EvidencesController extends Controller
         $u = $request->user();
         $empresaId = $u->empresa_id;
 
-        $e = Evidence::where('empresa_id',$empresaId)->where('id',$id)->first();
-        if (!$e) return response()->json(['message'=>'No encontrada'], 404);
+        $e = Evidence::where('empresa_id', $empresaId)->where('id', $id)->first();
+        if (! $e) {
+            return response()->json(['message' => 'No encontrada'], 404);
+        }
 
         if ($u->role === 'empleado' && $e->uploaded_by !== $u->id) {
-            return response()->json(['message'=>'No autorizado'], 403);
+            return response()->json(['message' => 'No autorizado'], 403);
         }
 
         return response()->json([
@@ -142,34 +151,20 @@ class EvidencesController extends Controller
     }
 
     /**
-     * Genera una URL pública o temporal para la evidencia.
+     * Genera una URL temporal firmada para la evidencia.
      */
     private function fileUrl(Evidence $e): ?string
     {
-        if (!$e->path) {
+        if (! $e->path) {
             return null;
         }
 
-        if ($e->disk === 's3') {
-            try {
-                return Storage::temporaryUrl(
-                    $e->path,
-                    now()->addMinutes(30),
-                    ['ResponseContentDisposition' => 'inline']
-                );
-            } catch (\Exception $ex) {
-                Log::warning("Error generando URL temporal para evidence {$e->id}: " . $ex->getMessage());
-                return null;
-            }
-        }
-
-        // ✅ Usar disk() explícitamente para mayor claridad y compatibilidad
-        try {
-            return Storage::disk($e->disk)->url($e->path);
-        } catch (\Exception $ex) {
-            Log::warning("Error generando URL pública para evidence {$e->id} en disco {$e->disk}: " . $ex->getMessage());
-            return null;
-        }
+        return SecureFileStorage::temporaryUrl(
+            $e->disk,
+            $e->path,
+            30,
+            ['ResponseContentDisposition' => 'inline']
+        );
     }
 
     private function present(Evidence $e): array
@@ -191,20 +186,33 @@ class EvidencesController extends Controller
 
     private function detectEvidenceType(string $mime): string
     {
-        if (str_starts_with($mime, 'image/')) return 'photo';
-        if (str_starts_with($mime, 'audio/')) return 'voice_note';
-        if (str_starts_with($mime, 'video/')) return 'video';
+        if (str_starts_with($mime, 'image/')) {
+            return 'photo';
+        }
+        if (str_starts_with($mime, 'audio/')) {
+            return 'voice_note';
+        }
+        if (str_starts_with($mime, 'video/')) {
+            return 'video';
+        }
+
         return 'file';
     }
 
     private function parseMeta($meta)
     {
-        if (!$meta) return null;
-        if (is_array($meta)) return $meta;
+        if (! $meta) {
+            return null;
+        }
+        if (is_array($meta)) {
+            return $meta;
+        }
         if (is_string($meta)) {
             $decoded = json_decode($meta, true);
+
             return json_last_error() === JSON_ERROR_NONE ? $decoded : ['raw' => $meta];
         }
+
         return null;
     }
 }

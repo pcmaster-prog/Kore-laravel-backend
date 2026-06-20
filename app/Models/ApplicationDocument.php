@@ -2,9 +2,9 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Concerns\HasUuids;
 
 class ApplicationDocument extends Model
 {
@@ -14,6 +14,7 @@ class ApplicationDocument extends Model
         'application_id',
         'document_type',
         'file_path',
+        'disk',
         'original_name',
     ];
 
