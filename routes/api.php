@@ -1,96 +1,95 @@
 <?php
 
-use Illuminate\Http\Request;
-
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Api\V1\AuthController;
-use App\Http\Controllers\Api\V1\EmpresaController;
-use App\Http\Controllers\Api\V1\ModulesController;
-use App\Http\Controllers\Api\V1\EmployeesController;
-use App\Http\Controllers\Api\V1\TasksController;
-use App\Http\Controllers\Api\V1\EvidencesController;
-use App\Http\Controllers\Api\V1\AttendanceControllerV2;
-use App\Http\Controllers\Api\V1\EmpresaSettingsController;
-use App\Http\Controllers\Api\V1\UsersController;
-use App\Http\Controllers\Api\V1\EmpleadoModuleController;
-
-// Nuevos controladores para templates, rutinas y catálogo
-use App\Http\Controllers\Api\V1\TaskTemplatesController;
-use App\Http\Controllers\Api\V1\TaskRoutinesController;
-use App\Http\Controllers\Api\V1\TaskCatalogController;
-use App\Http\Controllers\Api\V1\ActivityLogsController;
-use App\Http\Controllers\Api\V1\AreasController;
-use App\Http\Controllers\Api\V1\SectionsController;
-use App\Http\Controllers\Api\V1\EmpleadoSectionsController;
-use App\Http\Controllers\Api\V1\PositionsController;
-use App\Http\Controllers\Api\V1\SupervisorSectionsController;
-use App\Http\Controllers\Api\V1\TaskAssignmentRulesController;
-use App\Http\Controllers\Api\V1\RoutineSchedulesController;
-use App\Http\Controllers\Api\V1\IncidentsController;
-
-// Controlador del dashboard (nuevo)
-use App\Http\Controllers\Api\V1\DashboardController;
-use App\Http\Controllers\Api\V1\FcmTokenController;
-
-
-//Controlador de nómina
-use App\Http\Controllers\Api\V1\PayrollController;
-use App\Http\Controllers\Api\V1\EmployeeReceiptController;
-use App\Http\Controllers\Api\V1\AdminGratificationController;
-
-//Perfil
-use App\Http\Controllers\Api\V1\ProfileController;
-
-// Módulo Góndolas
-use App\Http\Controllers\Api\V1\GondolasController;
-use App\Http\Controllers\Api\V1\GondolaOrdenesController;
-use App\Http\Controllers\Api\V1\ProductsController;
-
-// Módulo Semáforo de Desempeño
-use App\Http\Controllers\Api\V1\SemaforoController;
-
-// Bitácora
-use App\Http\Controllers\Api\V1\BitacoraController;
-
-// Documentos de empresa
-use App\Http\Controllers\Api\V1\EmpresaDocumentosController;
-
-// Solicitudes de ausencia
-use App\Http\Controllers\Api\V1\AbsenceRequestController;
-
-// Maderas Fase 2
-use App\Http\Controllers\Api\MaderasDashboardController;
-use App\Http\Controllers\Api\InventarioController;
-use App\Http\Controllers\Api\ProduccionController;
-use App\Http\Controllers\Api\EnsamblajeController;
-use App\Http\Controllers\Api\PedidosController;
-use App\Http\Controllers\Api\TemporadasController;
 use App\Http\Controllers\Api\CatalogoController;
-
-// Pesaje Fase 3
-use App\Http\Controllers\Api\PesajeDashboardController;
+use App\Http\Controllers\Api\EnsamblajeController;
+use App\Http\Controllers\Api\InventarioController;
+use App\Http\Controllers\Api\MaderasDashboardController;
+use App\Http\Controllers\Api\PedidosController;
 use App\Http\Controllers\Api\PesajeController;
-use App\Http\Controllers\Api\SaboresController;
-
-// Sistema de retardos
-use App\Http\Controllers\Api\V1\TardinessConfigController;
+use App\Http\Controllers\Api\PesajeDashboardController;
 use App\Http\Controllers\Api\PositionModuleController;
-use App\Http\Controllers\Api\V1\TardinessReportController;
-
-// Horarios de comida
-use App\Http\Controllers\Api\V1\MealScheduleController;
-use App\Http\Controllers\Api\V1\HolidayController;
+use App\Http\Controllers\Api\ProduccionController;
+use App\Http\Controllers\Api\SaboresController;
+// Nuevos controladores para templates, rutinas y catálogo
+use App\Http\Controllers\Api\TemporadasController;
+use App\Http\Controllers\Api\V1\AbsenceRequestController;
+use App\Http\Controllers\Api\V1\ActivityLogsController;
+use App\Http\Controllers\Api\V1\AdminGratificationController;
+use App\Http\Controllers\Api\V1\ApplicationController;
+use App\Http\Controllers\Api\V1\AreasController;
+use App\Http\Controllers\Api\V1\AttendanceControllerV2;
 use App\Http\Controllers\Api\V1\AttendanceReportController;
+use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\BitacoraController;
+use App\Http\Controllers\Api\V1\DashboardController;
+use App\Http\Controllers\Api\V1\EmpleadoModuleController;
+// Controlador del dashboard (nuevo)
+use App\Http\Controllers\Api\V1\EmpleadoSectionsController;
+use App\Http\Controllers\Api\V1\EmployeeReceiptController;
+// Controlador de nómina
+use App\Http\Controllers\Api\V1\EmployeesController;
+use App\Http\Controllers\Api\V1\EmpresaController;
+use App\Http\Controllers\Api\V1\EmpresaDocumentosController;
+// Perfil
+use App\Http\Controllers\Api\V1\EmpresaSettingsController;
+// Módulo Góndolas
+use App\Http\Controllers\Api\V1\EvidencesController;
+use App\Http\Controllers\Api\V1\FcmTokenController;
+use App\Http\Controllers\Api\V1\GondolaOrdenesController;
+// Módulo Semáforo de Desempeño
+use App\Http\Controllers\Api\V1\GondolasController;
+// Bitácora
+use App\Http\Controllers\Api\V1\GoogleAuthController;
+// Documentos de empresa
+use App\Http\Controllers\Api\V1\HolidayController;
+// Solicitudes de ausencia
+use App\Http\Controllers\Api\V1\IncidentsController;
+// Maderas Fase 2
+use App\Http\Controllers\Api\V1\JobOpeningController;
+use App\Http\Controllers\Api\V1\MaderasCatalogoController;
+use App\Http\Controllers\Api\V1\MaderasEnsambleController;
+use App\Http\Controllers\Api\V1\MaderasInventarioController;
+use App\Http\Controllers\Api\V1\MaderasPedidoController;
+use App\Http\Controllers\Api\V1\MaderasProduccionController;
+use App\Http\Controllers\Api\V1\MaderasTablaCorteController;
+// Pesaje Fase 3
+use App\Http\Controllers\Api\V1\MaderasTemporadaController;
+use App\Http\Controllers\Api\V1\MealScheduleController;
 use App\Http\Controllers\Api\V1\MealSwapRequestController;
+// Sistema de retardos
 use App\Http\Controllers\Api\V1\OvertimeRequestController;
+use App\Http\Controllers\Api\V1\PayrollController;
+use App\Http\Controllers\Api\V1\PesajeRegistroController;
+// Horarios de comida
+use App\Http\Controllers\Api\V1\PesajeSaborController;
+use App\Http\Controllers\Api\V1\PortalAuthController;
+use App\Http\Controllers\Api\V1\PositionsController;
+use App\Http\Controllers\Api\V1\ProductsController;
+use App\Http\Controllers\Api\V1\ProfileController;
+use App\Http\Controllers\Api\V1\RegisterController;
+use App\Http\Controllers\Api\V1\RoutineSchedulesController;
+use App\Http\Controllers\Api\V1\SectionsController;
+use App\Http\Controllers\Api\V1\SemaforoController;
+use App\Http\Controllers\Api\V1\SupervisorSectionsController;
+use App\Http\Controllers\Api\V1\TardinessConfigController;
+use App\Http\Controllers\Api\V1\TardinessReportController;
+use App\Http\Controllers\Api\V1\TaskAssignmentRulesController;
+use App\Http\Controllers\Api\V1\TaskCatalogController;
+use App\Http\Controllers\Api\V1\TaskRoutinesController;
+use App\Http\Controllers\Api\V1\TasksController;
+use App\Http\Controllers\Api\V1\TaskTemplatesController;
+use App\Http\Controllers\Api\V1\UsersController;
+use App\Http\Middleware\EnsurePortalAccess;
+use App\Http\Middleware\EnsurePositionModule;
+use Illuminate\Support\Facades\Route;
 
 // 🔥 Nuevo controlador para revisiones
-//use App\Http\Controllers\Api\V1\TaskReviewsController;
+// use App\Http\Controllers\Api\V1\TaskReviewsController;
 
 Route::prefix('v1')->group(function () {
 
     // Registro empresa (público) - README_BACKEND implementation
-    Route::post('/register', [\App\Http\Controllers\Api\V1\RegisterController::class, 'register'])
+    Route::post('/register', [RegisterController::class, 'register'])
         ->middleware('throttle:5,60');
 
     // Auth (público)
@@ -99,43 +98,49 @@ Route::prefix('v1')->group(function () {
 
     // Reclutamiento (ATS) - Público / OAuth
     // OAuth requiere sesión para el parámetro state anti-CSRF.
-    Route::get('/auth/google/redirect', [\App\Http\Controllers\Api\V1\GoogleAuthController::class, 'redirect'])->middleware('web');
-    Route::get('/auth/google/callback', [\App\Http\Controllers\Api\V1\GoogleAuthController::class, 'callback'])->middleware('web');
-    Route::get('/public/jobs', [\App\Http\Controllers\Api\V1\JobOpeningController::class, 'publicIndex']);
-    Route::get('/public/jobs/{id}', [\App\Http\Controllers\Api\V1\JobOpeningController::class, 'publicShow']);
+    Route::get('/auth/google/redirect', [GoogleAuthController::class, 'redirect'])->middleware('web');
+    Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback'])->middleware('web');
+    Route::get('/public/jobs', [JobOpeningController::class, 'publicIndex']);
+    Route::get('/public/jobs/{id}', [JobOpeningController::class, 'publicShow']);
 
-    // Rutas autenticadas
-    Route::middleware(['auth:sanctum','throttle:api'])->group(function () {
+    // Auth del portal de vacantes vía cookie HttpOnly
+    Route::middleware(['portal.cookie', 'throttle:api'])->group(function () {
+        Route::get('/auth/portal/me', [PortalAuthController::class, 'me']);
+        Route::post('/auth/portal/logout', [PortalAuthController::class, 'logout']);
+
+        // Reclutamiento (ATS) - Portal Aspirantes
+        Route::middleware([EnsurePortalAccess::class])->prefix('portal')->group(function () {
+            Route::post('/apply', [ApplicationController::class, 'apply'])->middleware('throttle:3,1');
+            Route::get('/applications', [ApplicationController::class, 'myApplications']);
+            Route::get('/my-application', [ApplicationController::class, 'myCurrentApplication']);
+            Route::put('/applications/{id}/expediente', [ApplicationController::class, 'updateExpediente']);
+            Route::post('/applications/{id}/documents', [ApplicationController::class, 'uploadDocument']);
+            Route::delete('/applications/{id}/documents', [ApplicationController::class, 'deleteDocument']);
+            Route::post('/applications/{id}/induction', [ApplicationController::class, 'markInductionWatched']);
+            Route::post('/applications/{id}/screening', [ApplicationController::class, 'submitScreening']);
+            Route::post('/applications/{id}/request-interview', [ApplicationController::class, 'requestInterview']);
+        });
+    });
+
+    // Rutas autenticadas (frontend principal Kore)
+    Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
 
         Route::get('/auth/me', [AuthController::class, 'me']);
         Route::post('/auth/logout', [AuthController::class, 'logout']);
 
-        // Reclutamiento (ATS) - Portal Aspirantes
-        Route::middleware([\App\Http\Middleware\EnsurePortalAccess::class])->prefix('portal')->group(function () {
-            Route::post('/apply', [\App\Http\Controllers\Api\V1\ApplicationController::class, 'apply'])->middleware('throttle:3,1');
-            Route::get('/applications', [\App\Http\Controllers\Api\V1\ApplicationController::class, 'myApplications']);
-            Route::get('/my-application', [\App\Http\Controllers\Api\V1\ApplicationController::class, 'myCurrentApplication']);
-            Route::put('/applications/{id}/expediente', [\App\Http\Controllers\Api\V1\ApplicationController::class, 'updateExpediente']);
-            Route::post('/applications/{id}/documents', [\App\Http\Controllers\Api\V1\ApplicationController::class, 'uploadDocument']);
-            Route::delete('/applications/{id}/documents', [\App\Http\Controllers\Api\V1\ApplicationController::class, 'deleteDocument']);
-            Route::post('/applications/{id}/induction', [\App\Http\Controllers\Api\V1\ApplicationController::class, 'markInductionWatched']);
-            Route::post('/applications/{id}/screening', [\App\Http\Controllers\Api\V1\ApplicationController::class, 'submitScreening']);
-            Route::post('/applications/{id}/request-interview', [\App\Http\Controllers\Api\V1\ApplicationController::class, 'requestInterview']);
-        });
-
         // Reclutamiento (ATS) - Admin ERP
         Route::prefix('ats')->group(function () {
-            Route::apiResource('jobs', \App\Http\Controllers\Api\V1\JobOpeningController::class)->except(['index', 'show']);
-            Route::get('jobs', [\App\Http\Controllers\Api\V1\JobOpeningController::class, 'index']);
-            Route::get('jobs/{id}', [\App\Http\Controllers\Api\V1\JobOpeningController::class, 'show']);
-            
-            Route::get('applications', [\App\Http\Controllers\Api\V1\ApplicationController::class, 'index']);
-            Route::get('applications/{id}', [\App\Http\Controllers\Api\V1\ApplicationController::class, 'show']);
-            Route::post('applications/{id}/status', [\App\Http\Controllers\Api\V1\ApplicationController::class, 'changeStatus']);
-            Route::post('applications/{id}/interview', [\App\Http\Controllers\Api\V1\ApplicationController::class, 'scheduleInterview']);
-            Route::post('applications/{id}/interview/result', [\App\Http\Controllers\Api\V1\ApplicationController::class, 'recordInterviewResult']);
-            Route::post('applications/{id}/hire', [\App\Http\Controllers\Api\V1\ApplicationController::class, 'hireTrial']);
-            Route::post('applications/{id}/reject', [\App\Http\Controllers\Api\V1\ApplicationController::class, 'reject']);
+            Route::apiResource('jobs', JobOpeningController::class)->except(['index', 'show']);
+            Route::get('jobs', [JobOpeningController::class, 'index']);
+            Route::get('jobs/{id}', [JobOpeningController::class, 'show']);
+
+            Route::get('applications', [ApplicationController::class, 'index']);
+            Route::get('applications/{id}', [ApplicationController::class, 'show']);
+            Route::post('applications/{id}/status', [ApplicationController::class, 'changeStatus']);
+            Route::post('applications/{id}/interview', [ApplicationController::class, 'scheduleInterview']);
+            Route::post('applications/{id}/interview/result', [ApplicationController::class, 'recordInterviewResult']);
+            Route::post('applications/{id}/hire', [ApplicationController::class, 'hireTrial']);
+            Route::post('applications/{id}/reject', [ApplicationController::class, 'reject']);
         });
 
         // Módulos por Puesto (DecorArte Fase 1)
@@ -154,7 +159,7 @@ Route::prefix('v1')->group(function () {
 
             // Bitácora — catálogo de criterios (requiere tenant)
             Route::middleware('role:admin,supervisor')->group(function () {
-                Route::get('/bitacora/criterios',  [BitacoraController::class, 'getCriterios']);
+                Route::get('/bitacora/criterios', [BitacoraController::class, 'getCriterios']);
                 Route::post('/bitacora/criterios', [BitacoraController::class, 'saveCriterios']);
             });
 
@@ -164,10 +169,9 @@ Route::prefix('v1')->group(function () {
             Route::get('/dashboard/employee', [DashboardController::class, 'employee']);
 
             // FCM Tokens (Notificaciones Push)
-            Route::post('/fcm/token',   [FcmTokenController::class, 'store']);
+            Route::post('/fcm/token', [FcmTokenController::class, 'store']);
             Route::delete('/fcm/token', [FcmTokenController::class, 'destroy']);
-            Route::post('/fcm/test',    [FcmTokenController::class, 'test']);
-
+            Route::post('/fcm/test', [FcmTokenController::class, 'test']);
 
             // Rutas protegidas por el módulo "configuracion"
             Route::middleware('module:configuracion')->group(function () {
@@ -197,16 +201,16 @@ Route::prefix('v1')->group(function () {
                 Route::delete('/usuarios/{id}', [UsersController::class, 'destroy'])->whereUuid('id');
 
                 // Documentos de empresa
-                Route::get('/empresa/documentos',            [EmpresaDocumentosController::class, 'index']);
-                Route::post('/empresa/documentos',           [EmpresaDocumentosController::class, 'upload']);
+                Route::get('/empresa/documentos', [EmpresaDocumentosController::class, 'index']);
+                Route::post('/empresa/documentos', [EmpresaDocumentosController::class, 'upload']);
                 Route::delete('/empresa/documentos/{index}', [EmpresaDocumentosController::class, 'destroy']);
             });
 
             // Rutas del módulo "tasks"
             Route::middleware('module:tareas')->group(function () {
-                
+
                 // ── DecorArte Fase 2: Módulo Maderas ──
-                Route::middleware([\App\Http\Middleware\EnsurePositionModule::class.':produccion_maderas'])->prefix('maderas')->group(function () {
+                Route::middleware([EnsurePositionModule::class.':produccion_maderas'])->prefix('maderas')->group(function () {
                     Route::get('/dashboard', [MaderasDashboardController::class, 'index']);
                     Route::get('/inventario', [InventarioController::class, 'index']);
                     Route::post('/inventario/ajuste', [InventarioController::class, 'store']);
@@ -218,21 +222,21 @@ Route::prefix('v1')->group(function () {
                     Route::get('/temporadas/activa', [TemporadasController::class, 'activa']);
                     Route::get('/tablas-cortes', [CatalogoController::class, 'tablasCortes']);
                     Route::post('/tablas-cortes', [CatalogoController::class, 'storeTablaCorte']);
-                    
+
                     Route::get('/produccion', [ProduccionController::class, 'index']);
                     Route::post('/produccion', [ProduccionController::class, 'store']);
                     Route::put('/produccion/{id}/anular', [ProduccionController::class, 'anular']);
-                    
+
                     Route::get('/ensamblaje', [EnsamblajeController::class, 'index']);
                     Route::post('/ensamblaje', [EnsamblajeController::class, 'store']);
-                    
+
                     Route::get('/pedidos', [PedidosController::class, 'index']);
                     Route::get('/pedidos/calcular', [PedidosController::class, 'calcular']);
                     Route::get('/pedidos/{id}/pdf', [PedidosController::class, 'downloadPdf']);
                 });
 
                 // ── DecorArte Fase 3: Módulo Pesaje ──
-                Route::middleware([\App\Http\Middleware\EnsurePositionModule::class.':produccion_pesaje'])->prefix('pesaje')->group(function () {
+                Route::middleware([EnsurePositionModule::class.':produccion_pesaje'])->prefix('pesaje')->group(function () {
                     Route::get('/dashboard', [PesajeDashboardController::class, 'index']);
                     Route::get('/historial', [PesajeController::class, 'index']);
                     Route::post('/', [PesajeController::class, 'store']);
@@ -250,7 +254,7 @@ Route::prefix('v1')->group(function () {
 
                 // Empleado
                 Route::get('/mis-tareas', [TasksController::class, 'myTasks']);
-                
+
                 Route::get('/mis-tareas/asignaciones', [TasksController::class, 'myAssignments']);
                 Route::patch('/mis-tareas/asignacion/{assignmentId}', [TasksController::class, 'updateMyAssignment']);
 
@@ -352,7 +356,7 @@ Route::prefix('v1')->group(function () {
                     Route::get('/tareas/{id}/evidencias', [TasksController::class, 'taskEvidences'])->whereUuid('id');
                 });
 
-                //checklist
+                // checklist
                 Route::patch('/mis-tareas/asignacion/{assignmentId}/checklist', [TasksController::class, 'updateMyChecklistItem']);
 
                 // Evidencias (ahora parte de tareas)
@@ -368,7 +372,6 @@ Route::prefix('v1')->group(function () {
                 // Empleado: ligar evidencia a SU asignación
                 Route::post('/mis-tareas/asignacion/{assignmentId}/evidencia', [EvidencesController::class, 'attachToMyAssignment']);
             });
-
 
             // Rutas del módulo "attendance"
             Route::middleware('module:asistencia')->group(function () {
@@ -391,7 +394,7 @@ Route::prefix('v1')->group(function () {
                 Route::get('/asistencia/mis-hoy', [AttendanceControllerV2::class, 'myToday']);
 
                 // Cronómetro de comida
-                Route::post('/asistencia/comida/iniciar',  [AttendanceControllerV2::class, 'iniciarComida']);
+                Route::post('/asistencia/comida/iniciar', [AttendanceControllerV2::class, 'iniciarComida']);
                 Route::post('/asistencia/comida/terminar', [AttendanceControllerV2::class, 'terminarComida']);
 
                 // Ajuste de asistencia (Admin/Supervisor)
@@ -409,41 +412,41 @@ Route::prefix('v1')->group(function () {
                 });
 
                 // Solicitudes de ausencia justificada
-                Route::post('/asistencia/ausencias',              [AbsenceRequestController::class, 'store']);
-                Route::get('/asistencia/ausencias',               [AbsenceRequestController::class, 'myRequests']);
-                Route::get('/asistencia/ausencias/pendientes',    [AbsenceRequestController::class, 'pending']);
-                Route::patch('/asistencia/ausencias/{id}',        [AbsenceRequestController::class, 'review']);
+                Route::post('/asistencia/ausencias', [AbsenceRequestController::class, 'store']);
+                Route::get('/asistencia/ausencias', [AbsenceRequestController::class, 'myRequests']);
+                Route::get('/asistencia/ausencias/pendientes', [AbsenceRequestController::class, 'pending']);
+                Route::patch('/asistencia/ausencias/{id}', [AbsenceRequestController::class, 'review']);
             });
 
             // ── Módulo Retardos ──────────────────────────────────────────────────────
             // Configuración de retardos (solo admin)
-            Route::middleware(['module:asistencia','role:admin'])->group(function () {
-                Route::get('/config/retardos',   [TardinessConfigController::class, 'show']);
+            Route::middleware(['module:asistencia', 'role:admin'])->group(function () {
+                Route::get('/config/retardos', [TardinessConfigController::class, 'show']);
                 Route::patch('/config/retardos', [TardinessConfigController::class, 'update']);
             });
 
             // Reportes de retardos (admin + supervisor)
-            Route::middleware(['module:asistencia','role:admin,supervisor'])->group(function () {
-                Route::get('/retardos/resumen-mes',            [TardinessReportController::class, 'monthlySummary']);
-                Route::get('/retardos/empleado/{empleado}',    [TardinessReportController::class, 'employeeDetail']);
+            Route::middleware(['module:asistencia', 'role:admin,supervisor'])->group(function () {
+                Route::get('/retardos/resumen-mes', [TardinessReportController::class, 'monthlySummary']);
+                Route::get('/retardos/empleado/{empleado}', [TardinessReportController::class, 'employeeDetail']);
             });
 
             // ── Módulo Nómina ────────────────────────────────────────────────────────
-            Route::middleware(['module:nomina','role:admin'])->group(function () {
-                Route::get('/nomina/periodos',                       [PayrollController::class, 'index']);
-                Route::get('/nomina/periodos/semana',                [PayrollController::class, 'showByWeekDate']);
-                Route::post('/nomina/periodos/generar',              [PayrollController::class, 'generate']);
-                Route::get('/nomina/periodos/{id}',                  [PayrollController::class, 'show']);
-                Route::patch('/nomina/periodos/{id}',                [PayrollController::class, 'updateNotes']);
+            Route::middleware(['module:nomina', 'role:admin'])->group(function () {
+                Route::get('/nomina/periodos', [PayrollController::class, 'index']);
+                Route::get('/nomina/periodos/semana', [PayrollController::class, 'showByWeekDate']);
+                Route::post('/nomina/periodos/generar', [PayrollController::class, 'generate']);
+                Route::get('/nomina/periodos/{id}', [PayrollController::class, 'show']);
+                Route::patch('/nomina/periodos/{id}', [PayrollController::class, 'updateNotes']);
                 Route::patch('/nomina/periodos/{id}/entradas/{entryId}', [PayrollController::class, 'updateEntry']);
-                Route::post('/nomina/periodos/{id}/aprobar',         [PayrollController::class, 'approve']);
-                Route::patch('/nomina/periodos/{id}/reabrir',        [PayrollController::class, 'reabrir']);
-                Route::get('/nomina/periodos/{id}/exportar',         [PayrollController::class, 'export']);
-                Route::post('/nomina/periodos/{periodoId}/excluir',  [PayrollController::class, 'excluirEmpleado']);
+                Route::post('/nomina/periodos/{id}/aprobar', [PayrollController::class, 'approve']);
+                Route::patch('/nomina/periodos/{id}/reabrir', [PayrollController::class, 'reabrir']);
+                Route::get('/nomina/periodos/{id}/exportar', [PayrollController::class, 'export']);
+                Route::post('/nomina/periodos/{periodoId}/excluir', [PayrollController::class, 'excluirEmpleado']);
             });
 
             // ── Recibos de Nómina y Gratificaciones (Empleado) ───────────────────────
-            Route::middleware(['module:nomina','role:admin,empleado'])->group(function () {
+            Route::middleware(['module:nomina', 'role:admin,empleado'])->group(function () {
                 Route::get('/mis-recibos/nomina', [EmployeeReceiptController::class, 'indexNomina']);
                 Route::get('/mis-recibos/nomina/{id}', [EmployeeReceiptController::class, 'showNomina']);
                 Route::post('/mis-recibos/nomina/{id}/firmar', [EmployeeReceiptController::class, 'firmarNomina']);
@@ -454,7 +457,7 @@ Route::prefix('v1')->group(function () {
             });
 
             // ── Gratificaciones (Admin) ──────────────────────────────────────────────
-            Route::middleware(['module:nomina','role:admin'])->group(function () {
+            Route::middleware(['module:nomina', 'role:admin'])->group(function () {
                 Route::get('/admin/tipos-gratificacion', [AdminGratificationController::class, 'indexTipos']);
                 Route::post('/admin/tipos-gratificacion', [AdminGratificationController::class, 'storeTipo']);
                 Route::put('/admin/tipos-gratificacion/{id}', [AdminGratificationController::class, 'updateTipo']);
@@ -467,25 +470,25 @@ Route::prefix('v1')->group(function () {
 
             // Horarios de comida
             Route::middleware('module:asistencia')->group(function () {
-                Route::get('/meal-schedules',       [MealScheduleController::class, 'index']);
+                Route::get('/meal-schedules', [MealScheduleController::class, 'index']);
                 Route::post('/meal-schedules/bulk', [MealScheduleController::class, 'bulkStore']);
             });
 
             // Cambio de horario de comida
             Route::middleware('module:asistencia')->group(function () {
-                Route::post('/meal-swaps',                [MealSwapRequestController::class, 'store']);
+                Route::post('/meal-swaps', [MealSwapRequestController::class, 'store']);
                 Route::get('/meal-swaps/mis-solicitudes', [MealSwapRequestController::class, 'myRequests']);
-                Route::post('/meal-swaps/{id}/aceptar',   [MealSwapRequestController::class, 'accept'])->whereUuid('id');
-                Route::get('/meal-swaps/pendientes',      [MealSwapRequestController::class, 'pending'])->middleware('role:admin,supervisor');
-                Route::patch('/meal-swaps/{id}/revisar',  [MealSwapRequestController::class, 'review'])->whereUuid('id')->middleware('role:admin,supervisor');
+                Route::post('/meal-swaps/{id}/aceptar', [MealSwapRequestController::class, 'accept'])->whereUuid('id');
+                Route::get('/meal-swaps/pendientes', [MealSwapRequestController::class, 'pending'])->middleware('role:admin,supervisor');
+                Route::patch('/meal-swaps/{id}/revisar', [MealSwapRequestController::class, 'review'])->whereUuid('id')->middleware('role:admin,supervisor');
             });
 
             // Horas extras
             Route::middleware('module:asistencia')->group(function () {
-                Route::post('/overtime-requests',               [OvertimeRequestController::class, 'store']);
-                Route::get('/overtime-requests/mias',           [OvertimeRequestController::class, 'myRequests']);
-                Route::get('/overtime-requests/pendientes',     [OvertimeRequestController::class, 'pending'])->middleware('role:admin,supervisor');
-                Route::patch('/overtime-requests/{id}',         [OvertimeRequestController::class, 'review'])->whereUuid('id')->middleware('role:admin,supervisor');
+                Route::post('/overtime-requests', [OvertimeRequestController::class, 'store']);
+                Route::get('/overtime-requests/mias', [OvertimeRequestController::class, 'myRequests']);
+                Route::get('/overtime-requests/pendientes', [OvertimeRequestController::class, 'pending'])->middleware('role:admin,supervisor');
+                Route::patch('/overtime-requests/{id}', [OvertimeRequestController::class, 'review'])->whereUuid('id')->middleware('role:admin,supervisor');
             });
 
             // Festivos
@@ -494,21 +497,20 @@ Route::prefix('v1')->group(function () {
             Route::delete('/empresa/festivos/{id}', [HolidayController::class, 'destroy']);
             Route::post('/empresa/festivos/cargar-mexico', [HolidayController::class, 'loadMexicoHolidays']);
 
-            //perfil
-            Route::get('/mi-perfil',   [ProfileController::class, 'show']);
+            // perfil
+            Route::get('/mi-perfil', [ProfileController::class, 'show']);
             Route::patch('/mi-perfil', [ProfileController::class, 'update']);
             Route::post('/mi-perfil/avatar', [ProfileController::class, 'uploadAvatar']);
             Route::post('/mi-perfil/password', [ProfileController::class, 'changePassword']);
 
-
             // Rutas de módulos empresa (solo admin)
-            Route::middleware(['module:configuracion','role:admin'])->group(function () {
+            Route::middleware(['module:configuracion', 'role:admin'])->group(function () {
                 Route::get('/empresa/modulos', [EmpresaController::class, 'modulos']);
                 Route::post('/empresa/modulos', [EmpresaController::class, 'toggleModulo']);
 
                 // Config IP empresa
                 Route::patch('/empresa/config', [EmpresaController::class, 'config']);
-                Route::get('/empresa/red',  [EmpresaController::class, 'getRed']);
+                Route::get('/empresa/red', [EmpresaController::class, 'getRed']);
                 Route::post('/empresa/red', [EmpresaController::class, 'updateRed']);
 
                 // Configuración de calendario a nivel empresa
@@ -520,103 +522,103 @@ Route::prefix('v1')->group(function () {
             // ── Módulo Góndolas ───────────────────────────────────────────────────────
             Route::middleware(['module:gondolas'])->group(function () {
                 // Productos maestros
-                Route::get('/products',                              [ProductsController::class, 'index']);
-                Route::post('/products',                             [ProductsController::class, 'store']);
-                Route::get('/products/{id}',                         [ProductsController::class, 'show'])->whereUuid('id');
-                Route::patch('/products/{id}',                       [ProductsController::class, 'update'])->whereUuid('id');
-                Route::delete('/products/{id}',                      [ProductsController::class, 'destroy'])->whereUuid('id');
-                Route::get('/products/{id}/locations',               [ProductsController::class, 'locations'])->whereUuid('id');
+                Route::get('/products', [ProductsController::class, 'index']);
+                Route::post('/products', [ProductsController::class, 'store']);
+                Route::get('/products/{id}', [ProductsController::class, 'show'])->whereUuid('id');
+                Route::patch('/products/{id}', [ProductsController::class, 'update'])->whereUuid('id');
+                Route::delete('/products/{id}', [ProductsController::class, 'destroy'])->whereUuid('id');
+                Route::get('/products/{id}/locations', [ProductsController::class, 'locations'])->whereUuid('id');
 
                 // Góndolas CRUD
-                Route::get('/gondolas',                              [GondolasController::class, 'index']);
-                Route::post('/gondolas',                             [GondolasController::class, 'store']);
-                Route::get('/gondolas/{id}',                         [GondolasController::class, 'show']);
-                Route::patch('/gondolas/{id}',                       [GondolasController::class, 'update']);
-                Route::delete('/gondolas/{id}',                      [GondolasController::class, 'destroy']);
-                Route::get('/gondolas/{id}/productos',               [GondolasController::class, 'productos']);
-                Route::post('/gondolas/{id}/productos',              [GondolasController::class, 'addProducto']);
-                Route::patch('/gondolas/{gId}/productos/{pId}',      [GondolasController::class, 'updateProducto']);
-                Route::delete('/gondolas/{gId}/productos/{pId}',     [GondolasController::class, 'removeProducto']);
-                Route::post('/gondolas/{gId}/productos/{pId}/foto',  [GondolasController::class, 'uploadFoto']);
+                Route::get('/gondolas', [GondolasController::class, 'index']);
+                Route::post('/gondolas', [GondolasController::class, 'store']);
+                Route::get('/gondolas/{id}', [GondolasController::class, 'show']);
+                Route::patch('/gondolas/{id}', [GondolasController::class, 'update']);
+                Route::delete('/gondolas/{id}', [GondolasController::class, 'destroy']);
+                Route::get('/gondolas/{id}/productos', [GondolasController::class, 'productos']);
+                Route::post('/gondolas/{id}/productos', [GondolasController::class, 'addProducto']);
+                Route::patch('/gondolas/{gId}/productos/{pId}', [GondolasController::class, 'updateProducto']);
+                Route::delete('/gondolas/{gId}/productos/{pId}', [GondolasController::class, 'removeProducto']);
+                Route::post('/gondolas/{gId}/productos/{pId}/foto', [GondolasController::class, 'uploadFoto']);
 
                 // Órdenes — gestión (admin/supervisor)
-                Route::get('/gondola-ordenes',                       [GondolaOrdenesController::class, 'index']);
-                Route::post('/gondola-ordenes',                      [GondolaOrdenesController::class, 'store']);
-                Route::get('/gondola-ordenes/{id}',                  [GondolaOrdenesController::class, 'show']);
-                Route::post('/gondola-ordenes/{id}/aprobar',         [GondolaOrdenesController::class, 'aprobar']);
-                Route::post('/gondola-ordenes/{id}/rechazar',        [GondolaOrdenesController::class, 'rechazar']);
+                Route::get('/gondola-ordenes', [GondolaOrdenesController::class, 'index']);
+                Route::post('/gondola-ordenes', [GondolaOrdenesController::class, 'store']);
+                Route::get('/gondola-ordenes/{id}', [GondolaOrdenesController::class, 'show']);
+                Route::post('/gondola-ordenes/{id}/aprobar', [GondolaOrdenesController::class, 'aprobar']);
+                Route::post('/gondola-ordenes/{id}/rechazar', [GondolaOrdenesController::class, 'rechazar']);
 
                 // Órdenes — empleado
-                Route::get('/mis-ordenes-gondola',                   [GondolaOrdenesController::class, 'misOrdenes']);
-                Route::post('/gondola-ordenes/{id}/iniciar',         [GondolaOrdenesController::class, 'iniciar']);
-                Route::post('/gondola-ordenes/{id}/completar',       [GondolaOrdenesController::class, 'completar']);
+                Route::get('/mis-ordenes-gondola', [GondolaOrdenesController::class, 'misOrdenes']);
+                Route::post('/gondola-ordenes/{id}/iniciar', [GondolaOrdenesController::class, 'iniciar']);
+                Route::post('/gondola-ordenes/{id}/completar', [GondolaOrdenesController::class, 'completar']);
 
                 // Auto-relleno por iniciativa propia
-                Route::post('/gondolas/{gondolaId}/auto-rellenar',   [GondolaOrdenesController::class, 'autoRellenar']);
+                Route::post('/gondolas/{gondolaId}/auto-rellenar', [GondolaOrdenesController::class, 'autoRellenar']);
 
                 // Generar tarea de relleno
-                Route::post('/gondolas/{id}/generar-tarea',          [GondolaOrdenesController::class, 'generarTarea']);
+                Route::post('/gondolas/{id}/generar-tarea', [GondolaOrdenesController::class, 'generarTarea']);
             });
 
             // ── Módulo Semáforo de Desempeño ─────────────────────────────────────────
             Route::middleware(['module:semaforo'])->group(function () {
                 // Admin
-                Route::get('/semaforo/empleados',                            [SemaforoController::class, 'index']);
-                Route::post('/semaforo/empleados/{empleadoId}/activar',      [SemaforoController::class, 'activar']);
-                Route::post('/semaforo/empleados/{empleadoId}/desactivar',   [SemaforoController::class, 'desactivar']);
-                Route::get('/semaforo/empleados/{empleadoId}/resultado',     [SemaforoController::class, 'resultado']);
+                Route::get('/semaforo/empleados', [SemaforoController::class, 'index']);
+                Route::post('/semaforo/empleados/{empleadoId}/activar', [SemaforoController::class, 'activar']);
+                Route::post('/semaforo/empleados/{empleadoId}/desactivar', [SemaforoController::class, 'desactivar']);
+                Route::get('/semaforo/empleados/{empleadoId}/resultado', [SemaforoController::class, 'resultado']);
 
                 // Admin + Supervisor
-                Route::post('/semaforo/evaluaciones',                        [SemaforoController::class, 'evaluarAdmin']);
-                Route::get('/semaforo/mis-evaluaciones-pendientes',          [SemaforoController::class, 'pendientesSupervisor']);
+                Route::post('/semaforo/evaluaciones', [SemaforoController::class, 'evaluarAdmin']);
+                Route::get('/semaforo/mis-evaluaciones-pendientes', [SemaforoController::class, 'pendientesSupervisor']);
 
                 // Empleado
-                Route::get('/semaforo/companeros',                           [SemaforoController::class, 'companeros']);
-                Route::post('/semaforo/peer-evaluaciones',                   [SemaforoController::class, 'peerEvaluar']);
+                Route::get('/semaforo/companeros', [SemaforoController::class, 'companeros']);
+                Route::post('/semaforo/peer-evaluaciones', [SemaforoController::class, 'peerEvaluar']);
 
                 // Configuración del semáforo (lectura pública dentro del módulo, escritura solo admin)
-                Route::get('/semaforo/config',                               [SemaforoController::class, 'configShow']);
-                Route::post('/semaforo/config',                              [SemaforoController::class, 'configStore']);
+                Route::get('/semaforo/config', [SemaforoController::class, 'configShow']);
+                Route::post('/semaforo/config', [SemaforoController::class, 'configStore']);
             });
 
             // ── Módulo Maderas ───────────────────────────────────────────────────────
             Route::middleware(['module:produccion_maderas'])->group(function () {
                 // Rutas personalizadas del frontend
-                Route::get('maderas/productos', [App\Http\Controllers\Api\V1\MaderasCatalogoController::class, 'productos']);
-                Route::get('maderas/bastones', [App\Http\Controllers\Api\V1\MaderasCatalogoController::class, 'bastones']);
-                Route::get('maderas/tablas-cortes', [App\Http\Controllers\Api\V1\MaderasTablaCorteController::class, 'index']);
-                Route::post('maderas/tablas-cortes', [App\Http\Controllers\Api\V1\MaderasTablaCorteController::class, 'store']);
-                Route::get('maderas/temporadas/activa', [App\Http\Controllers\Api\V1\MaderasTemporadaController::class, 'activa']);
-                Route::get('maderas/dashboard', [App\Http\Controllers\Api\V1\MaderasCatalogoController::class, 'dashboard']);
+                Route::get('maderas/productos', [MaderasCatalogoController::class, 'productos']);
+                Route::get('maderas/bastones', [MaderasCatalogoController::class, 'bastones']);
+                Route::get('maderas/tablas-cortes', [MaderasTablaCorteController::class, 'index']);
+                Route::post('maderas/tablas-cortes', [MaderasTablaCorteController::class, 'store']);
+                Route::get('maderas/temporadas/activa', [MaderasTemporadaController::class, 'activa']);
+                Route::get('maderas/dashboard', [MaderasCatalogoController::class, 'dashboard']);
 
                 // Catálogo y Tablas de Corte (Admin/Supervisor)
-                Route::apiResource('maderas/catalogo', App\Http\Controllers\Api\V1\MaderasCatalogoController::class);
-                Route::apiResource('maderas/tablas-corte', App\Http\Controllers\Api\V1\MaderasTablaCorteController::class);
-                Route::apiResource('maderas/temporadas', App\Http\Controllers\Api\V1\MaderasTemporadaController::class);
-                
+                Route::apiResource('maderas/catalogo', MaderasCatalogoController::class);
+                Route::apiResource('maderas/tablas-corte', MaderasTablaCorteController::class);
+                Route::apiResource('maderas/temporadas', MaderasTemporadaController::class);
+
                 // Operativa
-                Route::apiResource('maderas/inventario', App\Http\Controllers\Api\V1\MaderasInventarioController::class);
-                Route::apiResource('maderas/produccion', App\Http\Controllers\Api\V1\MaderasProduccionController::class);
-                Route::apiResource('maderas/ensambles', App\Http\Controllers\Api\V1\MaderasEnsambleController::class);
-                
+                Route::apiResource('maderas/inventario', MaderasInventarioController::class);
+                Route::apiResource('maderas/produccion', MaderasProduccionController::class);
+                Route::apiResource('maderas/ensambles', MaderasEnsambleController::class);
+
                 // Pedidos (Rutas personalizadas antes del apiResource)
-                Route::get('maderas/pedidos/calcular', [App\Http\Controllers\Api\V1\MaderasPedidoController::class, 'calcular']);
-                Route::get('maderas/pedidos/{id}/pdf', [App\Http\Controllers\Api\V1\MaderasPedidoController::class, 'pdf']);
-                Route::apiResource('maderas/pedidos', App\Http\Controllers\Api\V1\MaderasPedidoController::class);
+                Route::get('maderas/pedidos/calcular', [MaderasPedidoController::class, 'calcular']);
+                Route::get('maderas/pedidos/{id}/pdf', [MaderasPedidoController::class, 'pdf']);
+                Route::apiResource('maderas/pedidos', MaderasPedidoController::class);
             });
 
             // ── Módulo Pesaje ────────────────────────────────────────────────────────
             Route::middleware(['module:produccion_pesaje'])->group(function () {
                 // Rutas personalizadas del frontend
-                Route::get('pesaje/dashboard', [App\Http\Controllers\Api\V1\PesajeRegistroController::class, 'dashboard']);
-                Route::get('pesaje/historial', [App\Http\Controllers\Api\V1\PesajeRegistroController::class, 'index']);
-                Route::post('pesaje', [App\Http\Controllers\Api\V1\PesajeRegistroController::class, 'store']);
+                Route::get('pesaje/dashboard', [PesajeRegistroController::class, 'dashboard']);
+                Route::get('pesaje/historial', [PesajeRegistroController::class, 'index']);
+                Route::post('pesaje', [PesajeRegistroController::class, 'store']);
 
-                Route::apiResource('pesaje/sabores', App\Http\Controllers\Api\V1\PesajeSaborController::class);
-                Route::apiResource('pesaje/registros', App\Http\Controllers\Api\V1\PesajeRegistroController::class);
+                Route::apiResource('pesaje/sabores', PesajeSaborController::class);
+                Route::apiResource('pesaje/registros', PesajeRegistroController::class);
             });
 
-            // Ruta de prueba 
+            // Ruta de prueba
             Route::get('/demo/employees-module-check', function () {
                 return response()->json(['ok' => true, 'message' => 'Employees module enabled']);
             })->middleware('module:configuracion');

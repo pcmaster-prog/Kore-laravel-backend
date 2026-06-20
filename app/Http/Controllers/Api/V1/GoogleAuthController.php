@@ -3,31 +3,53 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use Laravel\Socialite\Facades\Socialite;
+use App\Http\Middleware\PortalCookieAuth;
 use App\Models\User;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+use Laravel\Socialite\Facades\Socialite;
 
 class GoogleAuthController extends Controller
 {
+    /**
+     * Redirige al usuario a Google OAuth.
+     * Acepta un state opcional del frontend para mitigar CSRF.
+     */
     public function redirect(Request $request)
     {
-        return Socialite::driver('google')->redirect();
+        $state = $request->query('state');
+
+        if ($state) {
+            session(['portal_oauth_state' => $state]);
+        } else {
+            $request->session()->forget('portal_oauth_state');
+        }
+
+        $driver = Socialite::driver('google');
+
+        if ($state) {
+            $driver->with(['state' => $state]);
+        }
+
+        return $driver->redirect();
     }
 
+    /**
+     * Callback de Google OAuth.
+     * Crea/actualiza el usuario, genera un token Sanctum y lo envía al
+     * frontend en una cookie HttpOnly. No expone el token en la URL.
+     */
     public function callback(Request $request)
     {
         try {
-            // Socialite con stateful driver valida automáticamente el parámetro ?state
-            // contra el valor guardado en sesión. No usamos stateless() para evitar
-            // ataques CSRF en el flujo OAuth.
             $googleUser = Socialite::driver('google')->user();
 
             $user = User::where('email', $googleUser->getEmail())->first();
 
-            if (!$user) {
+            if (! $user) {
                 $user = User::create([
                     'name' => $googleUser->getName(),
                     'email' => $googleUser->getEmail(),
@@ -38,7 +60,6 @@ class GoogleAuthController extends Controller
                     'avatar' => $googleUser->getAvatar(),
                 ]);
             } else {
-                // Solo actualizamos avatar; no sobreescribimos provider si ya existe otro.
                 $user->update([
                     'avatar' => $googleUser->getAvatar(),
                 ]);
@@ -46,22 +67,36 @@ class GoogleAuthController extends Controller
 
             $token = $user->createToken('portal_token')->plainTextToken;
 
-            $frontendUrl = rtrim(config('services.google.frontend_portal_url', config('app.frontend_portal_url', 'https://vacantes.decorartereposteria.mx')), '/') . '/auth/google/callback';
+            $frontendUrl = rtrim(config('services.google.frontend_portal_url', config('app.frontend_portal_url', 'https://vacantes.decorartereposteria.mx')), '/')
+                .'/auth/google/callback';
 
-            // Enviamos token y datos en el fragmento (#) para que no queden en logs ni referrer.
-            $fragment = 'token=' . urlencode($token) . '&user=' . urlencode(json_encode([
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'avatar' => $user->avatar,
-            ]));
+            $state = $request->input('state', session('portal_oauth_state'));
+            $request->session()->forget('portal_oauth_state');
 
-            $redirectUrl = $frontendUrl . '#' . $fragment;
-            return redirect()->away($redirectUrl);
+            $redirectUrl = $state
+                ? $frontendUrl.'?state='.urlencode($state)
+                : $frontendUrl;
+
+            $cookie = Cookie::make(
+                PortalCookieAuth::COOKIE_NAME,
+                $token,
+                60 * 24 * 7, // 7 días
+                '/',
+                null,
+                config('session.secure', true),
+                true, // HttpOnly
+                false,
+                config('session.same_site', 'lax')
+            );
+
+            return redirect()->away($redirectUrl)->withCookie($cookie);
 
         } catch (\Exception $e) {
-            Log::error("Google Auth Error: " . $e->getMessage());
-            $errorUrl = rtrim(config('services.google.frontend_portal_url', config('app.frontend_portal_url', 'https://vacantes.decorartereposteria.mx')), '/') . '/login?error=auth_failed';
+            Log::error('Google Auth Error: '.$e->getMessage());
+
+            $errorUrl = rtrim(config('services.google.frontend_portal_url', config('app.frontend_portal_url', 'https://vacantes.decorartereposteria.mx')), '/')
+                .'/login?error=auth_failed';
+
             return redirect()->away($errorUrl);
         }
     }
