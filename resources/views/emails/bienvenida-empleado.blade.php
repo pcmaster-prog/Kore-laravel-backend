@@ -73,26 +73,14 @@
       @endif
 
       <p class="text">
-        Puedes acceder a la plataforma con las siguientes credenciales:
+        Para acceder a la plataforma, activa tu cuenta estableciendo una contraseña segura:
       </p>
 
-      <div class="credentials">
-        <div class="credentials-title">Tus credenciales de acceso</div>
-        <div class="credential-row">
-          <span class="credential-label">Correo electrónico</span>
-          <span class="credential-value">{{ $email }}</span>
-        </div>
-        <div class="credential-row">
-          <span class="credential-label">Contraseña temporal</span>
-          <span class="credential-value">{{ $passwordTemporal }}</span>
-        </div>
-      </div>
-
-      <a href="{{ $appUrl }}" class="btn">Acceder a la plataforma →</a>
+      <a href="{{ $activationUrl }}" class="btn">Activar mi cuenta →</a>
 
       <div class="warning">
-        ⚠️ Te recomendamos cambiar tu contraseña después de tu primer inicio de sesión 
-        desde la sección <strong>Mi Perfil</strong>.
+        ⚠️ Este enlace es personal y de un solo uso. Expira en 24 horas. Si no lo usas,
+        deberás solicitar uno nuevo al administrador de tu empresa.
       </div>
 
       <p class="text">

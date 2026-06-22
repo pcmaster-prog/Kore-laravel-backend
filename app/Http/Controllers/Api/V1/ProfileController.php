@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\Empleado;
 use App\Models\AttendanceDay;
+use App\Models\Application;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Hash;
@@ -46,6 +47,7 @@ class ProfileController extends Controller
 
         return response()->json([
             'data' => $this->presentProfile($u, $emp, $attendanceStatus),
+            'meta' => $this->portalMeta($u),
         ]);
     }
 
@@ -88,6 +90,7 @@ class ProfileController extends Controller
 
         return response()->json([
             'data' => $this->presentProfile($u->fresh(), $emp, null),
+            'meta' => $this->portalMeta($u),
         ]);
     }
 
@@ -123,6 +126,7 @@ class ProfileController extends Controller
 
         return response()->json([
             'data' => $this->presentProfile($u->fresh(), $emp, null),
+            'meta' => $this->portalMeta($u),
         ]);
     }
 
@@ -160,6 +164,32 @@ class ProfileController extends Controller
         ]);
     }
 
+
+    private function portalMeta($u): array
+    {
+        return [
+            'has_portal_access' => $this->hasPortalAccess($u),
+            'portal_url'        => config('app.frontend_portal_url', 'https://vacantes.decorartereposteria.mx'),
+            'application_status'=> $this->applicationStatus($u),
+        ];
+    }
+
+    private function hasPortalAccess($u): bool
+    {
+        // Los aspirantes siempre acceden a su portal.
+        // Los usuarios de empresa acceden al portal público de vacantes de su empresa.
+        return $u->role === 'aspirante' || filled($u->empresa_id);
+    }
+
+    private function applicationStatus($u): ?string
+    {
+        if ($u->role !== 'aspirante') {
+            return null;
+        }
+
+        $latest = Application::where('user_id', $u->id)->latest()->first();
+        return $latest?->status;
+    }
 
     private function presentProfile($u, $emp, ?string $attendanceStatus): array
     {
