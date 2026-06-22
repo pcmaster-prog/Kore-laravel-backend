@@ -16,6 +16,8 @@ class AttendanceDay extends Model
         'early_departure_minutes',
         'meal_overtime_minutes',
         'lunch_reminder_sent',
+        'lunch_pre_reminder_sent',
+        'lunch_end_reminder_sent',
         'exit_reminder_sent',
         'exit_available_sent',
         'admin_closed','admin_closed_by','admin_closed_reason',

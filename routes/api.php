@@ -55,6 +55,7 @@ use App\Http\Controllers\Api\V1\MaderasProduccionController;
 use App\Http\Controllers\Api\V1\MaderasTablaCorteController;
 // Pesaje Fase 3
 use App\Http\Controllers\Api\V1\MaderasTemporadaController;
+use App\Http\Controllers\Api\V1\MealScheduleChangeRequestController;
 use App\Http\Controllers\Api\V1\MealScheduleController;
 use App\Http\Controllers\Api\V1\MealSwapRequestController;
 // Sistema de retardos
@@ -393,6 +394,7 @@ Route::prefix('v1')->group(function () {
 
                 // Admin/Supervisor
                 Route::get('/asistencia/por-fecha', [AttendanceControllerV2::class, 'byDate']);
+                Route::get('/asistencia/en-comida', [AttendanceControllerV2::class, 'enComida']);
                 Route::get('/asistencia/semanal', [AttendanceControllerV2::class, 'weeklySummary']);
                 Route::post('/asistencia/dia-descanso', [AttendanceControllerV2::class, 'marcarDiaDescansoAdmin']);
                 Route::delete('/asistencia/dia-descanso', [AttendanceControllerV2::class, 'quitarDiaDescansoAdmin']);
@@ -402,6 +404,12 @@ Route::prefix('v1')->group(function () {
                 // Cronómetro de comida
                 Route::post('/asistencia/comida/iniciar', [AttendanceControllerV2::class, 'iniciarComida']);
                 Route::post('/asistencia/comida/terminar', [AttendanceControllerV2::class, 'terminarComida']);
+
+                Route::get('/asistencia/meal-schedule-change-requests', [MealScheduleChangeRequestController::class, 'index']);
+                Route::post('/asistencia/meal-schedule-change-requests', [MealScheduleChangeRequestController::class, 'store']);
+                Route::get('/asistencia/meal-schedule-change-requests/{changeRequest}', [MealScheduleChangeRequestController::class, 'show']);
+                Route::patch('/asistencia/meal-schedule-change-requests/{changeRequest}/review', [MealScheduleChangeRequestController::class, 'review']);
+                Route::delete('/asistencia/meal-schedule-change-requests/{changeRequest}', [MealScheduleChangeRequestController::class, 'destroy']);
 
                 // Ajuste de asistencia (Admin/Supervisor)
                 Route::patch('/asistencia/ajustar/{empleadoId}/{fecha}', [AttendanceControllerV2::class, 'ajustar']);

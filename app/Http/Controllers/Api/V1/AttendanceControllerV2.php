@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 
 use App\Models\AttendanceDay;
@@ -723,9 +724,11 @@ class AttendanceControllerV2 extends Controller
             'break_pauses_clock' => $breakPausesClock,
             'meal_duration_minutes' => $mealDuration,
             'break_duration_minutes'=> $breakDuration,
-            'lunch_reminder_sent'   => (bool)$day?->lunch_reminder_sent,
-            'exit_reminder_sent'    => (bool)$day?->exit_reminder_sent,
-            'exit_available_sent'   => (bool)$day?->exit_available_sent,
+            'lunch_reminder_sent'     => (bool)$day?->lunch_reminder_sent,
+            'lunch_pre_reminder_sent' => (bool)$day?->lunch_pre_reminder_sent,
+            'lunch_end_reminder_sent' => (bool)$day?->lunch_end_reminder_sent,
+            'exit_reminder_sent'      => (bool)$day?->exit_reminder_sent,
+            'exit_available_sent'     => (bool)$day?->exit_available_sent,
             'employee_check_in_time' => $employeeCheckInTime,
             'late_window_closes_at' => $lateWindowClosesAt,
             'has_approved_late_request' => (bool) $approvedLateRequest,
@@ -1352,6 +1355,57 @@ class AttendanceControllerV2 extends Controller
             (int) round($workedSeconds / 60),
             (int) round($breakSeconds  / 60),
         ];
+    }
+
+    // Admin/Supervisor/RH: listado de empleados actualmente en comida
+    public function enComida(Request $request)
+    {
+        $user = Auth::user();
+        if (! $user || ! $user->hasRole(['admin', 'rh', 'supervisor'])) {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+
+        $empresaId = $request->header('X-Empresa-ID') ?? $user->empresa_id;
+        $today = now()->toDateString();
+
+        $days = AttendanceDay::with(['empleado.user'])
+            ->where('empresa_id', $empresaId)
+            ->whereDate('date', $today)
+            ->whereNotNull('lunch_start_at')
+            ->whereNull('lunch_end_at')
+            ->get();
+
+        $empresa = Empresa::find($empresaId);
+        $settings = is_array($empresa?->settings) ? $empresa->settings : [];
+        $mealDuration = (int)($settings['operativo']['meal_duration_minutes'] ?? 30);
+
+        $now = now();
+        $data = $days->map(function (AttendanceDay $d) use ($now, $mealDuration) {
+            $start = $d->lunch_start_at;
+            $elapsedMinutes = (int) round($start->diffInMinutes($now));
+            $overtimeMinutes = max(0, $elapsedMinutes - $mealDuration);
+
+            return [
+                'attendance_day_id' => $d->id,
+                'empleado_id' => $d->empleado_id,
+                'employee_name' => $d->empleado?->full_name ?? $d->empleado?->user?->name ?? '—',
+                'avatar_url' => $d->empleado?->avatar_url,
+                'lunch_start_at' => $start->toISOString(),
+                'elapsed_minutes' => $elapsedMinutes,
+                'meal_duration_minutes' => $mealDuration,
+                'overtime_minutes' => $overtimeMinutes,
+                'is_overtime' => $overtimeMinutes > 0,
+            ];
+        })->sortByDesc('overtime_minutes')->values();
+
+        return response()->json([
+            'data' => $data,
+            'meta' => [
+                'current_server_time' => $now->toISOString(),
+                'meal_duration_minutes' => $mealDuration,
+                'count' => $data->count(),
+            ],
+        ]);
     }
 
     private function presentDay(AttendanceDay $d): array

@@ -89,4 +89,13 @@ class User extends Authenticatable
     {
         return $this->hasMany(Application::class, 'user_id');
     }
+
+    /**
+     * Verifica si el usuario tiene alguno de los roles indicados.
+     */
+    public function hasRole(array|string $roles): bool
+    {
+        $roles = is_array($roles) ? $roles : [$roles];
+        return in_array($this->role, $roles, true);
+    }
 }

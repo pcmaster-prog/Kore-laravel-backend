@@ -6,70 +6,210 @@ use Illuminate\Console\Command;
 use App\Models\MealSchedule;
 use App\Models\AttendanceDay;
 use App\Services\NotificationService;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 
 class SendMealNotifications extends Command
 {
     protected $signature   = 'meals:notify';
-    protected $description = 'Envía notificaciones push a los empleados cuya hora de comida coincide con la hora actual';
+    protected $description = 'Envia notificaciones de comida: pre-aviso, inicio y 5 minutos antes de terminar';
+
+    private const PRE_MINUTES  = 5;
+    private const END_MINUTES  = 5;
 
     public function handle(): void
     {
-        $now = now()->format('H:i');
-        $today = now()->toDateString();
+        $now   = now();
+        $today = $now->toDateString();
+        $time  = $now->format('H:i');
+        $timeWithSeconds = $now->format('H:i:s');
 
-        $schedules = MealSchedule::where('meal_start_time', 'LIKE', $now . '%')
+        $notifier = app(NotificationService::class);
+
+        $preTime = $now->copy()->addMinutes(self::PRE_MINUTES)->format('H:i');
+        $endTime = $now->copy()->addMinutes(self::END_MINUTES)->format('H:i');
+
+        $preSent  = $this->sendPreReminders($preTime, $today, $notifier);
+        $startSent = $this->sendStartReminders($time, $today, $notifier);
+        $endSent  = $this->sendEndReminders($endTime, $today, $notifier);
+
+        $this->info("Pre-avisos: {$preSent} | Inicios: {$startSent} | Fin proximo: {$endSent} a las {$time}.");
+    }
+
+    /**
+     * Notifica 5 minutos antes de la hora de comida.
+     */
+    private function sendPreReminders(string $preTime, string $today, NotificationService $notifier): int
+    {
+        $schedules = MealSchedule::where('meal_start_time', 'LIKE', $preTime . '%')
             ->with('employee')
             ->get();
 
-        if ($schedules->isEmpty()) {
-            $this->info("No hay horarios de comida para las {$now}.");
-            return;
+        $sent = 0;
+        foreach ($schedules as $schedule) {
+            $user = $this->resolveUser($schedule);
+            if (! $user) {
+                continue;
+            }
+
+            $day = $this->getOrCreateDay($schedule, $today);
+            if ($day->lunch_pre_reminder_sent) {
+                continue;
+            }
+
+            try {
+                $notifier->sendToUser(
+                    userId: $user->id,
+                    title: '🍽️ Comida pronto',
+                    body: "Tu tiempo de comida comienza en 5 minutos ({$schedule->meal_start_time}). Tienes {$schedule->duration_minutes} minutos.",
+                    data: [
+                        'type'             => 'meal_pre_reminder',
+                        'duration_minutes' => (string) $schedule->duration_minutes,
+                    ]
+                );
+                $day->lunch_pre_reminder_sent = true;
+                $day->save();
+                $sent++;
+            } catch (\Throwable $e) {
+                Log::warning("Error enviando pre-aviso de comida a usuario {$user->id}: " . $e->getMessage());
+            }
         }
 
-        $notifier = app(NotificationService::class);
+        return $sent;
+    }
+
+    /**
+     * Notifica cuando inicia la hora de comida.
+     */
+    private function sendStartReminders(string $time, string $today, NotificationService $notifier): int
+    {
+        $schedules = MealSchedule::where('meal_start_time', 'LIKE', $time . '%')
+            ->with('employee')
+            ->get();
+
         $sent = 0;
-
         foreach ($schedules as $schedule) {
-            $empleado = $schedule->employee;
-
-            if (!$empleado || !$empleado->user_id) {
+            $user = $this->resolveUser($schedule);
+            if (! $user) {
                 continue;
             }
 
-            $user = \App\Models\User::find($empleado->user_id);
-
-            if (!$user || !$user->is_active) {
+            $day = $this->getOrCreateDay($schedule, $today);
+            if ($day->lunch_reminder_sent) {
                 continue;
-            }
-
-            // Marcar reminder enviado en attendance_day
-            $day = AttendanceDay::where('empresa_id', $empleado->empresa_id)
-                ->where('empleado_id', $empleado->id)
-                ->where('date', $today)
-                ->first();
-
-            if ($day && !$day->lunch_reminder_sent) {
-                $day->lunch_reminder_sent = true;
-                $day->save();
             }
 
             try {
                 $notifier->sendToUser(
                     userId: $user->id,
                     title: '🍽️ Hora de comida',
-                    body: "Tu horario de comida comienza ahora ({$now}). Tienes {$schedule->duration_minutes} minutos.",
+                    body: "Tu horario de comida comienza ahora ({$time}). Tienes {$schedule->duration_minutes} minutos.",
                     data: [
                         'type'             => 'meal_reminder',
                         'duration_minutes' => (string) $schedule->duration_minutes,
                     ]
                 );
+                $day->lunch_reminder_sent = true;
+                $day->save();
                 $sent++;
             } catch (\Throwable $e) {
-                Log::warning("Error enviando notificación de comida a usuario {$user->id}: " . $e->getMessage());
+                Log::warning("Error enviando recordatorio de comida a usuario {$user->id}: " . $e->getMessage());
             }
         }
 
-        $this->info("Notificaciones de comida enviadas: {$sent} de {$schedules->count()} a las {$now}.");
+        return $sent;
+    }
+
+    /**
+     * Notifica 5 minutos antes de que termine una comida activa.
+     */
+    private function sendEndReminders(string $endTime, string $today, NotificationService $notifier): int
+    {
+        $days = AttendanceDay::where('date', $today)
+            ->whereNotNull('lunch_start_at')
+            ->whereNull('lunch_end_at')
+            ->where('lunch_end_reminder_sent', false)
+            ->with('empleado')
+            ->get();
+
+        $sent = 0;
+        foreach ($days as $day) {
+            $emp = $day->empleado;
+            if (! $emp || ! $emp->user_id) {
+                continue;
+            }
+
+            $user = \App\Models\User::find($emp->user_id);
+            if (! $user || ! $user->is_active) {
+                continue;
+            }
+
+            $schedule = MealSchedule::where('employee_id', $emp->id)
+                ->where('empresa_id', $day->empresa_id)
+                ->first();
+
+            $durationMinutes = $schedule?->duration_minutes ?? 30;
+            $limit = Carbon::parse($day->lunch_start_at)->addMinutes($durationMinutes);
+            $minutesRemaining = (int) now()->diffInMinutes($limit, false);
+
+            // Solo notificar cuando estamos en la ventana de 5 minutos restantes.
+            if ($minutesRemaining > self::END_MINUTES || $minutesRemaining < 0) {
+                continue;
+            }
+
+            try {
+                $notifier->sendToUser(
+                    userId: $user->id,
+                    title: '⏱️ Comida por terminar',
+                    body: "Te quedan {$minutesRemaining} minutos para terminar tu comida.",
+                    data: [
+                        'type'             => 'meal_end_reminder',
+                        'minutes_remaining'=> (string) $minutesRemaining,
+                    ]
+                );
+                $day->lunch_end_reminder_sent = true;
+                $day->save();
+                $sent++;
+            } catch (\Throwable $e) {
+                Log::warning("Error enviando aviso de fin de comida a usuario {$user->id}: " . $e->getMessage());
+            }
+        }
+
+        return $sent;
+    }
+
+    private function resolveUser(MealSchedule $schedule): ?\App\Models\User
+    {
+        $empleado = $schedule->employee;
+        if (! $empleado || ! $empleado->user_id) {
+            return null;
+        }
+
+        $user = \App\Models\User::find($empleado->user_id);
+        if (! $user || ! $user->is_active) {
+            return null;
+        }
+
+        return $user;
+    }
+
+    private function getOrCreateDay(MealSchedule $schedule, string $today): AttendanceDay
+    {
+        $day = AttendanceDay::where('empresa_id', $schedule->empresa_id)
+            ->where('empleado_id', $schedule->employee_id)
+            ->where('date', $today)
+            ->first();
+
+        if ($day) {
+            return $day;
+        }
+
+        return AttendanceDay::create([
+            'empresa_id'    => $schedule->empresa_id,
+            'empleado_id'   => $schedule->employee_id,
+            'date'          => $today,
+            'status'        => 'open',
+            'totals'        => [],
+        ]);
     }
 }
