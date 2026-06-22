@@ -39,9 +39,14 @@ class EmpleadoResource extends JsonResource
 
         $str = (string) $value;
 
-        // Si por algún motivo la BD guardó un datetime ISO, extraer HH:mm.
+        // datetime ISO: 2026-04-08T06:00:00.000000Z -> 06:00
         if (str_contains($str, 'T')) {
             return substr($str, 11, 5) ?: null;
+        }
+
+        // "Y-m-d H:i:s" o "H:i:s": tomar HH:mm de los ultimos 8 caracteres.
+        if (strlen($str) > 5) {
+            return substr($str, -8, 5) ?: null;
         }
 
         return substr($str, 0, 5) ?: null;
