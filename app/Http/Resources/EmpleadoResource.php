@@ -20,8 +20,8 @@ class EmpleadoResource extends JsonResource
             'employee_code' => $this->employee_code,
             'position_title' => $this->position_title,
             'status' => $this->status,
-            'hired_at' => $this->hired_at,
-            'check_in_time' => $this->check_in_time ? substr($this->check_in_time, 0, 5) : null,
+            'hired_at' => $this->hired_at?->toDateString(),
+            'check_in_time' => $this->formatTime($this->check_in_time),
             'payment_type' => $this->payment_type,
             'hourly_rate' => $this->hourly_rate,
             'daily_rate' => $this->daily_rate,
@@ -29,5 +29,21 @@ class EmpleadoResource extends JsonResource
             'nss' => $this->nss,
             'curp' => $this->curp,
         ];
+    }
+
+    private function formatTime($value): ?string
+    {
+        if (! $value) {
+            return null;
+        }
+
+        $str = (string) $value;
+
+        // Si por algún motivo la BD guardó un datetime ISO, extraer HH:mm.
+        if (str_contains($str, 'T')) {
+            return substr($str, 11, 5) ?: null;
+        }
+
+        return substr($str, 0, 5) ?: null;
     }
 }
