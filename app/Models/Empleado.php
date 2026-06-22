@@ -21,6 +21,7 @@ class Empleado extends Model
         'hired_at',
         'daily_hours',
         'rest_weekday',
+        'check_in_time',
         'payment_type',
         'hourly_rate',
         'daily_rate',
@@ -32,6 +33,7 @@ class Empleado extends Model
 
     protected $casts = [
         'hired_at' => 'date',
+        'check_in_time' => 'datetime:H:i',
     ];
 
     public function user()

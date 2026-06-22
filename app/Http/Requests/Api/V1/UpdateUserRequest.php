@@ -24,6 +24,7 @@ class UpdateUserRequest extends FormRequest
             'employee_code'  => ['sometimes', 'nullable', 'string', 'max:50'],
             'position_title' => ['sometimes', 'nullable', 'string', 'max:120'],
             'hired_at'       => ['sometimes', 'nullable', 'date'],
+            'check_in_time'  => ['sometimes', 'nullable', 'date_format:H:i'],
             'payment_type'   => ['sometimes', 'nullable', 'in:hourly,daily'],
             'hourly_rate'    => ['sometimes', 'nullable', 'numeric', 'min:0'],
             'daily_rate'     => ['sometimes', 'nullable', 'numeric', 'min:0'],

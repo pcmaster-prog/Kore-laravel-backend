@@ -232,6 +232,24 @@ class AttendanceService
     }
 
     /**
+     * Obtiene la hora de entrada efectiva de un empleado para una fecha.
+     * Si el empleado tiene check_in_time propio, lo usa; de lo contrario
+     * fallback al horario de la empresa.
+     */
+    public static function getEmployeeCheckInTime(string $empresaId, string $empleadoId, string $date): ?string
+    {
+        $emp = Empleado::where('empresa_id', $empresaId)->where('id', $empleadoId)->first();
+        if ($emp && $emp->check_in_time) {
+            return is_string($emp->check_in_time)
+                ? substr($emp->check_in_time, 0, 5)
+                : $emp->check_in_time->format('H:i');
+        }
+
+        $schedule = self::getDaySchedule($empresaId, $date);
+        return $schedule['check_in_time'] ?? null;
+    }
+
+    /**
      * Calcula minutos de retardo comparando la hora real de entrada
      * con la hora programada (más 1 minuto de tolerancia para visualización).
      */

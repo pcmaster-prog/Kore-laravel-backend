@@ -21,6 +21,7 @@ class EmpleadoResource extends JsonResource
             'position_title' => $this->position_title,
             'status' => $this->status,
             'hired_at' => $this->hired_at,
+            'check_in_time' => $this->check_in_time ? substr($this->check_in_time, 0, 5) : null,
             'payment_type' => $this->payment_type,
             'hourly_rate' => $this->hourly_rate,
             'daily_rate' => $this->daily_rate,

@@ -12,6 +12,7 @@ use App\Models\Empleado;
 use App\Models\EmployeeCalendarOverride;
 use App\Models\Empresa;
 use App\Models\Holiday;
+use App\Models\LateArrivalRequest;
 use App\Services\NotificationService;
 use App\Services\AttendanceService;
 use App\Http\Resources\AttendanceDayResource;
@@ -39,37 +40,105 @@ class AttendanceControllerV2 extends Controller
                     'code' => 'NON_WORKING_DAY',
                 ], 409);
             }
+        }
 
-            $checkInTimeStr = $daySchedule['check_in_time'];
-            $checkOutTimeStr = $daySchedule['check_out_time'];
+        // Hora de entrada efectiva: la del empleado o fallback al horario de empresa
+        $effectiveCheckInTime = AttendanceService::getEmployeeCheckInTime($empresaId, $emp->id, $today);
 
-            if ($checkInTimeStr) {
-                $todayCheckIn  = \Carbon\Carbon::parse($today . ' ' . $checkInTimeStr);
-                $todayEarliest = $todayCheckIn->copy()->subMinutes(15);
+        if ($effectiveCheckInTime) {
+            $todayCheckIn  = \Carbon\Carbon::parse($today . ' ' . $effectiveCheckInTime);
+            $todayEarliest = $todayCheckIn->copy()->subMinutes(15);
+            $now = now();
 
-                $now = now();
+            if ($now->lessThan($todayEarliest)) {
+                return response()->json([
+                    'message' => "Entrada bloqueada: Aún es muy temprano. El acceso para las " . $todayCheckIn->format('H:i') . " se permite desde las " . $todayEarliest->format('H:i') . ". Tu hora actual es: " . $now->format('H:i'),
+                    'code'                => 'CHECK_IN_TOO_EARLY',
+                    'earliest_allowed'    => $todayEarliest->toTimeString(),
+                    'current_server_time' => $now->toTimeString(),
+                ], 409);
+            }
 
-                if ($now->lessThan($todayEarliest)) {
+            // Bloqueo por llegada tarde (sin oportunidad aprobada)
+            $tardinessConfig = \App\Models\TardinessConfig::firstOrCreate(
+                ['empresa_id' => $empresaId],
+                [
+                    'grace_period_minutes'    => 10,
+                    'late_threshold_minutes'  => 1,
+                    'lates_to_absence'        => 3,
+                    'accumulation_period'     => 'month',
+                    'penalize_rest_day'       => true,
+                    'notify_employee_on_late' => true,
+                    'notify_manager_on_late'  => true,
+                ]
+            );
+
+            $lateWindowClosesAt = $todayCheckIn->copy()
+                ->addMinutes($tardinessConfig->grace_period_minutes)
+                ->addMinutes($tardinessConfig->late_threshold_minutes);
+
+            if ($now->greaterThan($lateWindowClosesAt)) {
+                $hasApproved = LateArrivalRequest::where('empresa_id', $empresaId)
+                    ->where('empleado_id', $emp->id)
+                    ->whereDate('date', $today)
+                    ->where('status', 'approved')
+                    ->exists();
+
+                if (! $hasApproved) {
+                    \App\Services\ActivityLogger::log(
+                        $empresaId,
+                        $u->id,
+                        $emp->id,
+                        'attendance.check_in_blocked',
+                        'attendance_day',
+                        null,
+                        [
+                            'employee_name' => $emp->full_name ?? $u->name,
+                            'scheduled_time' => $effectiveCheckInTime,
+                            'late_window_closes_at' => $lateWindowClosesAt->toTimeString(),
+                            'current_server_time' => $now->toTimeString(),
+                        ],
+                        $request
+                    );
+
+                    try {
+                        SendPushNotificationToManagers::dispatch(
+                            $empresaId,
+                            '🚫 Entrada bloqueada por retardo',
+                            ($emp->full_name ?? $u->name) . ' intentó marcar entrada a las ' . $now->format('H:i') . ' (hora límite: ' . $lateWindowClosesAt->format('H:i') . ').',
+                            [
+                                'type' => 'attendance.check_in_blocked',
+                                'empleado_id' => $emp->id,
+                            ]
+                        );
+                    } catch (\Throwable $e) {
+                        \Illuminate\Support\Facades\Log::error('Error notificando bloqueo de entrada: ' . $e->getMessage());
+                    }
+
                     return response()->json([
-                        'message' => "Entrada bloqueada: Aún es muy temprano. El acceso para las " . $todayCheckIn->format('H:i') . " se permite desde las " . $todayEarliest->format('H:i') . ". Tu hora actual es: " . $now->format('H:i'),
-                        'code'                => 'CHECK_IN_TOO_EARLY',
-                        'earliest_allowed'    => $todayEarliest->toTimeString(),
+                        'message' => 'Llegaste tarde. No puedes registrar tu entrada. Debes regresar, ya no tienes permitido trabajar hoy. Solicita una oportunidad a tu administrador.',
+                        'code' => 'CHECK_IN_LATE_BLOCKED',
+                        'scheduled_time' => $effectiveCheckInTime,
+                        'late_window_closes_at' => $lateWindowClosesAt->toTimeString(),
                         'current_server_time' => $now->toTimeString(),
                     ], 409);
                 }
             }
+        }
 
-            if ($checkOutTimeStr) {
-                $todayCheckOut = \Carbon\Carbon::parse($today . ' ' . $checkOutTimeStr);
+        // Validación de hora de salida (horario de empresa)
+        $checkOutTimeStr = $daySchedule['check_out_time'] ?? null;
+        if ($checkOutTimeStr) {
+            $todayCheckOut = \Carbon\Carbon::parse($today . ' ' . $checkOutTimeStr);
+            $now = now();
 
-                if ($now->greaterThan($todayCheckOut)) {
-                    return response()->json([
-                        'message' => "Entrada bloqueada: El turno ya terminó. La hora de salida era las " . $todayCheckOut->format('H:i') . ". Tu hora actual es: " . $now->format('H:i'),
-                        'code'                => 'CHECK_IN_TOO_LATE',
-                        'latest_allowed'      => $todayCheckOut->toTimeString(),
-                        'current_server_time' => $now->toTimeString(),
-                    ], 409);
-                }
+            if ($now->greaterThan($todayCheckOut)) {
+                return response()->json([
+                    'message' => "Entrada bloqueada: El turno ya terminó. La hora de salida era las " . $todayCheckOut->format('H:i') . ". Tu hora actual es: " . $now->format('H:i'),
+                    'code'                => 'CHECK_IN_TOO_LATE',
+                    'latest_allowed'      => $todayCheckOut->toTimeString(),
+                    'current_server_time' => $now->toTimeString(),
+                ], 409);
             }
         }
 
@@ -128,16 +197,16 @@ class AttendanceControllerV2 extends Controller
             ]
         );
 
-        $freshSchedule = AttendanceService::getDaySchedule($empresaId, $today);
+        $effectiveCheckInTimeForLate = AttendanceService::getEmployeeCheckInTime($empresaId, $emp->id, $today);
 
-        if ($freshSchedule && $freshSchedule['is_working_day'] && $freshSchedule['check_in_time']) {
-            $scheduledTime = \Carbon\Carbon::parse($today . ' ' . $freshSchedule['check_in_time']);
+        if ($effectiveCheckInTimeForLate) {
+            $scheduledTime = \Carbon\Carbon::parse($today . ' ' . $effectiveCheckInTimeForLate);
             $graceLimit    = $scheduledTime->copy()->addMinutes($tardinessConfig->grace_period_minutes);
             $lateThreshold = $graceLimit->copy()->addMinutes($tardinessConfig->late_threshold_minutes);
             $nowTs         = now();
 
             if ($nowTs->greaterThan($lateThreshold)) {
-                $lateMinutes = (int) ceil($nowTs->diffInMinutes($scheduledTime));
+                $lateMinutes = (int) ceil(abs($nowTs->diffInMinutes($scheduledTime)));
             }
         }
 
@@ -600,6 +669,40 @@ class AttendanceControllerV2 extends Controller
 
         $canMarkRest = ($emp->payment_type === 'daily' && !$hasCheckIn && !$restUsedThisWeek && !$isBlocked && !$adminClosed);
 
+        // Información de hora de llegada y oportunidades
+        $employeeCheckInTime = AttendanceService::getEmployeeCheckInTime($empresaId, $emp->id, $today);
+        $lateWindowClosesAt = null;
+        if ($employeeCheckInTime) {
+            $tardinessConfig = \App\Models\TardinessConfig::firstOrCreate(
+                ['empresa_id' => $empresaId],
+                [
+                    'grace_period_minutes'    => 10,
+                    'late_threshold_minutes'  => 1,
+                    'lates_to_absence'        => 3,
+                    'accumulation_period'     => 'month',
+                    'penalize_rest_day'       => true,
+                    'notify_employee_on_late' => true,
+                    'notify_manager_on_late'  => true,
+                ]
+            );
+            $lateWindowClosesAt = \Carbon\Carbon::parse($today . ' ' . $employeeCheckInTime)
+                ->addMinutes($tardinessConfig->grace_period_minutes)
+                ->addMinutes($tardinessConfig->late_threshold_minutes)
+                ->format('H:i');
+        }
+
+        $approvedLateRequest = LateArrivalRequest::where('empresa_id', $empresaId)
+            ->where('empleado_id', $emp->id)
+            ->whereDate('date', $today)
+            ->where('status', 'approved')
+            ->first();
+
+        $pendingLateRequest = LateArrivalRequest::where('empresa_id', $empresaId)
+            ->where('empleado_id', $emp->id)
+            ->whereDate('date', $today)
+            ->where('status', 'pending')
+            ->first();
+
         return response()->json([
             'date'               => $today,
             'is_rest_day'        => $isRest,
@@ -623,6 +726,14 @@ class AttendanceControllerV2 extends Controller
             'lunch_reminder_sent'   => (bool)$day?->lunch_reminder_sent,
             'exit_reminder_sent'    => (bool)$day?->exit_reminder_sent,
             'exit_available_sent'   => (bool)$day?->exit_available_sent,
+            'employee_check_in_time' => $employeeCheckInTime,
+            'late_window_closes_at' => $lateWindowClosesAt,
+            'has_approved_late_request' => (bool) $approvedLateRequest,
+            'pending_late_request' => $pendingLateRequest ? [
+                'id' => $pendingLateRequest->id,
+                'status' => $pendingLateRequest->status,
+                'motivo' => $pendingLateRequest->motivo,
+            ] : null,
         ]);
     }
 

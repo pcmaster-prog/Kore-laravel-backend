@@ -46,6 +46,7 @@ use App\Http\Controllers\Api\V1\HolidayController;
 use App\Http\Controllers\Api\V1\IncidentsController;
 // Maderas Fase 2
 use App\Http\Controllers\Api\V1\JobOpeningController;
+use App\Http\Controllers\Api\V1\LateArrivalRequestController;
 use App\Http\Controllers\Api\V1\MaderasCatalogoController;
 use App\Http\Controllers\Api\V1\MaderasEnsambleController;
 use App\Http\Controllers\Api\V1\MaderasInventarioController;
@@ -78,6 +79,7 @@ use App\Http\Controllers\Api\V1\TaskCatalogController;
 use App\Http\Controllers\Api\V1\TaskRoutinesController;
 use App\Http\Controllers\Api\V1\TasksController;
 use App\Http\Controllers\Api\V1\TaskTemplatesController;
+use App\Http\Controllers\Api\V1\UserActivationController;
 use App\Http\Controllers\Api\V1\UsersController;
 use App\Http\Middleware\EnsurePortalAccess;
 use App\Http\Middleware\EnsurePositionModule;
@@ -94,6 +96,10 @@ Route::prefix('v1')->group(function () {
 
     // Auth (público)
     Route::post('/auth/login', [AuthController::class, 'login'])
+        ->middleware('throttle:5,1');
+    Route::post('/auth/activate/check', [UserActivationController::class, 'check'])
+        ->middleware('throttle:5,1');
+    Route::post('/auth/activate', [UserActivationController::class, 'activate'])
         ->middleware('throttle:5,1');
 
     // Reclutamiento (ATS) - Público / OAuth
@@ -416,6 +422,12 @@ Route::prefix('v1')->group(function () {
                 Route::get('/asistencia/ausencias', [AbsenceRequestController::class, 'myRequests']);
                 Route::get('/asistencia/ausencias/pendientes', [AbsenceRequestController::class, 'pending']);
                 Route::patch('/asistencia/ausencias/{id}', [AbsenceRequestController::class, 'review']);
+
+                // Solicitudes de oportunidad de llegada tarde
+                Route::post('/late-arrival-requests', [LateArrivalRequestController::class, 'store']);
+                Route::get('/late-arrival-requests/mis-solicitudes', [LateArrivalRequestController::class, 'myRequests']);
+                Route::get('/late-arrival-requests/pendientes', [LateArrivalRequestController::class, 'pending'])->middleware('role:admin,supervisor');
+                Route::patch('/late-arrival-requests/{id}', [LateArrivalRequestController::class, 'review'])->middleware('role:admin,supervisor')->whereUuid('id');
             });
 
             // ── Módulo Retardos ──────────────────────────────────────────────────────

@@ -24,6 +24,7 @@ class StoreUserRequest extends FormRequest
             'employee_code'  => ['nullable', 'string', 'max:50'],
             'position_title' => ['nullable', 'string', 'max:120'],
             'hired_at'       => ['nullable', 'date'],
+            'check_in_time'  => ['nullable', 'date_format:H:i'],
             'payment_type'   => ['nullable', 'in:hourly,daily'],
             'hourly_rate'    => ['nullable', 'numeric', 'min:0'],
             'daily_rate'     => ['nullable', 'numeric', 'min:0'],
