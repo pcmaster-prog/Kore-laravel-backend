@@ -148,6 +148,7 @@ Route::prefix('v1')->group(function () {
             Route::post('applications/{id}/interview/result', [ApplicationController::class, 'recordInterviewResult']);
             Route::post('applications/{id}/hire', [ApplicationController::class, 'hireTrial']);
             Route::post('applications/{id}/reject', [ApplicationController::class, 'reject']);
+            Route::post('applications/{id}/manual-review', [ApplicationController::class, 'toggleManualReview']);
         });
 
         // Módulos por Puesto (DecorArte Fase 1)

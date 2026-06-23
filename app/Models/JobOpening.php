@@ -19,12 +19,17 @@ class JobOpening extends Model
         'schedule',
         'status',
         'image_url',
+        'induction_video_url',
+        'screening_questions',
+        'screening_pass_score',
     ];
 
     protected function casts(): array
     {
         return [
             'requirements' => 'array',
+            'screening_questions' => 'array',
+            'screening_pass_score' => 'integer',
         ];
     }
 

@@ -24,6 +24,8 @@ class Application extends Model
         'interview_scheduled_at',
         'interview_notes',
         'interview_result',
+        'manual_review_required',
+        'manual_review_reason',
     ];
 
     protected function casts(): array

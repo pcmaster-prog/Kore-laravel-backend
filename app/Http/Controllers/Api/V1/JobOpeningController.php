@@ -40,8 +40,16 @@ class JobOpeningController extends Controller
             $query->where('empresa_id', $empresaId);
         }
 
-        $jobs = $query->orderBy('created_at', 'desc')->get();
-        return response()->json(['data' => $jobs]);
+        $jobs = $query->orderBy('created_at', 'desc')->get()->map(function (JobOpening $job) {
+            return $this->presentPublicJob($job);
+        });
+
+        return response()->json([
+            'data' => $jobs,
+            'meta' => [
+                'welcome_video_url' => $this->welcomeVideoUrl($jobs->first()?->empresa_id ?? $this->resolveEmpresaId($request)),
+            ],
+        ]);
     }
 
     public function publicShow(Request $request, $id)
@@ -55,7 +63,48 @@ class JobOpeningController extends Controller
         }
 
         $job = $query->firstOrFail();
-        return response()->json(['data' => $job]);
+
+        return response()->json([
+            'data' => $this->presentPublicJob($job, includeQuestions: true),
+            'meta' => [
+                'welcome_video_url' => $this->welcomeVideoUrl($job->empresa_id),
+            ],
+        ]);
+    }
+
+    private function welcomeVideoUrl(?string $empresaId): ?string
+    {
+        if (! $empresaId) {
+            return null;
+        }
+
+        $empresa = \App\Models\Empresa::find($empresaId);
+        $settings = is_array($empresa?->settings) ? $empresa->settings : [];
+
+        return $settings['reclutamiento']['welcome_video_url'] ?? null;
+    }
+
+    private function presentPublicJob(JobOpening $job, bool $includeQuestions = false): array
+    {
+        $data = $job->toArray();
+
+        if (! $includeQuestions) {
+            unset($data['screening_questions']);
+        } else {
+            $data['screening_questions'] = $this->sanitizePublicQuestions($job->screening_questions ?? []);
+        }
+
+        return $data;
+    }
+
+    private function sanitizePublicQuestions(array $questions): array
+    {
+        return array_map(function ($q) {
+            if (is_array($q)) {
+                unset($q['correctIndex']);
+            }
+            return $q;
+        }, $questions);
     }
 
     // === ADMIN (Kore ERP) ===
@@ -77,6 +126,9 @@ class JobOpeningController extends Controller
             'schedule' => 'nullable|string',
             'status' => 'required|in:draft,open,closed',
             'image_url' => 'nullable|string|url',
+            'induction_video_url' => 'nullable|string|url',
+            'screening_questions' => 'nullable|array',
+            'screening_pass_score' => 'nullable|integer|min:1|max:10',
         ]);
 
         $job = JobOpening::create([
@@ -107,6 +159,9 @@ class JobOpeningController extends Controller
             'schedule' => 'nullable|string',
             'status' => 'sometimes|in:draft,open,closed',
             'image_url' => 'nullable|string|url',
+            'induction_video_url' => 'nullable|string|url',
+            'screening_questions' => 'nullable|array',
+            'screening_pass_score' => 'nullable|integer|min:1|max:10',
         ]);
 
         $job->update($validated);

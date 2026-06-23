@@ -55,9 +55,14 @@ class ApplicationController extends Controller
     ];
 
     /**
-     * Score mínimo para aprobar la autoevaluación.
+     * Score mínimo por defecto para aprobar la autoevaluación.
      */
     private const MIN_SCREENING_SCORE = 7;
+
+    /**
+     * Formato esperado de cada pregunta de screening.
+     */
+    private const SCREENING_QUESTION_SCHEMA = ['question', 'options', 'correctIndex'];
 
     /**
      * Auxiliar para enviar WhatsApp via CallMeBot
@@ -268,7 +273,9 @@ class ApplicationController extends Controller
 
     public function submitScreening(Request $request, $id)
     {
-        $app = Application::where('user_id', $request->user()->id)->findOrFail($id);
+        $app = Application::where('user_id', $request->user()->id)
+            ->with('jobOpening')
+            ->findOrFail($id);
 
         if ($app->status !== 'new' || ! $app->has_induction_video_watched) {
             return response()->json(['message' => 'Debes ver el video de inducción antes de la autoevaluación.'], 422);
@@ -276,18 +283,40 @@ class ApplicationController extends Controller
 
         $validated = $request->validate([
             'answers' => 'required|array',
-            'score' => 'required|integer|min:0|max:10',
+            'answers.*' => 'integer|min:0',
         ]);
 
-        $passed = $validated['score'] >= self::MIN_SCREENING_SCORE;
-        $nextStatus = $passed ? 'screening' : 'screening';
+        $questions = $app->jobOpening->screening_questions ?? [];
 
-        // Aprobó: avanza a screening (listo para solicitar entrevista).
-        // No aprobó: permanece en screening pero con score bajo; el admin decide.
+        if (count($questions) === 0) {
+            return response()->json(['message' => 'Esta vacante no tiene autoevaluación configurada.'], 422);
+        }
+
+        if (count($validated['answers']) !== count($questions)) {
+            return response()->json(['message' => 'Debes responder todas las preguntas.'], 422);
+        }
+
+        $correct = 0;
+        foreach ($questions as $index => $question) {
+            if (! is_array($question) || ! array_key_exists('correctIndex', $question)) {
+                continue;
+            }
+
+            if (($validated['answers'][$index] ?? null) === $question['correctIndex']) {
+                $correct++;
+            }
+        }
+
+        $total = count($questions);
+        $score = (int) round(($correct / $total) * 10);
+        $threshold = $app->jobOpening->screening_pass_score ?? self::MIN_SCREENING_SCORE;
+        $passed = $score >= $threshold;
+        $nextStatus = $passed ? 'screening' : 'rejected';
+
         $app->update([
             'screening_test_results' => [
                 'answers' => $validated['answers'],
-                'score' => $validated['score'],
+                'score' => $score,
                 'passed' => $passed,
             ],
             'status' => $nextStatus,
@@ -297,16 +326,35 @@ class ApplicationController extends Controller
             'application_id' => $app->id,
             'from_status' => 'new',
             'to_status' => $nextStatus,
-            'notes' => "Aspirante completó la autoevaluación. Score: {$validated['score']}/10. ".($passed ? 'Aprobado.' : 'No aprobado.'),
+            'notes' => "Aspirante completó la autoevaluación. Score: {$score}/10. ".($passed ? 'Aprobado.' : 'Rechazado automáticamente por no alcanzar el puntaje mínimo.'),
         ]);
 
         return response()->json([
             'message' => 'Screening submitted.',
             'data' => [
                 'passed' => $passed,
-                'score' => $validated['score'],
+                'score' => $score,
             ],
         ]);
+    }
+
+    public function toggleManualReview(Request $request, $id)
+    {
+        Gate::authorize('manage-users');
+
+        $app = Application::where('empresa_id', $request->user()->empresa_id)->findOrFail($id);
+
+        $validated = $request->validate([
+            'manual_review_required' => 'required|boolean',
+            'manual_review_reason' => 'nullable|string|max:500',
+        ]);
+
+        $app->update([
+            'manual_review_required' => $validated['manual_review_required'],
+            'manual_review_reason' => $validated['manual_review_reason'],
+        ]);
+
+        return response()->json(['data' => $app]);
     }
 
     public function requestInterview(Request $request, $id)
