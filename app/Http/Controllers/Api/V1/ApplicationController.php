@@ -11,6 +11,7 @@ use App\Models\EmpleadoModulo;
 use App\Models\Interview;
 use App\Models\JobOpening;
 use App\Services\AtsNotificationService;
+use App\Services\EmployeeOnboardingService;
 use App\Services\SecureFileStorage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -27,6 +28,7 @@ class ApplicationController extends Controller
         'screening',
         'interview-requested',
         'interviewing',
+        'offer-sent',
         'hired',
         'rejected',
     ];
@@ -39,7 +41,8 @@ class ApplicationController extends Controller
         'new' => ['screening', 'rejected'],
         'screening' => ['interview-requested', 'rejected'],
         'interview-requested' => ['interviewing', 'rejected'],
-        'interviewing' => ['hired', 'rejected'],
+        'interviewing' => ['offer-sent', 'rejected'],
+        'offer-sent' => ['hired', 'rejected'],
         'hired' => [],
         'rejected' => [],
     ];
@@ -54,6 +57,11 @@ class ApplicationController extends Controller
         'rfc',
         'nss',
         'cv',
+        'ine',
+        'proof_of_studies',
+        'imss_proof',
+        'bank_account_card',
+        'beneficiary_ine',
     ];
 
     /**
@@ -157,7 +165,7 @@ class ApplicationController extends Controller
 
     public function myCurrentApplication(Request $request)
     {
-        $app = Application::with(['jobOpening', 'interviews'])
+        $app = Application::with(['jobOpening', 'interviews', 'offer'])
             ->where('user_id', $request->user()->id)
             ->latest()
             ->first();
@@ -597,48 +605,18 @@ class ApplicationController extends Controller
             ], 422);
         }
 
-        DB::beginTransaction();
         try {
-            $app->update(['status' => 'hired']);
-
-            ApplicationStatusLog::create([
-                'application_id' => $app->id,
-                'from_status' => $oldStatus,
-                'to_status' => 'hired',
-                'changed_by' => $request->user()->id,
+            $service = new EmployeeOnboardingService();
+            $service->create($app, $request->user(), [
+                'salary' => $validated['salary'],
+                'trial_months' => $validated['trial_period_months'],
+                'modules' => $validated['modules'] ?? [],
+                'position_id' => $validated['position_id'] ?? null,
                 'notes' => "Contratado a prueba por {$validated['trial_period_months']} meses.",
             ]);
 
-            $aspiranteUser = $app->user;
-            $aspiranteUser->update([
-                'role' => 'empleado_prueba',
-                'empresa_id' => $request->user()->empresa_id,
-            ]);
-
-            $empleado = Empleado::create([
-                'empresa_id' => $request->user()->empresa_id,
-                'user_id' => $aspiranteUser->id,
-                'full_name' => $aspiranteUser->name,
-                'status' => 'active',
-                'hired_at' => now(),
-                'payment_type' => 'daily',
-                'daily_rate' => $validated['salary'],
-                'position_id' => $validated['position_id'] ?? null,
-            ]);
-
-            if (! empty($validated['modules'])) {
-                foreach ($validated['modules'] as $moduleSlug) {
-                    EmpleadoModulo::updateOrCreate([
-                        'empleado_id' => $empleado->id,
-                        'module_slug' => $moduleSlug,
-                    ]);
-                }
-            }
-
-            DB::commit();
-
             if (isset($app->contact_info['phone'])) {
-                $msg = "¡Felicidades {$aspiranteUser->name}! Has sido aceptado(a) para el puesto de {$app->jobOpening->title}. Inicias tu periodo de prueba. ¡Bienvenido(a) a DecorArte!";
+                $msg = "¡Felicidades {$app->user->name}! Has sido aceptado(a) para el puesto de {$app->jobOpening->title}. Inicias tu periodo de prueba. ¡Bienvenido(a) a DecorArte!";
                 $phone = '52'.preg_replace('/[^0-9]/', '', $app->contact_info['phone']);
                 $this->sendWhatsAppNotification($phone, $msg);
             }
@@ -647,7 +625,6 @@ class ApplicationController extends Controller
 
             return response()->json(['message' => 'Candidato contratado a prueba exitosamente.']);
         } catch (\Exception $e) {
-            DB::rollBack();
             Log::error('Error en hireTrial: '.$e->getMessage());
 
             return response()->json(['message' => 'Error al contratar al candidato.'], 500);
@@ -755,48 +732,19 @@ class ApplicationController extends Controller
             ], 422);
         }
 
-        DB::beginTransaction();
         try {
-            $app->update(['status' => 'hired']);
-
-            ApplicationStatusLog::create([
-                'application_id' => $app->id,
-                'from_status' => $oldStatus,
-                'to_status' => 'hired',
-                'changed_by' => $request->user()->id,
+            $service = new EmployeeOnboardingService();
+            $service->rehire($app, $request->user(), $previousEmpleado, [
+                'salary' => $validated['salary'],
+                'modules' => $validated['modules'] ?? [],
+                'position_id' => $validated['position_id'] ?? null,
                 'notes' => 'Recontratación rápida de ex-empleado.',
             ]);
-
-            $aspiranteUser = $app->user;
-            $aspiranteUser->update([
-                'role' => 'empleado_prueba',
-                'empresa_id' => $request->user()->empresa_id,
-            ]);
-
-            $previousEmpleado->restore();
-            $previousEmpleado->update([
-                'status' => 'active',
-                'hired_at' => now(),
-                'daily_rate' => $validated['salary'],
-                'position_id' => $validated['position_id'] ?? $previousEmpleado->position_id,
-            ]);
-
-            if (! empty($validated['modules'])) {
-                foreach ($validated['modules'] as $moduleSlug) {
-                    EmpleadoModulo::updateOrCreate([
-                        'empleado_id' => $previousEmpleado->id,
-                        'module_slug' => $moduleSlug,
-                    ]);
-                }
-            }
-
-            DB::commit();
 
             AtsNotificationService::hired($app);
 
             return response()->json(['message' => 'Ex-empleado recontratado exitosamente.']);
         } catch (\Exception $e) {
-            DB::rollBack();
             Log::error('Error en rehire: '.$e->getMessage());
 
             return response()->json(['message' => 'Error al recontratar al ex-empleado.'], 500);

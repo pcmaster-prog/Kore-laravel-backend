@@ -70,4 +70,16 @@ class Application extends Model
     {
         return $this->hasMany(Interview::class);
     }
+
+    public function offer()
+    {
+        return $this->hasOne(ApplicationOffer::class)->latestOfMany();
+    }
+
+    public function onboardingDocuments()
+    {
+        $types = ['ine', 'proof_of_studies', 'imss_proof', 'bank_account_card', 'beneficiary_ine'];
+
+        return $this->hasMany(ApplicationDocument::class)->whereIn('document_type', $types);
+    }
 }

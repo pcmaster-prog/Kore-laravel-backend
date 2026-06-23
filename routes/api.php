@@ -16,7 +16,9 @@ use App\Http\Controllers\Api\V1\AbsenceRequestController;
 use App\Http\Controllers\Api\V1\ActivityLogsController;
 use App\Http\Controllers\Api\V1\AdminGratificationController;
 use App\Http\Controllers\Api\V1\ApplicationController;
+use App\Http\Controllers\Api\V1\ApplicationOfferController;
 use App\Http\Controllers\Api\V1\AreasController;
+use App\Http\Controllers\Api\V1\AtsAnalyticsController;
 use App\Http\Controllers\Api\V1\AttendanceControllerV2;
 use App\Http\Controllers\Api\V1\AttendanceReportController;
 use App\Http\Controllers\Api\V1\AuthController;
@@ -128,6 +130,9 @@ Route::prefix('v1')->group(function () {
             Route::post('/applications/{id}/induction', [ApplicationController::class, 'markInductionWatched']);
             Route::post('/applications/{id}/screening', [ApplicationController::class, 'submitScreening']);
             Route::post('/applications/{id}/request-interview', [ApplicationController::class, 'requestInterview']);
+            Route::post('/offer/accept', [ApplicationOfferController::class, 'accept']);
+            Route::post('/offer/reject', [ApplicationOfferController::class, 'reject']);
+            Route::get('/onboarding-documents', [ApplicationOfferController::class, 'myOnboardingDocuments']);
         });
     });
 
@@ -156,8 +161,18 @@ Route::prefix('v1')->group(function () {
             Route::post('applications/{id}/manual-review', [ApplicationController::class, 'toggleManualReview']);
             Route::get('applications/{id}/rehire-check', [ApplicationController::class, 'checkRehire']);
             Route::post('applications/{id}/rehire', [ApplicationController::class, 'rehire']);
+
+            Route::post('applications/{id}/offer', [ApplicationOfferController::class, 'store']);
+            Route::get('applications/{id}/offer', [ApplicationOfferController::class, 'show']);
+            Route::post('applications/{id}/offer/resend', [ApplicationOfferController::class, 'resend']);
+            Route::get('applications/{id}/onboarding-documents', [ApplicationOfferController::class, 'onboardingDocuments']);
+            Route::post('applications/{id}/onboarding-documents/{type}/verify', [ApplicationOfferController::class, 'verifyDocument']);
+            Route::post('applications/{id}/onboarding-documents/{type}/unverify', [ApplicationOfferController::class, 'unverifyDocument']);
+
             Route::get('applications/{id}/interviews', [InterviewController::class, 'index']);
             Route::post('applications/{id}/interviews', [InterviewController::class, 'store']);
+
+            Route::get('analytics/pipeline', [AtsAnalyticsController::class, 'pipeline']);
             Route::get('interviews/{id}', [InterviewController::class, 'show']);
             Route::put('interviews/{id}', [InterviewController::class, 'update']);
             Route::delete('interviews/{id}', [InterviewController::class, 'destroy']);
