@@ -184,11 +184,11 @@ class ApplicationController extends Controller
 
         $validated = $request->validate([
             'document_type' => 'required|string|in:'.implode(',', self::DOCUMENT_TYPES),
-            'file' => 'required|file|mimes:pdf,jpg,jpeg,png|max:5120',
+            'file' => 'required|file|mimes:pdf,jpg,jpeg,png,webp|max:5120',
         ]);
 
         $folder = 'applications/'.$app->id;
-        $allowedTypes = ['application/pdf', 'image/jpeg', 'image/png'];
+        $allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
         $stored = SecureFileStorage::upload($request->file('file'), $folder, $allowedTypes, 5120);
 
         // Reemplazar documento previo del mismo tipo si existe.
