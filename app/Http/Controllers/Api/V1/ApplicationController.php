@@ -8,7 +8,9 @@ use App\Models\ApplicationDocument;
 use App\Models\ApplicationStatusLog;
 use App\Models\Empleado;
 use App\Models\EmpleadoModulo;
+use App\Models\Interview;
 use App\Models\JobOpening;
+use App\Services\AtsNotificationService;
 use App\Services\SecureFileStorage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -138,6 +140,9 @@ class ApplicationController extends Controller
             'notes' => 'Postulación inicial recibida desde el portal.',
         ]);
 
+        $app->load(['user', 'jobOpening', 'empresa']);
+        AtsNotificationService::applicationReceived($app);
+
         return response()->json(['data' => $app], 201);
     }
 
@@ -152,7 +157,7 @@ class ApplicationController extends Controller
 
     public function myCurrentApplication(Request $request)
     {
-        $app = Application::with('jobOpening')
+        $app = Application::with(['jobOpening', 'interviews'])
             ->where('user_id', $request->user()->id)
             ->latest()
             ->first();
@@ -480,12 +485,17 @@ class ApplicationController extends Controller
     public function scheduleInterview(Request $request, $id)
     {
         Gate::authorize('manage-users');
-        $app = Application::where('empresa_id', $request->user()->empresa_id)->findOrFail($id);
+        $app = Application::with(['user', 'jobOpening', 'empresa'])
+            ->where('empresa_id', $request->user()->empresa_id)
+            ->findOrFail($id);
 
         $validated = $request->validate([
             'interview_scheduled_at' => 'required|date',
             'notes' => 'nullable|string',
             'notify_whatsapp' => 'boolean',
+            'method' => 'nullable|in:in-person,video,phone',
+            'location' => 'nullable|string',
+            'meeting_url' => 'nullable|string|url',
         ]);
 
         $oldStatus = $app->status;
@@ -501,13 +511,26 @@ class ApplicationController extends Controller
             'interview_notes' => $validated['notes'] ?? $app->interview_notes,
         ]);
 
+        $interview = Interview::create([
+            'application_id' => $app->id,
+            'interviewer_id' => $request->user()->id,
+            'scheduled_at' => $validated['interview_scheduled_at'],
+            'method' => $validated['method'] ?? 'in-person',
+            'location' => $validated['location'] ?? null,
+            'meeting_url' => $validated['meeting_url'] ?? null,
+            'notes' => $validated['notes'] ?? null,
+            'created_by' => $request->user()->id,
+        ]);
+
         ApplicationStatusLog::create([
             'application_id' => $app->id,
             'from_status' => $oldStatus,
             'to_status' => 'interviewing',
             'changed_by' => $request->user()->id,
-            'notes' => 'Entrevista agendada: '.$validated['interview_scheduled_at'].($validated['notes'] ? ' - '.$validated['notes'] : ''),
+            'notes' => 'Entrevista agendada: '.$validated['interview_scheduled_at'].(($validated['notes'] ?? null) ? ' - '.$validated['notes'] : ''),
         ]);
+
+        AtsNotificationService::interviewScheduled($interview);
 
         if ($request->boolean('notify_whatsapp') && isset($app->contact_info['phone'])) {
             $msg = "Hola {$app->user->name}, tienes una entrevista programada para la vacante de {$app->jobOpening->title} el día {$validated['interview_scheduled_at']}. ¡Te esperamos!";
@@ -515,7 +538,7 @@ class ApplicationController extends Controller
             $this->sendWhatsAppNotification($phone, $msg);
         }
 
-        return response()->json(['data' => $app]);
+        return response()->json(['data' => $app->load('interviews')]);
     }
 
     public function recordInterviewResult(Request $request, $id)
@@ -557,7 +580,7 @@ class ApplicationController extends Controller
     public function hireTrial(Request $request, $id)
     {
         Gate::authorize('manage-users');
-        $app = Application::with('user')->where('empresa_id', $request->user()->empresa_id)->findOrFail($id);
+        $app = Application::with(['user', 'jobOpening', 'empresa'])->where('empresa_id', $request->user()->empresa_id)->findOrFail($id);
 
         $validated = $request->validate([
             'trial_period_months' => 'required|integer|in:1,2,3',
@@ -620,6 +643,8 @@ class ApplicationController extends Controller
                 $this->sendWhatsAppNotification($phone, $msg);
             }
 
+            AtsNotificationService::hired($app);
+
             return response()->json(['message' => 'Candidato contratado a prueba exitosamente.']);
         } catch (\Exception $e) {
             DB::rollBack();
@@ -632,7 +657,7 @@ class ApplicationController extends Controller
     public function reject(Request $request, $id)
     {
         Gate::authorize('manage-users');
-        $app = Application::with('user')->where('empresa_id', $request->user()->empresa_id)->findOrFail($id);
+        $app = Application::with(['user', 'jobOpening', 'empresa'])->where('empresa_id', $request->user()->empresa_id)->findOrFail($id);
 
         $validated = $request->validate([
             'reason' => 'required|string',
@@ -662,6 +687,119 @@ class ApplicationController extends Controller
             $this->sendWhatsAppNotification($phone, $msg);
         }
 
+        AtsNotificationService::rejected($app, $validated['reason']);
+
         return response()->json(['message' => 'Candidato rechazado.']);
+    }
+
+    public function checkRehire(Request $request, $id)
+    {
+        Gate::authorize('manage-users');
+
+        $app = Application::with(['user', 'jobOpening'])
+            ->where('empresa_id', $request->user()->empresa_id)
+            ->findOrFail($id);
+
+        $previousEmpleado = null;
+        if ($app->user?->email) {
+            $previousEmpleado = Empleado::withTrashed()
+                ->where('empresa_id', $app->empresa_id)
+                ->whereHas('user', fn ($q) => $q->where('email', $app->user->email))
+                ->latest()
+                ->first();
+        }
+
+        return response()->json([
+            'data' => [
+                'is_rehire' => ! is_null($previousEmpleado),
+                'previous_empleado_id' => $previousEmpleado?->id,
+                'previous_full_name' => $previousEmpleado?->full_name,
+                'previous_hired_at' => $previousEmpleado?->hired_at?->toDateTimeString(),
+            ],
+        ]);
+    }
+
+    public function rehire(Request $request, $id)
+    {
+        Gate::authorize('manage-users');
+
+        $app = Application::with(['user', 'jobOpening', 'empresa'])
+            ->where('empresa_id', $request->user()->empresa_id)
+            ->findOrFail($id);
+
+        $validated = $request->validate([
+            'salary' => 'required|numeric|min:0',
+            'modules' => 'nullable|array',
+            'modules.*' => 'string|exists:modulos,slug',
+            'position_id' => 'nullable|exists:positions,id',
+        ]);
+
+        if (! $app->user?->email) {
+            return response()->json(['message' => 'La aplicación no tiene un usuario asociado.'], 422);
+        }
+
+        $previousEmpleado = Empleado::withTrashed()
+            ->where('empresa_id', $app->empresa_id)
+            ->whereHas('user', fn ($q) => $q->where('email', $app->user->email))
+            ->latest()
+            ->first();
+
+        if (! $previousEmpleado) {
+            return response()->json(['message' => 'No se encontró un empleado anterior para recontratar.'], 422);
+        }
+
+        $oldStatus = $app->status;
+        if (in_array($oldStatus, ['hired', 'rejected'])) {
+            return response()->json([
+                'message' => "No se puede recontratar una aplicación en estado '{$oldStatus}'.",
+            ], 422);
+        }
+
+        DB::beginTransaction();
+        try {
+            $app->update(['status' => 'hired']);
+
+            ApplicationStatusLog::create([
+                'application_id' => $app->id,
+                'from_status' => $oldStatus,
+                'to_status' => 'hired',
+                'changed_by' => $request->user()->id,
+                'notes' => 'Recontratación rápida de ex-empleado.',
+            ]);
+
+            $aspiranteUser = $app->user;
+            $aspiranteUser->update([
+                'role' => 'empleado_prueba',
+                'empresa_id' => $request->user()->empresa_id,
+            ]);
+
+            $previousEmpleado->restore();
+            $previousEmpleado->update([
+                'status' => 'active',
+                'hired_at' => now(),
+                'daily_rate' => $validated['salary'],
+                'position_id' => $validated['position_id'] ?? $previousEmpleado->position_id,
+            ]);
+
+            if (! empty($validated['modules'])) {
+                foreach ($validated['modules'] as $moduleSlug) {
+                    EmpleadoModulo::updateOrCreate([
+                        'empleado_id' => $previousEmpleado->id,
+                        'module_slug' => $moduleSlug,
+                    ]);
+                }
+            }
+
+            DB::commit();
+
+            AtsNotificationService::hired($app);
+
+            return response()->json(['message' => 'Ex-empleado recontratado exitosamente.']);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error en rehire: '.$e->getMessage());
+
+            return response()->json(['message' => 'Error al recontratar al ex-empleado.'], 500);
+        }
     }
 }

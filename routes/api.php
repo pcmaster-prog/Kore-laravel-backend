@@ -44,8 +44,10 @@ use App\Http\Controllers\Api\V1\GoogleAuthController;
 use App\Http\Controllers\Api\V1\HolidayController;
 // Solicitudes de ausencia
 use App\Http\Controllers\Api\V1\IncidentsController;
+use App\Http\Controllers\Api\V1\InterviewController;
 // Maderas Fase 2
 use App\Http\Controllers\Api\V1\JobOpeningController;
+use App\Http\Controllers\Api\V1\JobOpeningTemplateController;
 use App\Http\Controllers\Api\V1\LateArrivalRequestController;
 use App\Http\Controllers\Api\V1\MaderasCatalogoController;
 use App\Http\Controllers\Api\V1\MaderasEnsambleController;
@@ -141,6 +143,9 @@ Route::prefix('v1')->group(function () {
             Route::get('jobs', [JobOpeningController::class, 'index']);
             Route::get('jobs/{id}', [JobOpeningController::class, 'show']);
 
+            Route::apiResource('job-templates', JobOpeningTemplateController::class);
+            Route::post('job-templates/{id}/duplicate', [JobOpeningTemplateController::class, 'duplicate']);
+
             Route::get('applications', [ApplicationController::class, 'index']);
             Route::get('applications/{id}', [ApplicationController::class, 'show']);
             Route::post('applications/{id}/status', [ApplicationController::class, 'changeStatus']);
@@ -149,6 +154,13 @@ Route::prefix('v1')->group(function () {
             Route::post('applications/{id}/hire', [ApplicationController::class, 'hireTrial']);
             Route::post('applications/{id}/reject', [ApplicationController::class, 'reject']);
             Route::post('applications/{id}/manual-review', [ApplicationController::class, 'toggleManualReview']);
+            Route::get('applications/{id}/rehire-check', [ApplicationController::class, 'checkRehire']);
+            Route::post('applications/{id}/rehire', [ApplicationController::class, 'rehire']);
+            Route::get('applications/{id}/interviews', [InterviewController::class, 'index']);
+            Route::post('applications/{id}/interviews', [InterviewController::class, 'store']);
+            Route::get('interviews/{id}', [InterviewController::class, 'show']);
+            Route::put('interviews/{id}', [InterviewController::class, 'update']);
+            Route::delete('interviews/{id}', [InterviewController::class, 'destroy']);
         });
 
         // Módulos por Puesto (DecorArte Fase 1)

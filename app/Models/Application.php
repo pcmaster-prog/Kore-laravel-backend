@@ -65,4 +65,9 @@ class Application extends Model
     {
         return $this->hasMany(ApplicationStatusLog::class);
     }
+
+    public function interviews()
+    {
+        return $this->hasMany(Interview::class);
+    }
 }
