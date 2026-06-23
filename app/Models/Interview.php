@@ -21,6 +21,7 @@ class Interview extends Model
         'scorecard',
         'recommendation',
         'result',
+        'reminder_sent_at',
         'created_by',
     ];
 

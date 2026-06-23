@@ -17,6 +17,15 @@ class JobOpening extends Model
         'requirements',
         'salary_range',
         'schedule',
+        'location',
+        'job_type',
+        'department',
+        'vacancies_count',
+        'benefits',
+        'tags',
+        'is_featured',
+        'published_at',
+        'slug',
         'status',
         'image_url',
         'induction_video_url',
@@ -30,7 +39,17 @@ class JobOpening extends Model
             'requirements' => 'array',
             'screening_questions' => 'array',
             'screening_pass_score' => 'integer',
+            'vacancies_count' => 'integer',
+            'benefits' => 'array',
+            'tags' => 'array',
+            'is_featured' => 'boolean',
+            'published_at' => 'datetime',
         ];
+    }
+
+    public function views()
+    {
+        return $this->hasMany(JobOpeningView::class);
     }
 
     public function empresa()

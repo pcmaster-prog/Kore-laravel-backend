@@ -342,6 +342,10 @@ class ApplicationController extends Controller
             'notes' => "Aspirante completó la autoevaluación. Score: {$score}/10. ".($passed ? 'Aprobado.' : 'Rechazado automáticamente por no alcanzar el puntaje mínimo.'),
         ]);
 
+        if (! $passed) {
+            AtsNotificationService::rejected($app, 'No alcanzaste el puntaje mínimo en la autoevaluación.');
+        }
+
         return response()->json([
             'message' => 'Screening submitted.',
             'data' => [

@@ -33,6 +33,7 @@ use App\Http\Controllers\Api\V1\EmployeesController;
 use App\Http\Controllers\Api\V1\EmpresaController;
 use App\Http\Controllers\Api\V1\EmpresaDocumentosController;
 // Perfil
+use App\Http\Controllers\Api\V1\EmailTemplateController;
 use App\Http\Controllers\Api\V1\EmpresaSettingsController;
 // Módulo Góndolas
 use App\Http\Controllers\Api\V1\EvidencesController;
@@ -112,6 +113,7 @@ Route::prefix('v1')->group(function () {
     Route::get('/auth/google/redirect', [GoogleAuthController::class, 'redirect'])->middleware('web');
     Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback'])->middleware('web');
     Route::get('/public/jobs', [JobOpeningController::class, 'publicIndex']);
+    Route::get('/public/jobs/filters', [JobOpeningController::class, 'publicFilters']);
     Route::get('/public/jobs/{id}', [JobOpeningController::class, 'publicShow']);
 
     // Auth del portal de vacantes vía cookie HttpOnly
@@ -173,6 +175,10 @@ Route::prefix('v1')->group(function () {
             Route::post('applications/{id}/interviews', [InterviewController::class, 'store']);
 
             Route::get('analytics/pipeline', [AtsAnalyticsController::class, 'pipeline']);
+
+            Route::get('email-templates/types', [EmailTemplateController::class, 'types']);
+            Route::apiResource('email-templates', EmailTemplateController::class);
+
             Route::get('interviews/{id}', [InterviewController::class, 'show']);
             Route::put('interviews/{id}', [InterviewController::class, 'update']);
             Route::delete('interviews/{id}', [InterviewController::class, 'destroy']);
