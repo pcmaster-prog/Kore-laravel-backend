@@ -373,6 +373,32 @@ class ApplicationController extends Controller
         return response()->json(['data' => $app]);
     }
 
+    public function resetScreening(Request $request, $id)
+    {
+        Gate::authorize('manage-users');
+        $app = Application::where('empresa_id', $request->user()->empresa_id)->findOrFail($id);
+
+        if ($app->status !== 'rejected') {
+            return response()->json(['message' => 'Solo se puede reiniciar la evaluación de postulaciones rechazadas.'], 422);
+        }
+
+        $app->update([
+            'status' => 'new',
+            'screening_test_results' => null,
+            'has_induction_video_watched' => true,
+        ]);
+
+        ApplicationStatusLog::create([
+            'application_id' => $app->id,
+            'from_status' => 'rejected',
+            'to_status' => 'new',
+            'changed_by' => $request->user()->id,
+            'notes' => 'Evaluación reiniciada manualmente por administrador. El aspirante puede volver a presentar la autoevaluación.',
+        ]);
+
+        return response()->json(['data' => $app->fresh(), 'message' => 'Evaluación reiniciada correctamente.']);
+    }
+
     public function requestInterview(Request $request, $id)
     {
         $app = Application::where('user_id', $request->user()->id)->findOrFail($id);

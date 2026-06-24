@@ -161,6 +161,7 @@ Route::prefix('v1')->group(function () {
             Route::post('applications/{id}/hire', [ApplicationController::class, 'hireTrial']);
             Route::post('applications/{id}/reject', [ApplicationController::class, 'reject']);
             Route::post('applications/{id}/manual-review', [ApplicationController::class, 'toggleManualReview']);
+            Route::post('applications/{id}/reset-screening', [ApplicationController::class, 'resetScreening']);
             Route::get('applications/{id}/rehire-check', [ApplicationController::class, 'checkRehire']);
             Route::post('applications/{id}/rehire', [ApplicationController::class, 'rehire']);
 
