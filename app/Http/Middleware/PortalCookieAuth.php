@@ -21,6 +21,16 @@ class PortalCookieAuth
     {
         $plainTextToken = $request->cookie(self::COOKIE_NAME);
 
+        // Fallback: permitir enviar el token como Bearer Authorization cuando
+        // backend y frontend no comparten dominio raíz y no es posible usar
+        // una cookie HttpOnly compartida.
+        if (! $plainTextToken) {
+            $authHeader = $request->header('Authorization');
+            if ($authHeader && preg_match('/Bearer\s+(\S+)/', $authHeader, $matches)) {
+                $plainTextToken = $matches[1];
+            }
+        }
+
         if (! $plainTextToken || ! str_contains($plainTextToken, '|')) {
             return response()->json(['message' => 'No autenticado.'], 401);
         }

@@ -21,6 +21,7 @@
 | `SESSION_DRIVER` | Driver de sesión | `database` o `cookie` |
 | `SESSION_SECURE_COOKIE` | Solo HTTPS | `true` |
 | `SESSION_SAME_SITE` | SameSite | `lax` |
+| `SESSION_DOMAIN` | Dominio compartido de cookies. Solo útil si backend y portal comparten dominio raíz (p. ej. `.decorartereposteria.mx`). Si usas dominios distintos (Railway + Vercel) déjalo en `null`; el portal recibirá el token por URL y lo enviará como `Authorization: Bearer`. | `null` o `.decorartereposteria.mx` |
 | `CACHE_STORE` | Cache | `database` |
 | `QUEUE_CONNECTION` | Colas | `database` |
 | `BROADCAST_CONNECTION` | Broadcast | `log` |
@@ -30,7 +31,7 @@
 | `SANCTUM_STATEFUL_DOMAINS` | Dominios SPA | `kore-erp.vercel.app,vacantes.decorartereposteria.mx` |
 | `GOOGLE_CLIENT_ID` | OAuth Google | `...apps.googleusercontent.com` |
 | `GOOGLE_CLIENT_SECRET` | OAuth Google | `GOCSPX-...` |
-| `GOOGLE_REDIRECT_URL` | Callback OAuth | `https://vacantes.decorartereposteria.mx/auth/google/callback` |
+| `GOOGLE_REDIRECT_URL` | Callback OAuth en el **backend** (no el portal) | `${APP_URL}/api/v1/auth/google/callback` |
 | `AWS_ACCESS_KEY_ID` | S3 para documentos | `AKIA...` |
 | `AWS_SECRET_ACCESS_KEY` | S3 | `...` |
 | `AWS_DEFAULT_REGION` | S3 | `us-east-1` |
