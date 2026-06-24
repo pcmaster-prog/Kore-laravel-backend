@@ -10,8 +10,17 @@ class JobOpeningSeeder extends Seeder
 {
     public function run(): void
     {
-        $empresa = Empresa::first();
-        if (!$empresa) {
+        $slug = config('app.default_empresa_slug') ?? 'DecorArte';
+
+        $empresa = Empresa::where('slug', $slug)
+            ->orWhereRaw('LOWER(slug) = LOWER(?)', [$slug])
+            ->first();
+
+        if (! $empresa) {
+            $empresa = Empresa::first();
+        }
+
+        if (! $empresa) {
             $this->command->info('No hay empresa, saltando JobOpeningSeeder');
             return;
         }
