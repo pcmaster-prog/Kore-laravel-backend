@@ -146,7 +146,8 @@ class GoogleAuthController extends Controller
 
             $code = $request->input('code');
             if (! $code) {
-                throw new \Exception('Google no envió el parámetro code.');
+                // Agregar info de depuración a la excepción para que el usuario pueda verla en la URL de error del portal.
+                throw new \Exception('Google no envió el parámetro code. URL recibida: ' . $request->fullUrl() . ' | Query: ' . json_encode($request->query()));
             }
 
             // Intercambiamos el code por tokens directamente con Google.
