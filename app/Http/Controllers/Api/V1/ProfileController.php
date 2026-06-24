@@ -94,6 +94,30 @@ class ProfileController extends Controller
         ]);
     }
 
+    // PUT /users/preferences
+    public function updatePreferences(Request $request)
+    {
+        $u = $request->user();
+
+        $data = $request->validate([
+            'notifications_enabled' => ['sometimes', 'nullable', 'boolean'],
+            'language'              => ['sometimes', 'nullable', 'string', 'max:5'],
+            'theme'                 => ['sometimes', 'nullable', 'string', 'max:10', 'in:system,light,dark'],
+        ]);
+
+        $u->fill($data);
+        $u->save();
+
+        return response()->json([
+            'message' => 'Preferencias actualizadas correctamente.',
+            'data' => [
+                'notifications_enabled' => $u->notifications_enabled,
+                'language'              => $u->language,
+                'theme'                 => $u->theme,
+            ],
+        ]);
+    }
+
     // POST /mi-perfil/avatar
     public function uploadAvatar(UploadAvatarRequest $request)
     {

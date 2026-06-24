@@ -454,6 +454,7 @@ Route::prefix('v1')->group(function () {
 
                 // Cierre masivo + Reportes (admin/supervisor)
                 Route::middleware('role:admin,supervisor')->group(function () {
+                    Route::get('/attendance/summary', [AttendanceControllerV2::class, 'summary']);
                     Route::post('/asistencia/cerrar-masivo', [AttendanceReportController::class, 'cerrarMasivo']);
                     Route::get('/reportes/asistencia-semanal', [AttendanceReportController::class, 'asistenciaSemanal']);
                     Route::get('/reportes/empleado/{empleado_id}', [AttendanceReportController::class, 'reporteEmpleado'])->whereUuid('empleado_id');
@@ -556,6 +557,7 @@ Route::prefix('v1')->group(function () {
             Route::patch('/mi-perfil', [ProfileController::class, 'update']);
             Route::post('/mi-perfil/avatar', [ProfileController::class, 'uploadAvatar']);
             Route::post('/mi-perfil/password', [ProfileController::class, 'changePassword']);
+            Route::put('/users/preferences', [ProfileController::class, 'updatePreferences']);
 
             // Rutas de módulos empresa (solo admin)
             Route::middleware(['module:configuracion', 'role:admin'])->group(function () {
@@ -571,6 +573,7 @@ Route::prefix('v1')->group(function () {
                 Route::patch('/empresa/settings/calendar', [EmpresaSettingsController::class, 'updateCalendar']);
                 Route::get('/empresa/settings/operativo', [EmpresaSettingsController::class, 'getOperativo']);
                 Route::patch('/empresa/settings/operativo', [EmpresaSettingsController::class, 'updateOperativo']);
+                Route::put('/settings/schedule', [EmpresaSettingsController::class, 'updateSchedule']);
             });
 
             // ── Módulo Góndolas ───────────────────────────────────────────────────────

@@ -79,6 +79,64 @@ class EmpresaSettingsController extends Controller
         ]);
     }
 
+    // PUT /settings/schedule (admin) — alias de operativo/calendario con nombres del frontend
+    public function updateSchedule(Request $request)
+    {
+        $u = $request->user();
+        Gate::authorize('admin');
+
+        $data = $request->validate([
+            'entry_time'        => ['sometimes', 'string', 'regex:/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/'],
+            'exit_time'         => ['sometimes', 'string', 'regex:/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/'],
+            'week_start_day'    => ['sometimes', 'integer', Rule::in([0,1,2,3,4,5,6])],
+            'tolerance_minutes' => ['sometimes', 'integer', 'min:0'],
+            'max_hours'         => ['sometimes', 'integer', 'min:1', 'max:24'],
+            'auto_close_shift'  => ['sometimes', 'boolean'],
+            'week_schedule'     => ['sometimes', 'array'],
+            'week_schedule.*.weekday'        => ['required_with:week_schedule', 'integer', 'min:0', 'max:6'],
+            'week_schedule.*.check_in_time'  => ['required_with:week_schedule', 'string', 'regex:/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/'],
+            'week_schedule.*.check_out_time' => ['required_with:week_schedule', 'string', 'regex:/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/'],
+            'week_schedule.*.is_working_day' => ['required_with:week_schedule', 'boolean'],
+        ]);
+
+        // Actualizar día de inicio de semana vía método existente
+        if (isset($data['week_start_day'])) {
+            $calendarRequest = $request->duplicate([], ['week_start' => $data['week_start_day']]);
+            $calendarResponse = $this->updateCalendar($calendarRequest);
+            if ($calendarResponse->getStatusCode() >= 400) {
+                return $calendarResponse;
+            }
+        }
+
+        // Mapear nombres del frontend a los campos internos de operativo
+        $mapped = [];
+        if (isset($data['entry_time'])) {
+            $mapped['check_in_time'] = $data['entry_time'];
+        }
+        if (isset($data['exit_time'])) {
+            $mapped['check_out_time'] = $data['exit_time'];
+        }
+        if (isset($data['tolerance_minutes'])) {
+            $mapped['late_tolerance'] = $data['tolerance_minutes'];
+        }
+        if (isset($data['max_hours'])) {
+            $mapped['max_hours'] = $data['max_hours'];
+        }
+        if (isset($data['auto_close_shift'])) {
+            $mapped['auto_close_enabled'] = $data['auto_close_shift'];
+        }
+        if (isset($data['week_schedule'])) {
+            $mapped['week_schedule'] = $data['week_schedule'];
+        }
+
+        if (empty($mapped) && !isset($data['week_start_day'])) {
+            return response()->json(['message' => 'No se enviaron datos para actualizar.'], 422);
+        }
+
+        $operativoRequest = $request->duplicate([], $mapped);
+        return $this->updateOperativo($operativoRequest);
+    }
+
     public function updateOperativo(Request $request)
     {
         $u = $request->user();

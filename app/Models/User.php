@@ -29,6 +29,9 @@ class User extends Authenticatable
         'provider',
         'provider_id',
         'avatar',
+        'notifications_enabled',
+        'language',
+        'theme',
     ];
 
     /**
@@ -52,6 +55,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_active' => 'boolean',
+            'notifications_enabled' => 'boolean',
         ];
     }
 

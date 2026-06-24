@@ -954,6 +954,40 @@ class AttendanceControllerV2 extends Controller
         ]);
     }
 
+    // ADMIN/SUPERVISOR: resumen numérico del día (KPIs de asistencia)
+    public function summary(Request $request)
+    {
+        Gate::authorize('supervisor');
+
+        $u = $request->user();
+        $empresaId = $u->empresa_id;
+
+        $date = $request->input('date');
+        if (!$date) {
+            $date = now()->timezone(config('app.timezone'))->toDateString();
+        }
+
+        $employeesTotal = Empleado::where('empresa_id', $empresaId)->count();
+
+        $attendanceDays = AttendanceDay::where('empresa_id', $empresaId)
+            ->where('date', $date)
+            ->get(['id','empleado_id','first_check_in_at','last_check_out_at']);
+
+        $closed = $attendanceDays->whereNotNull('last_check_out_at')->count();
+        $checkedIn = $attendanceDays->whereNotNull('first_check_in_at')->count();
+        $open = $attendanceDays->whereNotNull('first_check_in_at')->whereNull('last_check_out_at')->count();
+        $out = max(0, $employeesTotal - $checkedIn);
+
+        return response()->json([
+            'date' => $date,
+            'employees_total' => $employeesTotal,
+            'checked_in' => $checkedIn,
+            'open' => $open,
+            'closed' => $closed,
+            'out' => $out,
+        ]);
+    }
+
     // ADMIN/SUPERVISOR: resumen semanal por empleado (payable minutes)
     public function weeklySummary(Request $request)
     {
