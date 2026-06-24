@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use App\Mail\OfferSentMail;
 use App\Models\Application;
 use App\Models\ApplicationDocument;
 use App\Models\ApplicationOffer;
@@ -14,7 +13,6 @@ use App\Services\SecureFileStorage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\Mail;
 
 class ApplicationOfferController extends Controller
 {
@@ -73,12 +71,7 @@ class ApplicationOfferController extends Controller
         ]);
 
         if ($app->user?->email) {
-            Mail::to($app->user->email)->queue(new OfferSentMail(
-                candidateName: $app->user->name,
-                jobTitle: $app->jobOpening?->title ?? 'la vacante',
-                empresaName: $app->empresa?->name ?? 'nuestra empresa',
-                offerUrl: config('app.frontend_portal_url', 'https://vacantes.decorartereposteria.mx').'/oferta',
-            ));
+            AtsNotificationService::offerSent($app, config('app.frontend_portal_url', 'https://vacantes.decorartereposteria.mx').'/oferta');
         }
 
         return response()->json(['data' => $offer->load('position')], 201);
@@ -118,12 +111,7 @@ class ApplicationOfferController extends Controller
         $offer->update(['sent_at' => now()]);
 
         if ($app->user?->email) {
-            Mail::to($app->user->email)->queue(new OfferSentMail(
-                candidateName: $app->user->name,
-                jobTitle: $app->jobOpening?->title ?? 'la vacante',
-                empresaName: $app->empresa?->name ?? 'nuestra empresa',
-                offerUrl: config('app.frontend_portal_url', 'https://vacantes.decorartereposteria.mx').'/oferta',
-            ));
+            AtsNotificationService::offerSent($app, config('app.frontend_portal_url', 'https://vacantes.decorartereposteria.mx').'/oferta');
         }
 
         return response()->json(['data' => $offer->load('position')]);

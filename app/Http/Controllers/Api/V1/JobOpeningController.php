@@ -109,13 +109,7 @@ class JobOpeningController extends Controller
     {
         $empresaId = $this->resolveEmpresaId($request);
 
-        $query = JobOpening::where('id', $id)->where('status', 'open');
-
-        if ($empresaId) {
-            $query->where('empresa_id', $empresaId);
-        }
-
-        $job = $query->firstOrFail();
+        $job = $this->findPublicJob($id, $empresaId);
 
         $this->trackView($job, $request);
 
@@ -125,6 +119,22 @@ class JobOpeningController extends Controller
                 'welcome_video_url' => $this->welcomeVideoUrl($job->empresa_id),
             ],
         ]);
+    }
+
+    private function findPublicJob(string $identifier, ?string $empresaId): JobOpening
+    {
+        $query = JobOpening::where('status', 'open');
+        if ($empresaId) {
+            $query->where('empresa_id', $empresaId);
+        }
+
+        $job = (clone $query)->where('id', $identifier)->first();
+
+        if (! $job) {
+            $job = (clone $query)->where('slug', $identifier)->firstOrFail();
+        }
+
+        return $job;
     }
 
     public function publicFilters(Request $request)
@@ -221,7 +231,9 @@ class JobOpeningController extends Controller
         Gate::authorize('manage-users');
         $validated = $request->validate($this->jobRules());
 
-        $validated['slug'] = $this->generateSlug($validated['title'], $request->user()->empresa_id);
+        if (empty($validated['slug'])) {
+            $validated['slug'] = $this->generateSlug($validated['title'], $request->user()->empresa_id);
+        }
 
         $job = JobOpening::create([
             'empresa_id' => $request->user()->empresa_id,

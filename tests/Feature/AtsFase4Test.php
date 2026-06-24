@@ -14,6 +14,7 @@ use App\Models\JobOpening;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -140,6 +141,31 @@ class AtsFase4Test extends TestCase
         $this->assertEquals(1, $job->fresh()->views()->count());
     }
 
+    public function test_public_job_show_accepts_slug_identifier()
+    {
+        $admin = $this->setupAdmin();
+        $empresa = Empresa::find($admin->empresa_id);
+        $job = $this->createJob($empresa, ['slug' => 'operador-especial']);
+
+        $this->getJson('/api/v1/public/jobs/operador-especial?empresa_id=' . $empresa->id)
+            ->assertOk()
+            ->assertJsonPath('data.id', $job->id);
+    }
+
+    public function test_admin_can_set_custom_slug()
+    {
+        $admin = $this->setupAdmin();
+
+        $response = $this->actingAs($admin, 'sanctum')->postJson('/api/v1/ats/jobs', [
+            'title' => 'Cajero',
+            'slug' => 'cajero-zapopan-2026',
+            'status' => 'open',
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.slug', 'cajero-zapopan-2026');
+    }
+
     public function test_interview_reminder_command_sends_emails()
     {
         Mail::fake();
@@ -238,6 +264,99 @@ class AtsFase4Test extends TestCase
         )->assertCreated();
 
         Mail::assertQueued(TemplatedEmail::class, fn ($mail) => $mail->emailSubject === 'Gracias Test User');
+    }
+
+    public function test_interview_scheduled_sends_whatsapp_when_phone_present()
+    {
+        Http::fake();
+        Mail::fake();
+        config(['services.whatsapp.api_key' => 'testkey', 'services.whatsapp.phone' => '524626269090']);
+
+        $admin = $this->setupAdmin();
+        $empresa = Empresa::find($admin->empresa_id);
+        $candidate = $this->createUser('aspirante', $empresa, 'candidate@example.com');
+        $job = $this->createJob($empresa);
+        $application = Application::create([
+            'id' => Str::uuid(),
+            'empresa_id' => $empresa->id,
+            'job_opening_id' => $job->id,
+            'user_id' => $candidate->id,
+            'status' => 'interview-requested',
+            'contact_info' => ['phone' => '5512345678'],
+        ]);
+
+        $this->actingAs($admin, 'sanctum')
+            ->postJson("/api/v1/ats/applications/{$application->id}/interview", [
+                'interview_scheduled_at' => now()->addDay()->toDateTimeString(),
+                'method' => 'video',
+                'meeting_url' => 'https://meet.example.com',
+            ])
+            ->assertOk();
+
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'api.callmebot.com'));
+    }
+
+    public function test_offer_sent_sends_whatsapp_when_phone_present()
+    {
+        Http::fake();
+        Mail::fake();
+        config(['services.whatsapp.api_key' => 'testkey', 'services.whatsapp.phone' => '524626269090']);
+
+        $admin = $this->setupAdmin();
+        $empresa = Empresa::find($admin->empresa_id);
+        $candidate = $this->createUser('aspirante', $empresa, 'candidate@example.com');
+        $job = $this->createJob($empresa);
+        $application = Application::create([
+            'id' => Str::uuid(),
+            'empresa_id' => $empresa->id,
+            'job_opening_id' => $job->id,
+            'user_id' => $candidate->id,
+            'status' => 'interviewing',
+            'contact_info' => ['phone' => '5512345678'],
+        ]);
+
+        $this->actingAs($admin, 'sanctum')
+            ->postJson("/api/v1/ats/applications/{$application->id}/offer", [
+                'salary' => 100,
+                'trial_months' => 1,
+            ])
+            ->assertCreated();
+
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'api.callmebot.com'));
+    }
+
+    public function test_offer_sent_uses_custom_template_when_active()
+    {
+        Mail::fake();
+
+        $admin = $this->setupAdmin();
+        $empresa = Empresa::find($admin->empresa_id);
+
+        EmailTemplate::create([
+            'id' => Str::uuid(),
+            'empresa_id' => $empresa->id,
+            'type' => 'offer_sent',
+            'subject' => 'Tu oferta {{ $jobTitle }}',
+            'body' => '<p>Hola {{ $candidateName }}, revisa tu oferta en {{ $offerUrl }}.</p>',
+            'is_active' => true,
+        ]);
+
+        $candidate = $this->createUser('aspirante', $empresa, 'candidate@example.com');
+        $job = $this->createJob($empresa);
+        $app = Application::create([
+            'id' => Str::uuid(),
+            'empresa_id' => $empresa->id,
+            'job_opening_id' => $job->id,
+            'user_id' => $candidate->id,
+            'status' => 'interviewing',
+        ]);
+
+        $this->actingAs($admin, 'sanctum')->postJson("/api/v1/ats/applications/{$app->id}/offer", [
+            'salary' => 100,
+            'trial_months' => 1,
+        ])->assertCreated();
+
+        Mail::assertQueued(TemplatedEmail::class, fn ($mail) => $mail->emailSubject === 'Tu oferta Operador');
     }
 
     public function test_admin_can_manage_email_templates()

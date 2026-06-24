@@ -43,7 +43,20 @@ Railway detectará `railway.toml` y `Procfile`:
 - **Build**: Nixpacks (PHP 8.2 + Node opcional).
 - **Deploy**: corre migraciones con `--force` y levanta `php artisan serve` en el puerto asignado por Railway (`$PORT`).
 
-## 3. Post-deploy manual (solo la primera vez)
+## 3. Servicios adicionales en Railway
+
+Para que los correos encolados y los recordatorios automáticos funcionen, crea dos servicios extra apuntando al mismo repositorio/imagen que el servicio web:
+
+| Servicio | Comando de inicio | Propósito |
+|---|---|---|
+| `kore-worker` | `php artisan queue:work --sleep=3 --tries=3 --max-jobs=1000 --max-time=3600` | Procesa la cola de correos (`QUEUE_CONNECTION=database`). |
+| `kore-scheduler` | `php artisan schedule:work` | Ejecuta el schedule de Laravel cada minuto, incluyendo `interviews:send-reminders` cada hora. |
+
+Ambos servicios deben tener las **mismas variables de entorno** que el servicio web.
+
+> `--max-time=3600` hace que el worker se reinicie cada hora para evitar fugas de memoria.
+
+## 4. Post-deploy manual (solo la primera vez)
 
 ```bash
 # Opcional: seed de módulos y criterios
@@ -51,7 +64,7 @@ php artisan db:seed --class=ModulesTableSeeder
 php artisan db:seed --class=CriteriaSeeder
 ```
 
-## 4. Notas
+## 5. Notas
 
 - El backend expone los endpoints del portal bajo `/api/v1/portal/*` y los públicos bajo `/api/v1/public/jobs*`.
 - Para que el ERP muestre el link "Portal de Vacantes", el usuario debe tener `empresa_id` o rol `aspirante`.

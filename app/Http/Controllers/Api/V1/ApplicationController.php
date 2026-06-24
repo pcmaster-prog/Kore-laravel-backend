@@ -13,6 +13,7 @@ use App\Models\JobOpening;
 use App\Services\AtsNotificationService;
 use App\Services\EmployeeOnboardingService;
 use App\Services\SecureFileStorage;
+use App\Services\WhatsAppNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -73,28 +74,6 @@ class ApplicationController extends Controller
      * Formato esperado de cada pregunta de screening.
      */
     private const SCREENING_QUESTION_SCHEMA = ['question', 'options', 'correctIndex'];
-
-    /**
-     * Auxiliar para enviar WhatsApp via CallMeBot
-     */
-    private function sendWhatsAppNotification($phone, $message)
-    {
-        $apiKey = config('services.whatsapp.api_key');
-        $myPhone = config('services.whatsapp.phone');
-
-        if (! $apiKey || ! $myPhone) {
-            return;
-        }
-
-        // CallMeBot normalmente recibe el phone destino o lo asocia directo
-        $url = 'https://api.callmebot.com/whatsapp.php?phone='.$phone.'&text='.urlencode($message).'&apikey='.$apiKey;
-
-        try {
-            file_get_contents($url);
-        } catch (\Exception $e) {
-            Log::error('Error sending WhatsApp via CallMeBot: '.$e->getMessage());
-        }
-    }
 
     // ==========================================
     // ENDPOINTS PORTAL (Aspirantes)
@@ -547,7 +526,7 @@ class ApplicationController extends Controller
         if ($request->boolean('notify_whatsapp') && isset($app->contact_info['phone'])) {
             $msg = "Hola {$app->user->name}, tienes una entrevista programada para la vacante de {$app->jobOpening->title} el día {$validated['interview_scheduled_at']}. ¡Te esperamos!";
             $phone = '52'.preg_replace('/[^0-9]/', '', $app->contact_info['phone']);
-            $this->sendWhatsAppNotification($phone, $msg);
+            WhatsAppNotificationService::send($phone, $msg);
         }
 
         return response()->json(['data' => $app->load('interviews')]);
@@ -622,7 +601,7 @@ class ApplicationController extends Controller
             if (isset($app->contact_info['phone'])) {
                 $msg = "¡Felicidades {$app->user->name}! Has sido aceptado(a) para el puesto de {$app->jobOpening->title}. Inicias tu periodo de prueba. ¡Bienvenido(a) a DecorArte!";
                 $phone = '52'.preg_replace('/[^0-9]/', '', $app->contact_info['phone']);
-                $this->sendWhatsAppNotification($phone, $msg);
+                WhatsAppNotificationService::send($phone, $msg);
             }
 
             AtsNotificationService::hired($app);
@@ -665,7 +644,7 @@ class ApplicationController extends Controller
         if ($request->boolean('notify_whatsapp') && isset($app->contact_info['phone'])) {
             $msg = "Hola {$app->user->name}, gracias por tu interés en la vacante de {$app->jobOpening->title}. Lamentablemente en esta ocasión no continuaremos con tu proceso. Te deseamos éxito.";
             $phone = '52'.preg_replace('/[^0-9]/', '', $app->contact_info['phone']);
-            $this->sendWhatsAppNotification($phone, $msg);
+            WhatsAppNotificationService::send($phone, $msg);
         }
 
         AtsNotificationService::rejected($app, $validated['reason']);

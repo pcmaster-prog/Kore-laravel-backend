@@ -11,6 +11,7 @@ use App\Mail\TemplatedEmail;
 use App\Models\Application;
 use App\Models\EmailTemplate;
 use App\Models\Interview;
+use App\Services\WhatsAppNotificationService;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -63,6 +64,7 @@ class AtsNotificationService
         ];
 
         if (self::sendTemplated('interview_scheduled', $candidate->email, $variables, $interview->application?->empresa_id)) {
+            self::sendWhatsApp($interview->application, "Hola {$candidate->name}, tu entrevista para {$variables['jobTitle']} esta programada el {$variables['scheduledAt']}. Metodo: {$variables['method']}.");
             return;
         }
 
@@ -78,6 +80,8 @@ class AtsNotificationService
         } catch (\Exception $e) {
             Log::error('Error enviando correo de entrevista programada: '.$e->getMessage());
         }
+
+        self::sendWhatsApp($interview->application, "Hola {$candidate->name}, tu entrevista para {$variables['jobTitle']} esta programada el {$variables['scheduledAt']}. Metodo: {$variables['method']}.");
     }
 
     public static function interviewReminder(Interview $interview, string $recipientEmail, string $recipientName, string $role = 'candidate'): void
@@ -116,6 +120,44 @@ class AtsNotificationService
         } catch (\Exception $e) {
             Log::error('Error enviando recordatorio de entrevista: '.$e->getMessage());
         }
+
+        if ($role === 'candidate') {
+            $method = $interview->method ?? 'Por definir';
+            self::sendWhatsApp($interview->application, "Hola {$recipientName}, recuerda tu entrevista para {$jobTitle} el {$scheduledAt}. Metodo: {$method}.");
+        }
+    }
+
+    public static function offerSent(Application $application, string $offerUrl): void
+    {
+        $candidate = $application->user;
+        if (! $candidate?->email) {
+            return;
+        }
+
+        $variables = [
+            'candidateName' => $candidate->name,
+            'jobTitle' => $application->jobOpening?->title ?? 'la vacante',
+            'empresaName' => $application->empresa?->name ?? 'nuestra empresa',
+            'offerUrl' => $offerUrl,
+        ];
+
+        if (self::sendTemplated('offer_sent', $candidate->email, $variables, $application->empresa_id)) {
+            return;
+        }
+
+        try {
+            Mail::to($candidate->email)->queue(new \App\Mail\OfferSentMail(
+                candidateName: $candidate->name,
+                jobTitle: $application->jobOpening?->title ?? 'la vacante',
+                empresaName: $application->empresa?->name ?? 'nuestra empresa',
+                offerUrl: $offerUrl,
+            ));
+        } catch (\Exception $e) {
+            Log::error('Error enviando correo de oferta laboral: '.$e->getMessage());
+        }
+
+        $offerJobTitle = $application->jobOpening?->title ?? 'la vacante';
+        self::sendWhatsApp($application, "Hola {$candidate->name}, te enviamos una oferta para {$offerJobTitle}. Revisala aqui: {$offerUrl}");
     }
 
     public static function hired(Application $application): void
@@ -172,6 +214,24 @@ class AtsNotificationService
             ));
         } catch (\Exception $e) {
             Log::error('Error enviando correo de rechazo: '.$e->getMessage());
+        }
+    }
+
+    private static function sendWhatsApp(?Application $application, string $message): void
+    {
+        if (! $application) {
+            return;
+        }
+
+        $phone = $application->contact_info['phone'] ?? null;
+        if (! $phone) {
+            return;
+        }
+
+        try {
+            WhatsAppNotificationService::send($phone, $message);
+        } catch (\Exception $e) {
+            Log::error('Error enviando WhatsApp ATS: '.$e->getMessage());
         }
     }
 
