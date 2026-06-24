@@ -75,18 +75,19 @@ class GoogleAuthController extends Controller
             'state' => $state,
         ]);
 
-        // Cookie corta (10 min) solo para validar el callback. Es HttpOnly
-        // para evitar que JS la lea, pero se envía automáticamente al backend.
+        // Cookie corta (10 min) solo para validar el callback. Usamos
+        // SameSite=None + Secure para asegurar que se envíe en el callback
+        // top-level desde accounts.google.com al backend.
         $stateCookie = Cookie::make(
             self::STATE_COOKIE_NAME,
             $state,
             10,
             '/',
             null,
-            config('session.secure', true),
+            true,
             true,
             false,
-            config('session.same_site', 'lax')
+            'none'
         );
 
         return redirect()->away($googleUrl)->withCookie($stateCookie);
@@ -109,6 +110,7 @@ class GoogleAuthController extends Controller
         try {
             Log::info('Portal OAuth callback received', [
                 'input' => $request->only(['code', 'state', 'error', 'error_description']),
+                'cookies' => $request->cookies->all(),
                 'frontend' => $frontendUrl,
                 'redirect_uri' => config('services.google.redirect'),
             ]);
