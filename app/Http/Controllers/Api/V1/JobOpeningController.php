@@ -197,6 +197,20 @@ class JobOpeningController extends Controller
         $data = $job->toArray();
         $data['views_count'] = $job->views()->count();
 
+        $structuredJsonFields = [
+            'responsibilities',
+            'education_requirements',
+            'experience_requirements',
+            'knowledge_requirements',
+            'competencies',
+            'performance_indicators',
+            'offer_details',
+        ];
+
+        foreach ($structuredJsonFields as $field) {
+            $data[$field] = $job->{$field} ?? [];
+        }
+
         if (! $includeQuestions) {
             unset($data['screening_questions']);
         } else {
@@ -285,6 +299,16 @@ class JobOpeningController extends Controller
             'title' => ($partial ? 'sometimes' : 'required') . '|string|max:255',
             'description' => 'nullable|string',
             'requirements' => 'nullable|array',
+            'about_us' => 'sometimes|nullable|string',
+            'objective' => 'sometimes|nullable|string',
+            'responsibilities' => 'sometimes|nullable|array',
+            'education_requirements' => 'sometimes|nullable|array',
+            'experience_requirements' => 'sometimes|nullable|array',
+            'knowledge_requirements' => 'sometimes|nullable|array',
+            'competencies' => 'sometimes|nullable|array',
+            'performance_indicators' => 'sometimes|nullable|array',
+            'offer_details' => 'sometimes|nullable|array',
+            'closing_statement' => 'sometimes|nullable|string',
             'salary_range' => 'nullable|string|max:255',
             'schedule' => 'nullable|string|max:255',
             'location' => 'nullable|string|max:255',
