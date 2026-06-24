@@ -14,6 +14,8 @@ use App\Services\AtsNotificationService;
 use App\Services\EmployeeOnboardingService;
 use App\Services\SecureFileStorage;
 use App\Services\WhatsAppNotificationService;
+use App\Models\UserActivationToken;
+use App\Jobs\SendWelcomeEmail;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -656,7 +658,14 @@ class ApplicationController extends Controller
 
             AtsNotificationService::hired($app);
 
-            return response()->json(['message' => 'Candidato contratado a prueba exitosamente.']);
+            $token = UserActivationToken::createForUser($app->user);
+            $app->user->update(['is_active' => false]);
+            SendWelcomeEmail::dispatch($app->user->id, $token->token);
+
+            return response()->json([
+                'message' => 'Candidato contratado a prueba exitosamente.',
+                'data' => ['activation_token' => $token->token]
+            ]);
         } catch (\Exception $e) {
             Log::error('Error en hireTrial: '.$e->getMessage());
 
@@ -776,7 +785,14 @@ class ApplicationController extends Controller
 
             AtsNotificationService::hired($app);
 
-            return response()->json(['message' => 'Ex-empleado recontratado exitosamente.']);
+            $token = UserActivationToken::createForUser($app->user);
+            $app->user->update(['is_active' => false]);
+            SendWelcomeEmail::dispatch($app->user->id, $token->token);
+
+            return response()->json([
+                'message' => 'Ex-empleado recontratado exitosamente.',
+                'data' => ['activation_token' => $token->token]
+            ]);
         } catch (\Exception $e) {
             Log::error('Error en rehire: '.$e->getMessage());
 
