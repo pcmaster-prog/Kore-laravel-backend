@@ -144,13 +144,20 @@ class ApplicationController extends Controller
 
     public function myCurrentApplication(Request $request)
     {
-        $app = Application::with(['jobOpening', 'interviews', 'offer'])
+        $app = Application::with(['jobOpening', 'interviews'])
             ->where('user_id', $request->user()->id)
             ->latest()
             ->first();
 
         if (! $app) {
             return response()->json(['message' => 'No application found'], 404);
+        }
+
+        // Load offer relationship safely – the table may not exist yet in some environments.
+        try {
+            $app->load('offer');
+        } catch (\Exception $e) {
+            Log::warning('Could not load offer relationship: ' . $e->getMessage());
         }
 
         return response()->json(['data' => $app]);
