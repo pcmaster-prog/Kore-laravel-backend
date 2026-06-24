@@ -14,22 +14,24 @@ use Laravel\Socialite\Facades\Socialite;
 
 class GoogleAuthController extends Controller
 {
+    private const STATE_COOKIE_NAME = 'portal_oauth_state';
+
     /**
      * Redirige al usuario a Google OAuth.
      * Acepta un state opcional del frontend para mitigar CSRF.
      *
-     * Usamos stateless() de Socialite y validamos el state manualmente en el
-     * callback, evitando conflictos entre el state generado por el frontend y
-     * el que Socialite guarda internamente en sesión.
+     * Guardamos el state tanto en sesión como en una cookie propia para
+     * robustecer el callback cuando la sesión Laravel no persiste entre la
+     * salida a Google y el regreso (navegadores, SameSite, etc.).
      */
     public function redirect(Request $request)
     {
         $state = $request->query('state');
 
         if ($state) {
-            session(['portal_oauth_state' => $state]);
+            session([self::STATE_COOKIE_NAME => $state]);
         } else {
-            $request->session()->forget('portal_oauth_state');
+            $request->session()->forget(self::STATE_COOKIE_NAME);
         }
 
         $driver = Socialite::driver('google')->stateless();
@@ -38,7 +40,21 @@ class GoogleAuthController extends Controller
             $driver->with(['state' => $state]);
         }
 
-        return $driver->redirect();
+        // Cookie corta (10 min) solo para validar el callback. Es HttpOnly
+        // para evitar que JS la lea, pero se envía automáticamente al backend.
+        $stateCookie = Cookie::make(
+            self::STATE_COOKIE_NAME,
+            $state ?? '',
+            10,
+            '/',
+            null,
+            config('session.secure', true),
+            true,
+            false,
+            config('session.same_site', 'lax')
+        );
+
+        return $driver->redirect()->withCookie($stateCookie);
     }
 
     /**
@@ -58,10 +74,13 @@ class GoogleAuthController extends Controller
         try {
             $googleUser = Socialite::driver('google')->stateless()->user();
 
-            // Validación manual del state anti-CSRF.
+            // Validación manual del state anti-CSRF. Usamos cookie propia como
+            // principal y sesión como respaldo.
             $state = $request->input('state');
-            $expectedState = session('portal_oauth_state');
-            $request->session()->forget('portal_oauth_state');
+            $expectedState = $request->cookie(self::STATE_COOKIE_NAME)
+                ?? session(self::STATE_COOKIE_NAME);
+
+            $request->session()->forget(self::STATE_COOKIE_NAME);
 
             if (! $state || ! $expectedState || ! hash_equals((string) $expectedState, (string) $state)) {
                 throw new \Exception('La validación de seguridad OAuth (state) falló.');
@@ -93,7 +112,7 @@ class GoogleAuthController extends Controller
             $canShareCookie = $this->canShareCookie($frontendUrl);
             $cookieDomain = $canShareCookie ? $this->sharedCookieDomain($frontendUrl) : null;
 
-            $cookie = Cookie::make(
+            $tokenCookie = Cookie::make(
                 PortalCookieAuth::COOKIE_NAME,
                 $token,
                 60 * 24 * 7, // 7 días
@@ -104,6 +123,9 @@ class GoogleAuthController extends Controller
                 false,
                 config('session.same_site', 'lax')
             );
+
+            // Borramos la cookie de state para no dejarla viva.
+            $stateCookie = Cookie::forget(self::STATE_COOKIE_NAME, '/');
 
             // Si no podemos compartir la cookie entre dominios, enviamos el token
             // como fragmento de URL para que el frontend lo use como Bearer token.
@@ -118,7 +140,9 @@ class GoogleAuthController extends Controller
                 'cookie_domain' => $cookieDomain,
             ]);
 
-            return redirect()->away($redirectUrl)->withCookie($cookie);
+            return redirect()->away($redirectUrl)
+                ->withCookie($tokenCookie)
+                ->withCookie($stateCookie);
 
         } catch (\Exception $e) {
             Log::error('Google Auth Error: ' . $e->getMessage(), [
@@ -128,9 +152,10 @@ class GoogleAuthController extends Controller
                 'frontend' => $frontendUrl,
             ]);
 
-            $errorUrl = $frontendUrl . '/login?error=auth_failed';
+            $errorUrl = $frontendUrl . '/login?error=auth_failed&message=' . urlencode($e->getMessage());
 
-            return redirect()->away($errorUrl);
+            return redirect()->away($errorUrl)
+                ->withCookie(Cookie::forget(self::STATE_COOKIE_NAME, '/'));
         }
     }
 
