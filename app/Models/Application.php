@@ -73,7 +73,7 @@ class Application extends Model
 
     public function offer()
     {
-        return $this->hasOne(ApplicationOffer::class)->latestOfMany();
+        return $this->hasOne(ApplicationOffer::class)->latestOfMany('created_at');
     }
 
     public function onboardingDocuments()
