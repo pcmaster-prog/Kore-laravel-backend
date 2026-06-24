@@ -112,6 +112,7 @@ Route::prefix('v1')->group(function () {
     // OAuth requiere sesión para el parámetro state anti-CSRF.
     Route::get('/auth/google/redirect', [GoogleAuthController::class, 'redirect'])->middleware('web');
     Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback'])->middleware('web');
+    Route::get('/auth/google/config', [GoogleAuthController::class, 'config']);
     Route::get('/public/jobs', [JobOpeningController::class, 'publicIndex']);
     Route::get('/public/jobs/filters', [JobOpeningController::class, 'publicFilters']);
     Route::get('/public/jobs/{id}', [JobOpeningController::class, 'publicShow']);
