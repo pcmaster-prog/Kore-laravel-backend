@@ -42,7 +42,7 @@ class ApplicationController extends Controller
         'new' => ['screening', 'rejected'],
         'screening' => ['interview-requested', 'rejected'],
         'interview-requested' => ['interviewing', 'rejected'],
-        'interviewing' => ['offer-sent', 'rejected'],
+        'interviewing' => ['offer-sent', 'hired', 'rejected'],
         'offer-sent' => ['hired', 'rejected'],
         'hired' => [],
         'rejected' => [],
