@@ -128,13 +128,14 @@ class JobOpeningController extends Controller
             $query->where('empresa_id', $empresaId);
         }
 
-        $job = (clone $query)->where('id', $identifier)->first();
-
-        if (! $job) {
-            $job = (clone $query)->where('slug', $identifier)->firstOrFail();
+        if (Str::isUuid($identifier)) {
+            $job = (clone $query)->where('id', $identifier)->first();
+            if ($job) {
+                return $job;
+            }
         }
 
-        return $job;
+        return (clone $query)->where('slug', $identifier)->firstOrFail();
     }
 
     public function publicFilters(Request $request)
