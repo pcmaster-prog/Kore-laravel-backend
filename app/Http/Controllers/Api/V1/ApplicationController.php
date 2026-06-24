@@ -173,10 +173,14 @@ class ApplicationController extends Controller
             'curp' => 'required|string|regex:/^[A-Z]{4}\d{6}[HM][A-Z]{5}[A-Z\d]{2}$/i',
             'nss' => 'required|string|regex:/^\d{11}$/',
             'address' => 'required|string|min:10',
+            'education' => 'nullable|string',
+            'experience' => 'nullable|string',
         ]);
 
         $app->update([
-            'contact_info' => array_merge($app->contact_info ?? [], $validated),
+            'contact_info' => array_merge($app->contact_info ?? [], \Illuminate\Support\Arr::except($validated, ['education', 'experience'])),
+            'education' => !empty($validated['education']) ? [$validated['education']] : [],
+            'experience' => !empty($validated['experience']) ? [$validated['experience']] : [],
         ]);
 
         return response()->json(['data' => $app]);
