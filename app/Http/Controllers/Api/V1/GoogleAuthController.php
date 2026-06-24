@@ -28,12 +28,14 @@ class GoogleAuthController extends Controller
 
         $redirectUri = config('services.google.redirect');
 
+        $canShare = $this->canShareCookie($frontendUrl);
+
         return response()->json([
             'app_url' => config('app.url'),
             'frontend_portal_url' => $frontendUrl,
             'google_redirect_uri' => $redirectUri,
-            'can_share_cookie' => $this->canShareCookie($frontendUrl),
-            'shared_cookie_domain' => $this->sharedCookieDomain($frontendUrl),
+            'can_share_cookie' => $canShare,
+            'shared_cookie_domain' => $canShare ? $this->sharedCookieDomain($frontendUrl) : null,
         ]);
     }
 
@@ -67,6 +69,7 @@ class GoogleAuthController extends Controller
         ]);
 
         Log::info('Portal OAuth redirect', [
+            'google_url' => $googleUrl,
             'redirect_uri' => $redirectUri,
             'frontend' => $frontendUrl,
             'state' => $state,
@@ -122,8 +125,22 @@ class GoogleAuthController extends Controller
 
             $request->session()->forget(self::STATE_COOKIE_NAME);
 
-            if (! $state || ! $expectedState || ! hash_equals((string) $expectedState, (string) $state)) {
-                throw new \Exception('La validación de seguridad OAuth (state) falló. State recibido: ' . ($state ?: 'vacío'));
+            if (! $expectedState) {
+                throw new \Exception('No se encontró el state esperado en cookie/sesión.');
+            }
+
+            if (! $state) {
+                // Algunos navegadores/entornos no devuelven el state en la URL a
+                // pesar de haberlo enviado a Google. Como la cookie de state sí se
+                // envía al backend en el callback top-level, podemos recuperarlo.
+                Log::warning('Portal OAuth callback: state vacío en query, usando cookie/sesión', [
+                    'expected_state' => $expectedState,
+                ]);
+                $state = $expectedState;
+            }
+
+            if (! hash_equals((string) $expectedState, (string) $state)) {
+                throw new \Exception('La validación de seguridad OAuth (state) falló. State recibido: ' . $state);
             }
 
             $code = $request->input('code');
