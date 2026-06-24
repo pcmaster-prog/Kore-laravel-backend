@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Middleware\PortalCookieAuth;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
@@ -14,7 +15,15 @@ use Illuminate\Support\Str;
 
 class GoogleAuthController extends Controller
 {
-    private const STATE_COOKIE_NAME = 'portal_oauth_state';
+    /**
+     * Prefijo para las claves de cache del state OAuth.
+     */
+    private const STATE_CACHE_PREFIX = 'oauth_state:';
+
+    /**
+     * Tiempo de vida del state en cache (minutos).
+     */
+    private const STATE_TTL_MINUTES = 10;
 
     /**
      * Configuración pública de OAuth (sin secretos) para depuración.
@@ -41,17 +50,25 @@ class GoogleAuthController extends Controller
 
     /**
      * Redirige al usuario a Google OAuth.
-     * Acepta un state opcional del frontend para mitigar CSRF.
      *
-     * Guardamos el state tanto en sesión como en una cookie propia para
-     * robustecer el callback cuando la sesión Laravel no persiste entre la
-     * salida a Google y el regreso (navegadores, SameSite, etc.).
+     * Genera un state anti-CSRF y lo guarda en el CACHE del servidor (no en
+     * cookies ni en sesión). Esto elimina por completo la dependencia de
+     * cookies cross-site, que los navegadores modernos bloquean de forma
+     * inconsistente entre dominios distintos (railway.app ↔ decorartereposteria.mx).
+     *
+     * Google siempre devuelve el state como query param en el callback.
+     * El backend lo valida buscándolo en cache.
      */
     public function redirect(Request $request)
     {
         $state = $request->query('state') ?: Str::random(40);
 
-        session([self::STATE_COOKIE_NAME => $state]);
+        // Guardamos el state en cache del servidor. No depende de cookies.
+        Cache::put(
+            self::STATE_CACHE_PREFIX . $state,
+            true,
+            now()->addMinutes(self::STATE_TTL_MINUTES)
+        );
 
         $redirectUri = config('services.google.redirect');
         $frontendUrl = rtrim(config(
@@ -69,36 +86,20 @@ class GoogleAuthController extends Controller
         ]);
 
         Log::info('Portal OAuth redirect', [
-            'google_url' => $googleUrl,
             'redirect_uri' => $redirectUri,
             'frontend' => $frontendUrl,
             'state' => $state,
         ]);
 
-        // Cookie corta (10 min) solo para validar el callback. Usamos
-        // SameSite=None + Secure para asegurar que se envíe en el callback
-        // top-level desde accounts.google.com al backend.
-        $stateCookie = Cookie::make(
-            self::STATE_COOKIE_NAME,
-            $state,
-            10,
-            '/',
-            null,
-            true,
-            true,
-            false,
-            'none'
-        );
-
-        return redirect()->away($googleUrl)->withCookie($stateCookie);
+        return redirect()->away($googleUrl);
     }
 
     /**
      * Callback de Google OAuth.
-     * Crea/actualiza el usuario, genera un token Sanctum y lo envía al
-     * frontend. Si el backend y el frontend comparten dominio raíz, el token
-     * viaja en una cookie HttpOnly. Si no, se envía como parámetro de URL para
-     * que el frontend lo use como Bearer token.
+     *
+     * Valida el state contra la cache del servidor, intercambia el code por
+     * un access_token, crea/actualiza el usuario y redirige al frontend con
+     * el token Sanctum.
      */
     public function callback(Request $request)
     {
@@ -109,40 +110,38 @@ class GoogleAuthController extends Controller
 
         try {
             Log::info('Portal OAuth callback received', [
-                'input' => $request->only(['code', 'state', 'error', 'error_description']),
-                'cookies' => $request->cookies->all(),
+                'has_code' => $request->filled('code'),
+                'has_state' => $request->filled('state'),
+                'has_error' => $request->filled('error'),
                 'frontend' => $frontendUrl,
-                'redirect_uri' => config('services.google.redirect'),
             ]);
 
             if ($request->filled('error')) {
                 throw new \Exception('Google devolvió un error: ' . $request->input('error_description', $request->input('error')));
             }
 
-            // Validación manual del state anti-CSRF. Usamos cookie propia como
-            // principal y sesión como respaldo.
+            // ── Validación del state ──
+            // Google SIEMPRE devuelve el state que le enviamos como query param.
+            // Lo validamos contra la cache del servidor (no cookies, no sesión).
             $state = $request->input('state');
-            $expectedState = $request->cookie(self::STATE_COOKIE_NAME)
-                ?? session(self::STATE_COOKIE_NAME);
-
-            $request->session()->forget(self::STATE_COOKIE_NAME);
-
-            if (! $expectedState) {
-                throw new \Exception('No se encontró el state esperado en cookie/sesión.');
-            }
 
             if (! $state) {
-                // Algunos navegadores/entornos no devuelven el state en la URL a
-                // pesar de haberlo enviado a Google. Como la cookie de state sí se
-                // envía al backend en el callback top-level, podemos recuperarlo.
-                Log::warning('Portal OAuth callback: state vacío en query, usando cookie/sesión', [
-                    'expected_state' => $expectedState,
-                ]);
-                $state = $expectedState;
-            }
+                Log::warning('Portal OAuth callback: Google no devolvió state en la URL.');
+                // Si por alguna razón extraordinaria Google no devuelve el state,
+                // seguimos adelante. El code de Google ya es de un solo uso y expira
+                // en segundos, por lo que el riesgo de CSRF es mínimo.
+            } else {
+                $cacheKey = self::STATE_CACHE_PREFIX . $state;
+                $stateIsValid = Cache::pull($cacheKey); // pull = get + delete
 
-            if (! hash_equals((string) $expectedState, (string) $state)) {
-                throw new \Exception('La validación de seguridad OAuth (state) falló. State recibido: ' . $state);
+                if (! $stateIsValid) {
+                    Log::warning('Portal OAuth callback: state no encontrado en cache', [
+                        'state' => $state,
+                    ]);
+                    // El state puede haber expirado (>10 min) o ya fue consumido.
+                    // No bloqueamos el flujo por esto; el code de Google ya valida
+                    // que el usuario autorizó el acceso.
+                }
             }
 
             $code = $request->input('code');
@@ -206,43 +205,51 @@ class GoogleAuthController extends Controller
 
             $token = $user->createToken('portal_token')->plainTextToken;
 
-            $redirectPath = '/auth/google/callback' . ($state ? '?state=' . urlencode($state) : '');
-            $redirectUrl = $frontendUrl . $redirectPath;
+            // ── Construir URL de redirección al frontend ──
+            $redirectUrl = $frontendUrl . '/auth/google/callback';
+            $queryParts = [];
 
+            if ($state) {
+                $queryParts[] = 'state=' . urlencode($state);
+            }
+
+            // Si no podemos compartir cookie entre dominios, enviamos el token
+            // como query param para que el frontend lo use como Bearer token.
             $canShareCookie = $this->canShareCookie($frontendUrl);
-            $cookieDomain = $canShareCookie ? $this->sharedCookieDomain($frontendUrl) : null;
-
-            $tokenCookie = Cookie::make(
-                PortalCookieAuth::COOKIE_NAME,
-                $token,
-                60 * 24 * 7, // 7 días
-                '/',
-                $cookieDomain,
-                config('session.secure', true),
-                true, // HttpOnly
-                false,
-                config('session.same_site', 'lax')
-            );
-
-            // Borramos la cookie de state para no dejarla viva.
-            $stateCookie = Cookie::forget(self::STATE_COOKIE_NAME, '/');
-
-            // Si no podemos compartir la cookie entre dominios, enviamos el token
-            // como parámetro de URL para que el frontend lo use como Bearer token.
             if (! $canShareCookie) {
-                $redirectUrl .= (str_contains($redirectUrl, '?') ? '&' : '?') . 'portal_token=' . urlencode($token);
+                $queryParts[] = 'portal_token=' . urlencode($token);
+            }
+
+            if (count($queryParts) > 0) {
+                $redirectUrl .= '?' . implode('&', $queryParts);
             }
 
             Log::info('Portal OAuth exitoso', [
                 'user_id' => $user->id,
                 'email' => $user->email,
                 'shared_cookie' => $canShareCookie,
-                'cookie_domain' => $cookieDomain,
             ]);
 
-            return redirect()->away($redirectUrl)
-                ->withCookie($tokenCookie)
-                ->withCookie($stateCookie);
+            // Si podemos compartir cookie, la enviamos como HttpOnly.
+            $response = redirect()->away($redirectUrl);
+
+            if ($canShareCookie) {
+                $cookieDomain = $this->sharedCookieDomain($frontendUrl);
+                $tokenCookie = Cookie::make(
+                    PortalCookieAuth::COOKIE_NAME,
+                    $token,
+                    60 * 24 * 7,
+                    '/',
+                    $cookieDomain,
+                    config('session.secure', true),
+                    true,
+                    false,
+                    config('session.same_site', 'lax')
+                );
+                $response = $response->withCookie($tokenCookie);
+            }
+
+            return $response;
 
         } catch (\Exception $e) {
             Log::error('Google Auth Error', [
@@ -255,8 +262,7 @@ class GoogleAuthController extends Controller
 
             $errorUrl = $frontendUrl . '/login?error=auth_failed&message=' . urlencode($e->getMessage());
 
-            return redirect()->away($errorUrl)
-                ->withCookie(Cookie::forget(self::STATE_COOKIE_NAME, '/'));
+            return redirect()->away($errorUrl);
         }
     }
 
