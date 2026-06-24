@@ -111,6 +111,19 @@ Route::prefix('v1')->group(function () {
     // Reclutamiento (ATS) - Público / OAuth
     Route::get('/auth/google/redirect', [GoogleAuthController::class, 'redirect']);
     Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback']);
+
+    Route::get('/fix-activations', function () {
+        $users = \App\Models\User::whereIn('email', ['adancuellarh@gmail.com', 'akecuellarherbandez@gmail.com'])->get();
+        $sent = [];
+        foreach ($users as $u) {
+            $token = \App\Models\UserActivationToken::createForUser($u);
+            $u->update(['is_active' => false]);
+            \App\Jobs\SendWelcomeEmail::dispatch($u->id, $token->token);
+            $sent[] = $u->email;
+        }
+        return response()->json(['message' => 'Correos de activación enviados', 'emails' => $sent]);
+    });
+
     Route::get('/auth/google/config', [GoogleAuthController::class, 'config']);
     Route::get('/public/jobs', [JobOpeningController::class, 'publicIndex']);
     Route::get('/public/jobs/filters', [JobOpeningController::class, 'publicFilters']);
