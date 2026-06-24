@@ -296,18 +296,31 @@ class ApplicationController extends Controller
         }
 
         $correct = 0;
+        $gradeable = 0; // Questions that actually have a correct answer defined
         foreach ($questions as $index => $question) {
-            if (! is_array($question) || ! array_key_exists('correctIndex', $question)) {
+            if (! is_array($question)) {
                 continue;
             }
 
+            // If no correctIndex is set, the question is informational – always counts as correct.
+            if (! array_key_exists('correctIndex', $question) || $question['correctIndex'] === null || $question['correctIndex'] === '') {
+                $correct++;
+                continue;
+            }
+
+            $gradeable++;
             if (($validated['answers'][$index] ?? null) === $question['correctIndex']) {
                 $correct++;
             }
         }
 
         $total = count($questions);
-        $score = (int) round(($correct / $total) * 10);
+        // If no gradeable questions exist, the whole screening is informational – auto-pass.
+        if ($gradeable === 0) {
+            $score = 10;
+        } else {
+            $score = (int) round(($correct / $total) * 10);
+        }
         $threshold = $app->jobOpening->screening_pass_score ?? self::MIN_SCREENING_SCORE;
         $passed = $score >= $threshold;
         $nextStatus = $passed ? 'screening' : 'rejected';
