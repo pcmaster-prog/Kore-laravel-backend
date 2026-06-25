@@ -3,8 +3,9 @@
 namespace App\Services;
 
 use App\Models\FcmToken;
-use Illuminate\Support\Facades\Http;
+use App\Models\User;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -22,14 +23,20 @@ use Illuminate\Support\Facades\Log;
 class NotificationService
 {
     private string $projectId;
+
     private string $clientEmail;
+
     private string $privateKey;
 
     public function __construct()
     {
-        $this->projectId   = config('services.firebase.project_id', '');
-        $this->clientEmail = config('services.firebase.client_email', '');
-        $this->privateKey  = str_replace('\\n', "\n", config('services.firebase.private_key', ''));
+        $this->projectId = trim(config('services.firebase.project_id', ''));
+        $this->clientEmail = trim(config('services.firebase.client_email', ''));
+        
+        $rawKey = config('services.firebase.private_key', '');
+        $rawKey = trim($rawKey);
+        $rawKey = trim($rawKey, "\"'");
+        $this->privateKey = str_replace('\\n', "\n", $rawKey);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -42,7 +49,9 @@ class NotificationService
     public function sendToUser(string $userId, string $title, string $body, array $data = []): void
     {
         $tokens = FcmToken::where('user_id', $userId)->pluck('token')->toArray();
-        if (empty($tokens)) return;
+        if (empty($tokens)) {
+            return;
+        }
 
         $this->sendToTokens($tokens, $title, $body, $data);
     }
@@ -53,7 +62,9 @@ class NotificationService
     public function sendToUsers(array $userIds, string $title, string $body, array $data = []): void
     {
         $tokens = FcmToken::whereIn('user_id', $userIds)->pluck('token')->toArray();
-        if (empty($tokens)) return;
+        if (empty($tokens)) {
+            return;
+        }
 
         $this->sendToTokens($tokens, $title, $body, $data);
     }
@@ -63,12 +74,14 @@ class NotificationService
      */
     public function sendToManagers(string $empresaId, string $title, string $body, array $data = []): void
     {
-        $managerIds = \App\Models\User::where('empresa_id', $empresaId)
+        $managerIds = User::where('empresa_id', $empresaId)
             ->whereIn('role', ['admin', 'supervisor'])
             ->pluck('id')
             ->toArray();
 
-        if (empty($managerIds)) return;
+        if (empty($managerIds)) {
+            return;
+        }
 
         $this->sendToUsers($managerIds, $title, $body, $data);
     }
@@ -92,10 +105,12 @@ class NotificationService
      */
     private function sendToTokens(array $tokens, string $title, string $body, array $data = []): void
     {
-        if (empty($tokens) || empty($this->projectId)) return;
+        if (empty($tokens) || empty($this->projectId)) {
+            return;
+        }
 
         // Convertir todos los valores de data a string (requerido por FCM)
-        $stringData = collect($data)->map(fn($v) => (string) $v)->toArray();
+        $stringData = collect($data)->map(fn ($v) => (string) $v)->toArray();
 
         try {
             $accessToken = $this->getAccessToken();
@@ -109,14 +124,14 @@ class NotificationService
                         'token' => $token,
                         'notification' => [
                             'title' => $title,
-                            'body'  => $body,
+                            'body' => $body,
                         ],
                         'data' => $stringData,
                         'webpush' => [
                             'notification' => [
                                 'title' => $title,
-                                'body'  => $body,
-                                'icon'  => '/icons/icon-192x192.png',
+                                'body' => $body,
+                                'icon' => '/icons/icon-192x192.png',
                             ],
                         ],
                     ],
@@ -132,9 +147,9 @@ class NotificationService
                         $invalidTokens[] = $token;
                     } else {
                         Log::warning('FCM notification failed', [
-                            'token_preview' => substr($token, 0, 20) . '...',
-                            'status'        => $response->status(),
-                            'error'         => $errorMsg,
+                            'token_preview' => substr($token, 0, 20).'...',
+                            'status' => $response->status(),
+                            'error' => $errorMsg,
                         ]);
                         throw new \Exception("FCM API Error [{$errorCode}]: {$errorMsg}");
                     }
@@ -142,13 +157,13 @@ class NotificationService
             }
 
             // Limpiar tokens inválidos
-            if (!empty($invalidTokens)) {
+            if (! empty($invalidTokens)) {
                 FcmToken::whereIn('token', $invalidTokens)->delete();
-                Log::info('FCM: eliminados ' . count($invalidTokens) . ' tokens inválidos.');
+                Log::info('FCM: eliminados '.count($invalidTokens).' tokens inválidos.');
             }
 
         } catch (\Throwable $e) {
-            Log::warning('FCM NotificationService error: ' . $e->getMessage());
+            Log::warning('FCM NotificationService error: '.$e->getMessage());
             throw $e; // Re-lanzar para que el endpoint de prueba lo capture
         }
     }
@@ -160,18 +175,18 @@ class NotificationService
      */
     private function getAccessToken(): string
     {
-        $cacheKey = 'fcm_oauth_token_' . md5($this->clientEmail);
+        $cacheKey = 'fcm_oauth_token_'.md5($this->clientEmail);
 
         return Cache::remember($cacheKey, now()->addMinutes(55), function () {
             $jwt = $this->buildJwt();
 
             $response = Http::asForm()->post('https://oauth2.googleapis.com/token', [
                 'grant_type' => 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-                'assertion'  => $jwt,
+                'assertion' => $jwt,
             ]);
 
             if ($response->failed()) {
-                throw new \RuntimeException('FCM OAuth2 token error: ' . $response->body());
+                throw new \RuntimeException('FCM OAuth2 token error: '.$response->body());
             }
 
             return $response->json('access_token');
@@ -191,24 +206,24 @@ class NotificationService
         ]));
 
         $claimSet = $this->base64url(json_encode([
-            'iss'   => $this->clientEmail,
+            'iss' => $this->clientEmail,
             'scope' => 'https://www.googleapis.com/auth/firebase.messaging',
-            'aud'   => 'https://oauth2.googleapis.com/token',
-            'iat'   => $now,
-            'exp'   => $now + 3600,
+            'aud' => 'https://oauth2.googleapis.com/token',
+            'iat' => $now,
+            'exp' => $now + 3600,
         ]));
 
         $signingInput = "{$header}.{$claimSet}";
 
         $privateKey = openssl_pkey_get_private($this->privateKey);
-        if (!$privateKey) {
+        if (! $privateKey) {
             throw new \RuntimeException('FCM: No se pudo cargar la private key. Verifica FIREBASE_PRIVATE_KEY.');
         }
 
         $signature = '';
         openssl_sign($signingInput, $signature, $privateKey, OPENSSL_ALGO_SHA256);
 
-        return $signingInput . '.' . $this->base64url($signature);
+        return $signingInput.'.'.$this->base64url($signature);
     }
 
     private function base64url(string $data): string

@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\FcmToken;
-use Illuminate\Http\Request;
+use App\Services\NotificationService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class FcmTokenController extends Controller
 {
@@ -17,16 +19,16 @@ class FcmTokenController extends Controller
         $u = $request->user();
 
         $data = $request->validate([
-            'token'    => ['required', 'string', 'max:500'],
+            'token' => ['required', 'string', 'max:500'],
             'platform' => ['nullable', 'in:web,android,ios'],
         ]);
 
         FcmToken::updateOrCreate(
             ['user_id' => $u->id, 'token' => $data['token']],
             [
-                'empresa_id'   => $u->empresa_id,
-                'platform'     => $data['platform'] ?? 'web',
-                'user_agent'   => substr((string) $request->userAgent(), 0, 300),
+                'empresa_id' => $u->empresa_id,
+                'platform' => $data['platform'] ?? 'web',
+                'user_agent' => substr((string) $request->userAgent(), 0, 300),
                 'last_used_at' => now(),
             ]
         );
@@ -58,7 +60,7 @@ class FcmTokenController extends Controller
         $u = $request->user();
 
         try {
-            app(\App\Services\NotificationService::class)->sendToUser(
+            app(NotificationService::class)->sendToUser(
                 userId: $u->id,
                 title: '🔔 Prueba de Notificación',
                 body: 'Si lees esto, las notificaciones están funcionando correctamente en este dispositivo.',
@@ -67,8 +69,11 @@ class FcmTokenController extends Controller
 
             return response()->json(['message' => 'Notificación enviada con éxito']);
         } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('Error enviando notificación FCM de prueba: ' . $e->getMessage(), ['exception' => $e]);
-            return response()->json(['message' => 'Error al enviar la notificación. Inténtalo de nuevo más tarde.'], 500);
+            Log::error('Error enviando notificación FCM de prueba: '.$e->getMessage(), ['exception' => $e]);
+
+            return response()->json([
+                'message' => 'Error al enviar la notificación: ' . $e->getMessage()
+            ], 500);
         }
     }
 }
