@@ -143,7 +143,7 @@ class NotificationService
                 if ($response->failed()) {
                     $errorCode = $response->json('error.details.0.errorCode') ?? $response->json('error.status');
                     $errorMsg = $response->json('error.message') ?? 'Unknown error';
-                    if (in_array($errorCode, ['UNREGISTERED', 'INVALID_ARGUMENT'])) {
+                    if (in_array($errorCode, ['UNREGISTERED', 'INVALID_ARGUMENT', 'SENDER_ID_MISMATCH'])) {
                         $invalidTokens[] = $token;
                     } else {
                         Log::warning('FCM notification failed', [
