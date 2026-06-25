@@ -14,10 +14,12 @@ class Position extends Model
         'name',
         'description',
         'is_active',
+        'permissions',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'permissions' => 'array',
     ];
 
     public function empresa()

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\EnsureModuleEnabled;
+use App\Http\Middleware\EnsurePositionPermission;
 use App\Http\Middleware\EnsureRole;
 use App\Http\Middleware\EnsureTenant;
 use App\Http\Middleware\PortalCookieAuth;
@@ -32,6 +33,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'module' => EnsureModuleEnabled::class,
             'role' => EnsureRole::class,
             'portal.cookie' => PortalCookieAuth::class,
+            'position.permission' => EnsurePositionPermission::class,
         ]);
         $middleware->api(prepend: [
             EnsureFrontendRequestsAreStateful::class,

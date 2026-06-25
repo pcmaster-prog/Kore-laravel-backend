@@ -72,4 +72,36 @@ class PositionModuleController extends Controller
             'modulos' => array_unique(array_merge($companyModules, $modulosEfectivos)),
         ]);
     }
+
+    // Obtener los permisos granulares del empleado actual basados en su puesto.
+    // Los administradores reciben acceso total a todas las pestañas.
+    public function myPermissions(Request $request)
+    {
+        $user = $request->user();
+
+        if ($user->role === 'admin') {
+            return response()->json([
+                'data' => [
+                    'produccion_maderas' => ['dashboard', 'inventario', 'produccion', 'ensamblaje', 'pedidos'],
+                    'produccion_pesaje' => ['dashboard', 'registrar', 'historial'],
+                ],
+            ]);
+        }
+
+        $empleado = $user->empleado;
+
+        if (! $empleado || ! $empleado->position_id) {
+            return response()->json(['data' => (object) []]);
+        }
+
+        $position = $empleado->position;
+
+        if (! $position) {
+            return response()->json(['data' => (object) []]);
+        }
+
+        $permissions = $position->permissions ?? [];
+
+        return response()->json(['data' => empty($permissions) ? (object) [] : $permissions]);
+    }
 }

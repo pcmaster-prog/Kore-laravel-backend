@@ -188,6 +188,7 @@ Route::prefix('v1')->group(function () {
 
         // Módulos por Puesto (DecorArte Fase 1)
         Route::get('/me/modulos', [PositionModuleController::class, 'myModules']);
+        Route::get('/me/permisos', [PositionModuleController::class, 'myPermissions']);
         Route::get('/puestos/modulos-disponibles', [PositionModuleController::class, 'index'])->middleware('role:admin');
         Route::get('/puestos/{id}/modulos', [PositionModuleController::class, 'show'])->middleware('role:admin');
         Route::post('/puestos/{id}/modulos/sync', [PositionModuleController::class, 'sync'])->middleware('role:admin');
@@ -648,33 +649,61 @@ Route::prefix('v1')->group(function () {
                 Route::get('maderas/tablas-cortes', [MaderasTablaCorteController::class, 'index']);
                 Route::post('maderas/tablas-cortes', [MaderasTablaCorteController::class, 'store']);
                 Route::get('maderas/temporadas/activa', [MaderasTemporadaController::class, 'activa']);
-                Route::get('maderas/dashboard', [MaderasCatalogoController::class, 'dashboard']);
+                Route::get('maderas/dashboard', [MaderasCatalogoController::class, 'dashboard'])
+                    ->middleware('position.permission:produccion_maderas,dashboard');
 
                 // Catálogo y Tablas de Corte (Admin/Supervisor)
                 Route::apiResource('maderas/catalogo', MaderasCatalogoController::class);
                 Route::apiResource('maderas/tablas-corte', MaderasTablaCorteController::class);
                 Route::apiResource('maderas/temporadas', MaderasTemporadaController::class);
 
-                // Operativa
-                Route::apiResource('maderas/inventario', MaderasInventarioController::class);
-                Route::apiResource('maderas/produccion', MaderasProduccionController::class);
-                Route::apiResource('maderas/ensambles', MaderasEnsambleController::class);
+                // Operativa con permisos granulares por puesto
+                Route::apiResource('maderas/inventario', MaderasInventarioController::class)
+                    ->middleware('position.permission:produccion_maderas,inventario');
+                Route::apiResource('maderas/produccion', MaderasProduccionController::class)
+                    ->middleware('position.permission:produccion_maderas,produccion');
+                Route::apiResource('maderas/ensambles', MaderasEnsambleController::class)
+                    ->middleware('position.permission:produccion_maderas,ensamblaje');
 
                 // Pedidos (Rutas personalizadas antes del apiResource)
-                Route::get('maderas/pedidos/calcular', [MaderasPedidoController::class, 'calcular']);
-                Route::get('maderas/pedidos/{id}/pdf', [MaderasPedidoController::class, 'pdf']);
-                Route::apiResource('maderas/pedidos', MaderasPedidoController::class);
+                Route::get('maderas/pedidos/calcular', [MaderasPedidoController::class, 'calcular'])
+                    ->middleware('position.permission:produccion_maderas,pedidos');
+                Route::get('maderas/pedidos/{id}/pdf', [MaderasPedidoController::class, 'pdf'])
+                    ->middleware('position.permission:produccion_maderas,pedidos')
+                    ->whereUuid('id');
+                Route::apiResource('maderas/pedidos', MaderasPedidoController::class)
+                    ->middleware('position.permission:produccion_maderas,pedidos');
             });
 
             // ── Módulo Pesaje ────────────────────────────────────────────────────────
             Route::middleware(['module:produccion_pesaje'])->group(function () {
                 // Rutas personalizadas del frontend
-                Route::get('pesaje/dashboard', [PesajeRegistroController::class, 'dashboard']);
-                Route::get('pesaje/historial', [PesajeRegistroController::class, 'index']);
-                Route::post('pesaje', [PesajeRegistroController::class, 'store']);
+                Route::get('pesaje/dashboard', [PesajeRegistroController::class, 'dashboard'])
+                    ->middleware('position.permission:produccion_pesaje,dashboard');
+                Route::get('pesaje/historial', [PesajeRegistroController::class, 'index'])
+                    ->middleware('position.permission:produccion_pesaje,historial');
+                Route::post('pesaje', [PesajeRegistroController::class, 'store'])
+                    ->middleware('position.permission:produccion_pesaje,registrar');
 
                 Route::apiResource('pesaje/sabores', PesajeSaborController::class);
-                Route::apiResource('pesaje/registros', PesajeRegistroController::class);
+
+                // Registros: lectura requiere historial, escritura requiere registrar
+                Route::get('pesaje/registros', [PesajeRegistroController::class, 'index'])
+                    ->middleware('position.permission:produccion_pesaje,historial');
+                Route::get('pesaje/registros/{registro}', [PesajeRegistroController::class, 'show'])
+                    ->middleware('position.permission:produccion_pesaje,historial')
+                    ->whereUuid('registro');
+                Route::post('pesaje/registros', [PesajeRegistroController::class, 'store'])
+                    ->middleware('position.permission:produccion_pesaje,registrar');
+                Route::put('pesaje/registros/{registro}', [PesajeRegistroController::class, 'update'])
+                    ->middleware('position.permission:produccion_pesaje,registrar')
+                    ->whereUuid('registro');
+                Route::patch('pesaje/registros/{registro}', [PesajeRegistroController::class, 'update'])
+                    ->middleware('position.permission:produccion_pesaje,registrar')
+                    ->whereUuid('registro');
+                Route::delete('pesaje/registros/{registro}', [PesajeRegistroController::class, 'destroy'])
+                    ->middleware('position.permission:produccion_pesaje,registrar')
+                    ->whereUuid('registro');
             });
 
             // Ruta de prueba

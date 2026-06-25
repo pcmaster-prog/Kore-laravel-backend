@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\ModulePosition;
 use App\Models\Position;
 use App\Models\PositionTask;
 use App\Models\TaskTemplate;
@@ -35,6 +36,7 @@ class PositionsController extends Controller
                 'activo' => $p->is_active,
                 'empleados_count' => $p->empleados_count,
                 'modulos' => $p->modules->pluck('module_slug'),
+                'permisos' => $p->permissions ?? (object) [],
             ];
         });
 
@@ -50,6 +52,9 @@ class PositionsController extends Controller
             'name' => ['required', 'string', 'max:120'],
             'description' => ['nullable', 'string'],
             'is_active' => ['nullable', 'boolean'],
+            'permissions' => ['nullable', 'array'],
+            'modulos' => ['nullable', 'array'],
+            'modulos.*' => ['string', 'max:100'],
         ]);
 
         $position = Position::create([
@@ -57,7 +62,12 @@ class PositionsController extends Controller
             'name' => $data['name'],
             'description' => $data['description'] ?? null,
             'is_active' => $data['is_active'] ?? true,
+            'permissions' => $data['permissions'] ?? [],
         ]);
+
+        if (array_key_exists('modulos', $data)) {
+            $this->syncModules($position, $data['modulos']);
+        }
 
         return response()->json(['data' => [
             'id' => $position->id,
@@ -65,6 +75,7 @@ class PositionsController extends Controller
             'descripcion' => $position->description,
             'activo' => $position->is_active,
             'modulos' => [],
+            'permisos' => $position->permissions ?? (object) [],
         ]], 201);
     }
 
@@ -88,6 +99,7 @@ class PositionsController extends Controller
             'activo' => $position->is_active,
             'empleados_count' => $position->empleados_count,
             'modulos' => $position->modules->pluck('module_slug'),
+            'permisos' => $position->permissions ?? (object) [],
         ]]);
     }
 
@@ -105,10 +117,17 @@ class PositionsController extends Controller
             'name' => ['sometimes', 'string', 'max:120'],
             'description' => ['sometimes', 'nullable', 'string'],
             'is_active' => ['sometimes', 'boolean'],
+            'permissions' => ['sometimes', 'nullable', 'array'],
+            'modulos' => ['sometimes', 'nullable', 'array'],
+            'modulos.*' => ['string', 'max:100'],
         ]);
 
         $position->fill($data);
         $position->save();
+
+        if (array_key_exists('modulos', $data)) {
+            $this->syncModules($position, $data['modulos']);
+        }
 
         $position->loadCount('empleados');
         $position->load('modules');
@@ -120,7 +139,27 @@ class PositionsController extends Controller
             'activo' => $position->is_active,
             'empleados_count' => $position->empleados_count,
             'modulos' => $position->modules->pluck('module_slug'),
+            'permisos' => $position->permissions ?? (object) [],
         ]]);
+    }
+
+    private function syncModules(Position $position, array $slugs): void
+    {
+        $position->modules()->delete();
+
+        if (empty($slugs)) {
+            return;
+        }
+
+        $now = now();
+        $inserts = array_map(fn (string $slug) => [
+            'position_id' => $position->id,
+            'module_slug' => $slug,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ], $slugs);
+
+        ModulePosition::insert($inserts);
     }
 
     public function destroy(Request $request, string $id)
