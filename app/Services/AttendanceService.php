@@ -22,16 +22,22 @@ class AttendanceService
             ->orderBy('occurred_at')
             ->get();
 
-        $checkIn    = null;
-        $checkOut   = null;
+        $checkIn = null;
+        $checkOut = null;
         $breakStart = null;
         $breakSeconds = 0;
 
         foreach ($events as $e) {
-            if ($e->type === 'check_in')  $checkIn  = $checkIn ?? $e->occurred_at;
-            if ($e->type === 'check_out') $checkOut = $e->occurred_at;
+            if ($e->type === 'check_in') {
+                $checkIn = $checkIn ?? $e->occurred_at;
+            }
+            if ($e->type === 'check_out') {
+                $checkOut = $e->occurred_at;
+            }
 
-            if ($e->type === 'break_start') $breakStart = $e->occurred_at;
+            if ($e->type === 'break_start') {
+                $breakStart = $e->occurred_at;
+            }
             if ($e->type === 'break_end' && $breakStart) {
                 $breakSeconds += max(0, $breakStart->diffInSeconds($e->occurred_at));
                 $breakStart = null;
@@ -39,10 +45,14 @@ class AttendanceService
         }
 
         // Admin overrides tienen prioridad sobre los eventos originales
-        if ($day->first_check_in_at) $checkIn = $day->first_check_in_at;
-        if ($day->last_check_out_at) $checkOut = $day->last_check_out_at;
+        if ($day->first_check_in_at) {
+            $checkIn = $day->first_check_in_at;
+        }
+        if ($day->last_check_out_at) {
+            $checkOut = $day->last_check_out_at;
+        }
 
-        if (!$checkIn) {
+        if (! $checkIn) {
             return ['worked_minutes' => 0, 'break_minutes' => 0];
         }
 
@@ -60,7 +70,7 @@ class AttendanceService
         $settings = is_array($empresa?->settings) ? $empresa->settings : [];
         $breakPausesClock = $settings['operativo']['break_pauses_clock'] ?? true;
 
-        $totalSeconds  = max(0, $checkIn->diffInSeconds($effectiveCheckOut));
+        $totalSeconds = max(0, $checkIn->diffInSeconds($effectiveCheckOut));
 
         if ($breakPausesClock) {
             $workedSeconds = max(0, $totalSeconds - $breakSeconds);
@@ -70,7 +80,7 @@ class AttendanceService
 
         return [
             'worked_minutes' => (int) round($workedSeconds / 60),
-            'break_minutes'  => (int) round($breakSeconds  / 60),
+            'break_minutes' => (int) round($breakSeconds / 60),
         ];
     }
 
@@ -91,7 +101,7 @@ class AttendanceService
             $daySchedule = collect($weekSchedule)->firstWhere('weekday', $weekday);
             if ($daySchedule) {
                 return [
-                    'check_in_time'  => $daySchedule['check_in_time'] ?? null,
+                    'check_in_time' => $daySchedule['check_in_time'] ?? null,
                     'check_out_time' => $daySchedule['check_out_time'] ?? null,
                     'is_working_day' => (bool) ($daySchedule['is_working_day'] ?? true),
                 ];
@@ -100,12 +110,12 @@ class AttendanceService
 
         // Fallback al horario base
         $checkInTime = $operativo['check_in_time'] ?? null;
-        if (!$checkInTime) {
+        if (! $checkInTime) {
             return null;
         }
 
         return [
-            'check_in_time'  => $checkInTime,
+            'check_in_time' => $checkInTime,
             'check_out_time' => $operativo['check_out_time'] ?? null,
             'is_working_day' => true,
         ];
@@ -117,6 +127,7 @@ class AttendanceService
     public static function isNonWorkingDay(string $empresaId, string $date): bool
     {
         $schedule = self::getDaySchedule($empresaId, $date);
+
         return $schedule !== null && $schedule['is_working_day'] === false;
     }
 
@@ -131,21 +142,21 @@ class AttendanceService
      */
     public static function calculateExpectedExitTime(AttendanceDay $day): ?Carbon
     {
-        if (!$day->first_check_in_at) {
+        if (! $day->first_check_in_at) {
             return null;
         }
 
         $empresa = Empresa::find($day->empresa_id);
         $settings = is_array($empresa?->settings) ? $empresa->settings : [];
         $operativo = $settings['operativo'] ?? [];
-        $maxHours = (int)($operativo['max_hours'] ?? 8);
-        $mealDuration = (int)($operativo['meal_duration_minutes'] ?? 30);
-        $breakPausesClock = (bool)($operativo['break_pauses_clock'] ?? true);
+        $maxHours = (int) ($operativo['max_hours'] ?? 8);
+        $mealDuration = (int) ($operativo['meal_duration_minutes'] ?? 30);
+        $breakPausesClock = (bool) ($operativo['break_pauses_clock'] ?? true);
 
         $baseMinutes = $maxHours * 60;
 
         // Sumar exceso de comida
-        $mealOvertime = (int)($day->meal_overtime_minutes ?? 0);
+        $mealOvertime = (int) ($day->meal_overtime_minutes ?? 0);
 
         // Calcular minutos de break para compensar si pausa reloj
         $breakCompensation = 0;
@@ -168,11 +179,11 @@ class AttendanceService
     {
         $schedule = self::getDaySchedule($day->empresa_id, $day->date->toDateString());
 
-        if (!$schedule || !$schedule['is_working_day'] || !$schedule['check_out_time']) {
+        if (! $schedule || ! $schedule['is_working_day'] || ! $schedule['check_out_time']) {
             return null;
         }
 
-        return Carbon::parse($day->date->toDateString() . ' ' . $schedule['check_out_time']);
+        return Carbon::parse($day->date->toDateString().' '.$schedule['check_out_time']);
     }
 
     /**
@@ -186,17 +197,17 @@ class AttendanceService
     public static function calculateRequiredExitTime(AttendanceDay $day): ?Carbon
     {
         $officialExit = self::calculateOfficialExitTime($day);
-        if (!$officialExit) {
+        if (! $officialExit) {
             return null;
         }
 
-        $lateMinutes = (int)($day->late_minutes ?? 0);
-        $mealOvertime = (int)($day->meal_overtime_minutes ?? 0);
+        $lateMinutes = (int) ($day->late_minutes ?? 0);
+        $mealOvertime = (int) ($day->meal_overtime_minutes ?? 0);
 
         $empresa = Empresa::find($day->empresa_id);
         $settings = is_array($empresa?->settings) ? $empresa->settings : [];
         $operativo = $settings['operativo'] ?? [];
-        $breakPausesClock = (bool)($operativo['break_pauses_clock'] ?? true);
+        $breakPausesClock = (bool) ($operativo['break_pauses_clock'] ?? true);
 
         $breakCompensation = 0;
         if ($breakPausesClock) {
@@ -218,10 +229,14 @@ class AttendanceService
             ->where('date', $date)
             ->first();
 
-        if ($ov) return $ov->type === 'rest';
+        if ($ov) {
+            return $ov->type === 'rest';
+        }
 
         $emp = Empleado::where('empresa_id', $empresaId)->where('id', $empleadoId)->first();
-        if (!$emp || $emp->rest_weekday === null) return false;
+        if (! $emp || $emp->rest_weekday === null) {
+            return false;
+        }
 
         $weekStart = self::weekStartIndex($empresaId);
 
@@ -246,6 +261,7 @@ class AttendanceService
         }
 
         $schedule = self::getDaySchedule($empresaId, $date);
+
         return $schedule['check_in_time'] ?? null;
     }
 
@@ -255,9 +271,11 @@ class AttendanceService
      */
     public static function calculateLateMinutes(?Carbon $checkInTime, string $checkInTimeStr): int
     {
-        if (!$checkInTime || !$checkInTimeStr) return 0;
+        if (! $checkInTime || ! $checkInTimeStr) {
+            return 0;
+        }
 
-        $scheduled = Carbon::parse($checkInTime->toDateString() . ' ' . $checkInTimeStr);
+        $scheduled = Carbon::parse($checkInTime->toDateString().' '.$checkInTimeStr);
         if ($checkInTime->greaterThan($scheduled->copy()->addMinute())) {
             return (int) ceil($checkInTime->diffInMinutes($scheduled));
         }
@@ -273,6 +291,7 @@ class AttendanceService
         $empresa = Empresa::find($empresaId);
         $ws = $empresa?->settings['calendar']['week_start'] ?? 0;
         $ws = (int) $ws;
+
         return ($ws >= 0 && $ws <= 6) ? $ws : 0;
     }
 
@@ -288,7 +307,7 @@ class AttendanceService
         $delta = ($realWeekday - $weekStart + 7) % 7;
 
         $start = $d->copy()->subDays($delta)->toDateString();
-        $end   = $d->copy()->subDays($delta)->addDays(6)->toDateString();
+        $end = $d->copy()->subDays($delta)->addDays(6)->toDateString();
 
         return [$start, $end];
     }

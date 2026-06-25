@@ -1,4 +1,5 @@
 <?php
+
 // database/migrations/xxxx_add_payment_fields_to_empleados.php
 
 use Illuminate\Database\Migrations\Migration;
@@ -13,7 +14,7 @@ return new class extends Migration
             // 'hourly' = pago por hora | 'daily' = pago por día
             $table->string('payment_type')->default('hourly')->after('daily_hours');
             $table->decimal('hourly_rate', 10, 2)->default(0)->after('payment_type');
-            $table->decimal('daily_rate',  10, 2)->default(0)->after('hourly_rate');
+            $table->decimal('daily_rate', 10, 2)->default(0)->after('hourly_rate');
         });
     }
 

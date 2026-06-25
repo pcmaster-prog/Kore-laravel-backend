@@ -11,13 +11,13 @@ class EnsurePositionModule
     /**
      * Handle an incoming request.
      *
-     * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
+     * @param  Closure(Request): (Response)  $next
      */
     public function handle(Request $request, Closure $next, string $moduleSlug): Response
     {
         $user = $request->user();
 
-        if (!$user) {
+        if (! $user) {
             return response()->json(['message' => 'No autenticado'], 401);
         }
 
@@ -28,14 +28,14 @@ class EnsurePositionModule
         }
 
         $empleado = $user->empleado;
-        if (!$empleado || !$empleado->position_id) {
+        if (! $empleado || ! $empleado->position_id) {
             return response()->json(['message' => 'No tienes un puesto asignado.'], 403);
         }
 
         $position = $empleado->position;
         $hasModule = $position->modules()->where('module_slug', $moduleSlug)->exists();
 
-        if (!$hasModule) {
+        if (! $hasModule) {
             return response()->json(['message' => "Acceso denegado: requieres el módulo {$moduleSlug}"], 403);
         }
 

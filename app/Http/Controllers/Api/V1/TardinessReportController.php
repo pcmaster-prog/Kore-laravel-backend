@@ -23,7 +23,7 @@ class TardinessReportController extends Controller
         $month = $request->input('month', now()->format('Y-m'));
 
         // Validate month format
-        if (!preg_match('/^\d{4}-\d{2}$/', $month)) {
+        if (! preg_match('/^\d{4}-\d{2}$/', $month)) {
             return response()->json(['message' => 'Formato de mes inválido. Use YYYY-MM.'], 422);
         }
 
@@ -31,13 +31,13 @@ class TardinessReportController extends Controller
         $config = TardinessConfig::firstOrCreate(
             ['empresa_id' => $empresaId],
             [
-                'grace_period_minutes'    => 10,
-                'late_threshold_minutes'  => 1,
-                'lates_to_absence'        => 3,
-                'accumulation_period'     => 'month',
-                'penalize_rest_day'       => true,
+                'grace_period_minutes' => 10,
+                'late_threshold_minutes' => 1,
+                'lates_to_absence' => 3,
+                'accumulation_period' => 'month',
+                'penalize_rest_day' => true,
                 'notify_employee_on_late' => true,
-                'notify_manager_on_late'  => true,
+                'notify_manager_on_late' => true,
             ]
         );
 
@@ -73,21 +73,21 @@ class TardinessReportController extends Controller
                 ->exists();
 
             $summary[] = [
-                'empleado_id'        => $emp->id,
-                'empleado_name'      => $emp->full_name,
-                'total_lates'        => $lateDays->count(),
+                'empleado_id' => $emp->id,
+                'empleado_name' => $emp->full_name,
+                'total_lates' => $lateDays->count(),
                 'total_late_minutes' => $totalLateMinutes,
                 'absences_generated' => $absencesGenerated,
                 'rest_day_penalized' => $restDayPenalized,
-                'dates'              => $lateDays->pluck('date')->map(fn($d) => $d->toDateString())->values()->toArray(),
+                'dates' => $lateDays->pluck('date')->map(fn ($d) => $d->toDateString())->values()->toArray(),
             ];
         }
 
         return response()->json([
-            'period'  => $month,
-            'config'  => [
+            'period' => $month,
+            'config' => [
                 'grace_period_minutes' => $config->grace_period_minutes,
-                'lates_to_absence'     => $config->lates_to_absence,
+                'lates_to_absence' => $config->lates_to_absence,
             ],
             'summary' => $summary,
         ]);
@@ -105,7 +105,7 @@ class TardinessReportController extends Controller
         $month = $request->input('month', now()->format('Y-m'));
 
         // Validate month format
-        if (!preg_match('/^\d{4}-\d{2}$/', $month)) {
+        if (! preg_match('/^\d{4}-\d{2}$/', $month)) {
             return response()->json(['message' => 'Formato de mes inválido. Use YYYY-MM.'], 422);
         }
 
@@ -126,13 +126,13 @@ class TardinessReportController extends Controller
         $config = TardinessConfig::firstOrCreate(
             ['empresa_id' => $empresaId],
             [
-                'grace_period_minutes'    => 10,
-                'late_threshold_minutes'  => 1,
-                'lates_to_absence'        => 3,
-                'accumulation_period'     => 'month',
-                'penalize_rest_day'       => true,
+                'grace_period_minutes' => 10,
+                'late_threshold_minutes' => 1,
+                'lates_to_absence' => 3,
+                'accumulation_period' => 'month',
+                'penalize_rest_day' => true,
                 'notify_employee_on_late' => true,
-                'notify_manager_on_late'  => true,
+                'notify_manager_on_late' => true,
             ]
         );
 
@@ -147,24 +147,24 @@ class TardinessReportController extends Controller
 
         $lates = $lateDays->map(function ($day) use ($thresholdReached) {
             return [
-                'date'                  => $day->date->toDateString(),
-                'late_minutes'          => $day->late_minutes,
-                'converted_to_absence'  => $thresholdReached,
+                'date' => $day->date->toDateString(),
+                'late_minutes' => $day->late_minutes,
+                'converted_to_absence' => $thresholdReached,
             ];
         })->values();
 
         return response()->json([
-            'empleado_id'   => $emp->id,
+            'empleado_id' => $emp->id,
             'empleado_name' => $emp->full_name,
-            'period'        => $month,
-            'lates'         => $lates,
-            'absences'      => $absences->map(fn($a) => [
-                'id'                       => $a->id,
-                'period_key'               => $a->period_key,
-                'type'                     => $a->type,
+            'period' => $month,
+            'lates' => $lates,
+            'absences' => $absences->map(fn ($a) => [
+                'id' => $a->id,
+                'period_key' => $a->period_key,
+                'type' => $a->type,
                 'affects_rest_day_payment' => $a->affects_rest_day_payment,
-                'note'                     => $a->note,
-                'created_at'               => $a->created_at?->toISOString(),
+                'note' => $a->note,
+                'created_at' => $a->created_at?->toISOString(),
             ])->values(),
         ]);
     }

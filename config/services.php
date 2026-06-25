@@ -36,10 +36,10 @@ return [
     ],
 
     'firebase' => [
-        'project_id'   => env('FIREBASE_PROJECT_ID'),
+        'project_id' => env('FIREBASE_PROJECT_ID'),
         'client_email' => env('FIREBASE_CLIENT_EMAIL'),
         // Railway almacena \n literales; los convertimos a saltos de línea reales
-        'private_key'  => str_replace('\\n', "\n", env('FIREBASE_PRIVATE_KEY', '')),
+        'private_key' => str_replace('\\n', "\n", env('FIREBASE_PRIVATE_KEY', '')),
     ],
 
     'google' => [
@@ -47,7 +47,7 @@ return [
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),
         // OAuth redirect_uri: Google debe volver al BACKEND, no al portal.
         // La ruta real incluye el prefijo /api que Laravel añade a api.php.
-        'redirect' => env('GOOGLE_REDIRECT_URL', rtrim(env('APP_URL', 'https://api.decorartereposteria.mx'), '/') . '/api/v1/auth/google/callback'),
+        'redirect' => env('GOOGLE_REDIRECT_URL', rtrim(env('APP_URL', 'https://api.decorartereposteria.mx'), '/').'/api/v1/auth/google/callback'),
         // URL final del portal a la que redirigimos con el token en fragmento (#).
         'frontend_portal_url' => env('FRONTEND_PORTAL_URL', env('APP_FRONTEND_PORTAL_URL', 'https://vacantes.decorartereposteria.mx')),
     ],
@@ -55,6 +55,12 @@ return [
     'whatsapp' => [
         'api_key' => env('WHATSAPP_API_KEY'),
         'phone' => env('WHATSAPP_PHONE'),
+    ],
+
+    'recaptcha' => [
+        'site_key' => env('RECAPTCHA_SITE_KEY'),
+        'secret_key' => env('RECAPTCHA_SECRET_KEY'),
+        'min_score' => env('RECAPTCHA_MIN_SCORE', 0.5),
     ],
 
 ];

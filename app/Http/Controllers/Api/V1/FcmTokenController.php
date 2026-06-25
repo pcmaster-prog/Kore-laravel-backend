@@ -72,7 +72,7 @@ class FcmTokenController extends Controller
             Log::error('Error enviando notificación FCM de prueba: '.$e->getMessage(), ['exception' => $e]);
 
             return response()->json([
-                'message' => 'Error al enviar la notificación: ' . $e->getMessage()
+                'message' => 'Error al enviar la notificación: '.$e->getMessage(),
             ], 500);
         }
     }

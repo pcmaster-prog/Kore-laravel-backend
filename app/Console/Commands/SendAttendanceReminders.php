@@ -2,17 +2,17 @@
 
 namespace App\Console\Commands;
 
-use Illuminate\Console\Command;
 use App\Models\AttendanceDay;
-use App\Models\Empresa;
+use App\Models\User;
 use App\Services\AttendanceService;
 use App\Services\NotificationService;
+use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
-use Carbon\Carbon;
 
 class SendAttendanceReminders extends Command
 {
-    protected $signature   = 'attendance:reminders';
+    protected $signature = 'attendance:reminders';
+
     protected $description = 'Envía recordatorios de 5 min antes de salida y notificación de salida disponible';
 
     public function handle(): void
@@ -29,6 +29,7 @@ class SendAttendanceReminders extends Command
 
         if ($days->isEmpty()) {
             $this->info('No hay jornadas activas hoy.');
+
             return;
         }
 
@@ -38,18 +39,24 @@ class SendAttendanceReminders extends Command
 
         foreach ($days as $day) {
             $emp = $day->empleado;
-            if (!$emp || !$emp->user_id) continue;
+            if (! $emp || ! $emp->user_id) {
+                continue;
+            }
 
-            $user = \App\Models\User::find($emp->user_id);
-            if (!$user || !$user->is_active) continue;
+            $user = User::find($emp->user_id);
+            if (! $user || ! $user->is_active) {
+                continue;
+            }
 
             $expectedExit = AttendanceService::calculateRequiredExitTime($day);
-            if (!$expectedExit) continue;
+            if (! $expectedExit) {
+                continue;
+            }
 
             $diffMinutes = $now->diffInMinutes($expectedExit, false);
 
             // 5 min antes de salida
-            if ($diffMinutes <= 5 && $diffMinutes > 0 && !$day->exit_reminder_sent) {
+            if ($diffMinutes <= 5 && $diffMinutes > 0 && ! $day->exit_reminder_sent) {
                 try {
                     $notifier->sendToUser(
                         userId: $user->id,
@@ -61,12 +68,12 @@ class SendAttendanceReminders extends Command
                     $day->save();
                     $exitReminderSent++;
                 } catch (\Throwable $e) {
-                    Log::warning("Error enviando reminder de salida a {$user->id}: " . $e->getMessage());
+                    Log::warning("Error enviando reminder de salida a {$user->id}: ".$e->getMessage());
                 }
             }
 
             // Ya puedes registrar tu salida
-            if ($diffMinutes <= 0 && !$day->exit_available_sent) {
+            if ($diffMinutes <= 0 && ! $day->exit_available_sent) {
                 try {
                     $notifier->sendToUser(
                         userId: $user->id,
@@ -78,7 +85,7 @@ class SendAttendanceReminders extends Command
                     $day->save();
                     $exitAvailableSent++;
                 } catch (\Throwable $e) {
-                    Log::warning("Error enviando salida disponible a {$user->id}: " . $e->getMessage());
+                    Log::warning("Error enviando salida disponible a {$user->id}: ".$e->getMessage());
                 }
             }
         }

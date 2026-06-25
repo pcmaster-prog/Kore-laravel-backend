@@ -1,15 +1,19 @@
 <?php
-//DashboardController: endpoints para datos agregados y KPIs para dashboards de manager y empleado
+
+// DashboardController: endpoints para datos agregados y KPIs para dashboards de manager y empleado
+
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\ActivityLog;
+use App\Models\AttendanceDay;
+use App\Models\Empleado;
+use App\Models\Task;
+use App\Models\TaskAssignee;
+use App\Models\TaskTemplate;
+use App\Support\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
-
-use App\Models\Task;
-use App\Models\ActivityLog;
-use App\Models\Empleado;
-use App\Models\AttendanceDay;
 
 class DashboardController extends Controller
 {
@@ -25,48 +29,48 @@ class DashboardController extends Controller
         $date = $request->input('date', now()->timezone(config('app.timezone'))->toDateString());
 
         // ---- TASK KPIS
-        $tasksBase = Task::where('empresa_id',$empresaId);
+        $tasksBase = Task::where('empresa_id', $empresaId);
 
         $kpi = [
-            'open' => (clone $tasksBase)->where('status','open')->count(),
-            'in_progress' => (clone $tasksBase)->where('status','in_progress')->count(),
-            'completed' => (clone $tasksBase)->where('status','completed')->count(),
+            'open' => (clone $tasksBase)->where('status', 'open')->count(),
+            'in_progress' => (clone $tasksBase)->where('status', 'in_progress')->count(),
+            'completed' => (clone $tasksBase)->where('status', 'completed')->count(),
             'overdue' => (clone $tasksBase)
-                ->whereNot('status','completed')
+                ->whereNot('status', 'completed')
                 ->whereNotNull('due_at')
-                ->where('due_at','<', now())
+                ->where('due_at', '<', now())
                 ->count(),
         ];
 
         // tareas de HOY (por catalog_date)
         $todayCounts = [
-            'open' => (clone $tasksBase)->whereRaw("meta->>'catalog_date' = ?", [$date])->where('status','open')->count(),
-            'in_progress' => (clone $tasksBase)->whereRaw("meta->>'catalog_date' = ?", [$date])->where('status','in_progress')->count(),
-            'completed' => (clone $tasksBase)->whereRaw("meta->>'catalog_date' = ?", [$date])->where('status','completed')->count(),
+            'open' => (clone $tasksBase)->whereRaw("meta->>'catalog_date' = ?", [$date])->where('status', 'open')->count(),
+            'in_progress' => (clone $tasksBase)->whereRaw("meta->>'catalog_date' = ?", [$date])->where('status', 'in_progress')->count(),
+            'completed' => (clone $tasksBase)->whereRaw("meta->>'catalog_date' = ?", [$date])->where('status', 'completed')->count(),
         ];
 
         $overdueList = (clone $tasksBase)
-            ->whereNot('status','completed')
+            ->whereNot('status', 'completed')
             ->whereNotNull('due_at')
-            ->where('due_at','<', now())
+            ->where('due_at', '<', now())
             ->orderBy('due_at')
             ->limit(10)
-            ->get(['id','title','priority','status','due_at','created_at','meta']);
+            ->get(['id', 'title', 'priority', 'status', 'due_at', 'created_at', 'meta']);
 
         // ---- ACTIVITY (últimos 15)
-        $activity = ActivityLog::where('empresa_id',$empresaId)
+        $activity = ActivityLog::where('empresa_id', $empresaId)
             ->orderByDesc('created_at')
             ->limit(15)
-            ->get(['id','action','entity_type','entity_id','meta','user_id','empleado_id','created_at']);
+            ->get(['id', 'action', 'entity_type', 'entity_id', 'meta', 'user_id', 'empleado_id', 'created_at']);
 
         // ---- ATTENDANCE snapshot de HOY
-        $employeesTotal = Empleado::where('empresa_id',$empresaId)->count();
+        $employeesTotal = Empleado::where('empresa_id', $empresaId)->count();
 
         // Section 2.1: eager load empleado to avoid N+1 if needed downstream
-        $attendanceDays = AttendanceDay::where('empresa_id',$empresaId)
-            ->where('date',$date)
+        $attendanceDays = AttendanceDay::where('empresa_id', $empresaId)
+            ->where('date', $date)
             ->with('events')
-            ->get(['id','empleado_id','status','first_check_in_at','last_check_out_at']);
+            ->get(['id', 'empleado_id', 'status', 'first_check_in_at', 'last_check_out_at']);
 
         $closed = $attendanceDays->whereNotNull('last_check_out_at')->count();
         $checkedIn = $attendanceDays->whereNotNull('first_check_in_at')->count();
@@ -82,7 +86,7 @@ class DashboardController extends Controller
             'out' => $out,
         ];
 
-        return \App\Support\ApiResponse::ok([
+        return ApiResponse::ok([
             'date' => $date,
             'kpi' => $kpi,
             'today' => $todayCounts,
@@ -102,43 +106,43 @@ class DashboardController extends Controller
 
         $empresaId = $u->empresa_id;
 
-        $emp = Empleado::where('empresa_id',$empresaId)->where('user_id',$u->id)->first();
-        if (!$emp) {
-            return \App\Support\ApiResponse::error('Empleado no encontrado', 404);
+        $emp = Empleado::where('empresa_id', $empresaId)->where('user_id', $u->id)->first();
+        if (! $emp) {
+            return ApiResponse::error('Empleado no encontrado', 404);
         }
 
         // ✅ date parametrizable + timezone de app
         $date = $request->input('date');
-        if (!$date) {
+        if (! $date) {
             $date = now()->timezone(config('app.timezone'))->toDateString();
         }
 
-        $day = AttendanceDay::where('empresa_id',$empresaId)
-            ->where('empleado_id',$emp->id)
-            ->where('date',$date)
+        $day = AttendanceDay::where('empresa_id', $empresaId)
+            ->where('empleado_id', $emp->id)
+            ->where('date', $date)
             ->first();
 
         $attendanceState = $day ? ($day->last_check_out_at ? 'closed' : 'open') : 'out';
 
         // ✅ Tareas del día por meta.catalog_date
-        $tasksToday = Task::where('empresa_id',$empresaId)
-            ->whereHas('assignees', fn($a) => $a->where('empleado_id',$emp->id))
+        $tasksToday = Task::where('empresa_id', $empresaId)
+            ->whereHas('assignees', fn ($a) => $a->where('empleado_id', $emp->id))
             ->whereRaw("meta->>'catalog_date' = ?", [$date])
             ->orderByDesc('created_at')
             ->limit(20)
-            ->get(['id','title','priority','status','due_at','created_at','meta']);
+            ->get(['id', 'title', 'priority', 'status', 'due_at', 'created_at', 'meta']);
 
         // counts (globales del empleado)
-        $base = Task::where('empresa_id',$empresaId)
-            ->whereHas('assignees', fn($a) => $a->where('empleado_id',$emp->id));
+        $base = Task::where('empresa_id', $empresaId)
+            ->whereHas('assignees', fn ($a) => $a->where('empleado_id', $emp->id));
 
         $counts = [
-            'open' => (clone $base)->where('status','open')->count(),
-            'in_progress' => (clone $base)->where('status','in_progress')->count(),
-            'completed' => (clone $base)->where('status','completed')->count(),
+            'open' => (clone $base)->where('status', 'open')->count(),
+            'in_progress' => (clone $base)->where('status', 'in_progress')->count(),
+            'completed' => (clone $base)->where('status', 'completed')->count(),
         ];
 
-        return \App\Support\ApiResponse::ok([
+        return ApiResponse::ok([
             'date' => $date,
             'attendance' => [
                 'state' => $attendanceState,
@@ -161,32 +165,32 @@ class DashboardController extends Controller
         $hoy = now()->toDateString();
 
         // ── 1. Tareas pendientes de revisión ────────────────────────────────
-        $pendingReview = \App\Models\TaskAssignee::where('empresa_id', $empresaId)
+        $pendingReview = TaskAssignee::where('empresa_id', $empresaId)
             ->where('status', 'done_pending')
             ->with(['task', 'empleado'])
             ->orderByDesc('done_at')
             ->limit(20)
             ->get()
-            ->map(fn($a) => [
+            ->map(fn ($a) => [
                 'assignment_id' => $a->id,
-                'task_id'       => $a->task_id,
-                'task_title'    => $a->task?->title,
-                'priority'      => $a->task?->priority,
-                'empleado_id'   => $a->empleado_id,
+                'task_id' => $a->task_id,
+                'task_title' => $a->task?->title,
+                'priority' => $a->task?->priority,
+                'empleado_id' => $a->empleado_id,
                 'empleado_name' => $a->empleado?->full_name,
-                'done_at'       => $a->done_at?->toISOString(),
-                'note'          => $a->note,
+                'done_at' => $a->done_at?->toISOString(),
+                'note' => $a->note,
             ]);
 
         // ── 2. Carga de trabajo por empleado ─────────────────────────────────
         // Section 2.1: eager load user to prevent N+1
-        $empleados = \App\Models\Empleado::where('empresa_id', $empresaId)
+        $empleados = Empleado::where('empresa_id', $empresaId)
             ->where('status', 'active')
             ->with('user:id,name,avatar_url')
             ->get();
 
         // Section 2.1: eager load task to prevent N+1 in the workload loop
-        $activeAssignments = \App\Models\TaskAssignee::where('empresa_id', $empresaId)
+        $activeAssignments = TaskAssignee::where('empresa_id', $empresaId)
             ->whereIn('status', ['assigned', 'in_progress'])
             ->with('task:id,title,priority,status,meta')
             ->get();
@@ -197,44 +201,45 @@ class DashboardController extends Controller
             $totalMinutes = $empAssignments->sum(function ($a) {
                 // Leer estimated_minutes del campo meta de la tarea
                 $meta = $a->task?->meta ?? [];
+
                 return data_get($meta, 'estimated_minutes', 30); // default 30 min
             });
 
             $taskCount = $empAssignments->count();
 
             // Calcular nivel de carga
-            $level = match(true) {
+            $level = match (true) {
                 $totalMinutes >= 240 => 'alto',   // 4+ horas
                 $totalMinutes >= 120 => 'medio',  // 2-4 horas
-                default              => 'bajo',   // menos de 2 horas
+                default => 'bajo',   // menos de 2 horas
             };
 
             return [
-                'empleado_id'    => $emp->id,
-                'full_name'      => $emp->full_name,
+                'empleado_id' => $emp->id,
+                'full_name' => $emp->full_name,
                 'position_title' => $emp->position_title,
-                'avatar_url'     => $emp->user?->avatar_url,
-                'total_minutes'  => $totalMinutes,
-                'total_hours'    => round($totalMinutes / 60, 1),
-                'task_count'     => $taskCount,
+                'avatar_url' => $emp->user?->avatar_url,
+                'total_minutes' => $totalMinutes,
+                'total_hours' => round($totalMinutes / 60, 1),
+                'task_count' => $taskCount,
                 'workload_level' => $level, // 'bajo' | 'medio' | 'alto'
-                'assignments'    => $empAssignments->map(fn(\App\Models\TaskAssignee $a) => [
-                    'assignment_id'     => $a->id,
-                    'task_id'           => $a->task_id,
-                    'task_title'        => $a->task?->title,
+                'assignments' => $empAssignments->map(fn (TaskAssignee $a) => [
+                    'assignment_id' => $a->id,
+                    'task_id' => $a->task_id,
+                    'task_title' => $a->task?->title,
                     'estimated_minutes' => data_get($a->task?->meta ?? [], 'estimated_minutes', 30),
-                    'status'            => $a->status,
-                    'progress'          => $this->calcProgress($a, $emp->empresa_id),
+                    'status' => $a->status,
+                    'progress' => $this->calcProgress($a, $emp->empresa_id),
                 ])->values(),
             ];
         })->values();
 
         // ── 3. KPIs rápidos del supervisor ───────────────────────────────────
-        $totalTasks = \App\Models\Task::where('empresa_id', $empresaId)
+        $totalTasks = Task::where('empresa_id', $empresaId)
             ->whereIn('status', ['open', 'in_progress'])
             ->count();
 
-        $completedToday = \App\Models\Task::where('empresa_id', $empresaId)
+        $completedToday = Task::where('empresa_id', $empresaId)
             ->where('status', 'completed')
             ->whereDate('updated_at', $hoy)
             ->count();
@@ -242,46 +247,47 @@ class DashboardController extends Controller
         return response()->json([
             'data' => [
                 'kpi' => [
-                    'pending_review'  => $pendingReview->count(),
-                    'active_tasks'    => $totalTasks,
+                    'pending_review' => $pendingReview->count(),
+                    'active_tasks' => $totalTasks,
                     'completed_today' => $completedToday,
                 ],
                 'pending_review' => $pendingReview,
-                'workload'       => $workload,
+                'workload' => $workload,
             ],
         ]);
     }
 
     // Helper privado para calcular progreso de checklist
-    private function calcProgress(\App\Models\TaskAssignee $a, string $empresaId): array
+    private function calcProgress(TaskAssignee $a, string $empresaId): array
     {
         $tplId = data_get($a->task?->meta ?? [], 'template_id');
-        if (!$tplId) {
+        if (! $tplId) {
             return ['type' => 'simple', 'pct' => $a->status === 'approved' ? 100 : 0];
         }
 
-        $tpl = \App\Models\TaskTemplate::where('empresa_id', $empresaId)
+        $tpl = TaskTemplate::where('empresa_id', $empresaId)
             ->where('id', $tplId)
             ->first();
 
         $instructions = $tpl?->instructions ?? [];
-        if (!is_array($instructions) || ($instructions['type'] ?? null) !== 'checklist') {
+        if (! is_array($instructions) || ($instructions['type'] ?? null) !== 'checklist') {
             return ['type' => 'simple', 'pct' => 0];
         }
 
         $items = $instructions['items'] ?? [];
         $total = count($items);
-        if ($total === 0) return ['type' => 'checklist', 'pct' => 0, 'done' => 0, 'total' => 0];
+        if ($total === 0) {
+            return ['type' => 'checklist', 'pct' => 0, 'done' => 0, 'total' => 0];
+        }
 
         $checklistState = data_get($a->meta ?? [], 'checklist', []);
-        $done = collect($items)->filter(fn($item) =>
-            data_get($checklistState, "{$item['id']}.done", false)
+        $done = collect($items)->filter(fn ($item) => data_get($checklistState, "{$item['id']}.done", false)
         )->count();
 
         return [
-            'type'  => 'checklist',
-            'pct'   => round(($done / $total) * 100),
-            'done'  => $done,
+            'type' => 'checklist',
+            'pct' => round(($done / $total) * 100),
+            'done' => $done,
             'total' => $total,
         ];
     }

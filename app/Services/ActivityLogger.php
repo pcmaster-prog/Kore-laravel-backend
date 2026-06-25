@@ -26,7 +26,7 @@ class ActivityLogger
             'entity_id' => $entityId,
             'meta' => $meta,
             'ip' => $request?->ip(),
-            'user_agent' => $request ? substr((string)$request->userAgent(), 0, 250) : null,
+            'user_agent' => $request ? substr((string) $request->userAgent(), 0, 250) : null,
         ]);
     }
 }

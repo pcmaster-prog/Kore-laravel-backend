@@ -30,18 +30,18 @@ class BitacoraController extends Controller
         Gate::authorize('admin');
 
         $data = $request->validate([
-            'criterios'             => ['required', 'array', 'min:1'],
-            'criterios.*.label'     => ['required', 'string', 'max:120'],
-            'criterios.*.tipo'      => ['required', Rule::in(['positivo', 'negativo'])],
-            'criterios.*.sort_order'=> ['nullable', 'integer', 'min:0'],
+            'criterios' => ['required', 'array', 'min:1'],
+            'criterios.*.label' => ['required', 'string', 'max:120'],
+            'criterios.*.tipo' => ['required', Rule::in(['positivo', 'negativo'])],
+            'criterios.*.sort_order' => ['nullable', 'integer', 'min:0'],
         ]);
 
         $now = now();
         $rows = array_map(function ($item, $index) use ($now) {
             return [
-                'label'      => $item['label'],
-                'tipo'       => $item['tipo'],
-                'activo'     => true,
+                'label' => $item['label'],
+                'tipo' => $item['tipo'],
+                'activo' => true,
                 'sort_order' => $item['sort_order'] ?? $index,
                 'created_at' => $now,
                 'updated_at' => $now,

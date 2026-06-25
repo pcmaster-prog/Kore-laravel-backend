@@ -17,8 +17,7 @@ class OfferSentMail extends Mailable
         public string $jobTitle,
         public string $empresaName,
         public string $offerUrl,
-    ) {
-    }
+    ) {}
 
     public function envelope(): Envelope
     {

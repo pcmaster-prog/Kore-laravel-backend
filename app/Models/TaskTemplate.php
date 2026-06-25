@@ -2,17 +2,17 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Model;
 
 class TaskTemplate extends Model
 {
     use HasUuids;
 
     protected $fillable = [
-        'empresa_id','created_by','title','description','instructions',
-        'estimated_minutes','priority','section','department','is_active','show_in_dashboard','tags','meta',
-        'area_id','section_id','voice_note_enabled'
+        'empresa_id', 'created_by', 'title', 'description', 'instructions',
+        'estimated_minutes', 'priority', 'section', 'department', 'is_active', 'show_in_dashboard', 'tags', 'meta',
+        'area_id', 'section_id', 'voice_note_enabled',
     ];
 
     protected $casts = [

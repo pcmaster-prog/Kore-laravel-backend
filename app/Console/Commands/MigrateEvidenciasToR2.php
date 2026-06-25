@@ -2,10 +2,10 @@
 
 namespace App\Console\Commands;
 
-use Illuminate\Console\Command;
 use App\Models\Evidence;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class MigrateEvidenciasToR2 extends Command
 {
@@ -29,29 +29,30 @@ class MigrateEvidenciasToR2 extends Command
     public function handle()
     {
         $targetDisk = config('filesystems.default', 's3');
-        
+
         $this->info("Iniciando migración de 'public' a '{$targetDisk}'...");
 
         $evidencias = Evidence::where('disk', 'public')->get();
 
         if ($evidencias->isEmpty()) {
             $this->info('No hay evidencias en el disco public para migrar.');
+
             return;
         }
 
         $this->withProgressBar($evidencias, function (Evidence $e) use ($targetDisk) {
             if ($e->path && Storage::disk('public')->exists($e->path)) {
                 $fileContents = Storage::disk('public')->get($e->path);
-                
+
                 try {
                     Storage::disk($targetDisk)->put($e->path, $fileContents);
-                    
+
                     DB::table('evidences')
                         ->where('id', $e->id)
                         ->update(['disk' => $targetDisk]);
 
                 } catch (\Exception $ex) {
-                    $this->error("\nError migrando {$e->id}: " . $ex->getMessage());
+                    $this->error("\nError migrando {$e->id}: ".$ex->getMessage());
                 }
             } else {
                 $this->warn("\nArchivo no encontrado en public para evidencia {$e->id}: {$e->path}");

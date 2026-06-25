@@ -1,12 +1,13 @@
 <?php
-//ModulesController: manejo de módulos habilitados por empresa (feature flags)
+
+// ModulesController: manejo de módulos habilitados por empresa (feature flags)
+
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-
-use App\Models\Modulo;
 use App\Models\EmpresaModulo;
+use App\Models\Modulo;
+use Illuminate\Http\Request;
 
 class ModulesController extends Controller
 {
@@ -14,14 +15,14 @@ class ModulesController extends Controller
     public function catalog()
     {
         $mods = Modulo::orderBy('is_premium')->orderBy('name')->get()
-            ->map(fn($m)=>[
-                'id'=>$m->id,
-                'key'=>$m->key,
-                'name'=>$m->name,
-                'is_premium'=>$m->is_premium,
+            ->map(fn ($m) => [
+                'id' => $m->id,
+                'key' => $m->key,
+                'name' => $m->name,
+                'is_premium' => $m->is_premium,
             ]);
 
-        return response()->json(['items'=>$mods]);
+        return response()->json(['items' => $mods]);
     }
 
     // Módulos habilitados por empresa (feature flags)
@@ -41,13 +42,13 @@ class ModulesController extends Controller
             return [
                 'key' => $m->key,
                 'name' => $m->name,
-                'is_premium' => (bool)$m->is_premium,
-                'enabled' => $flag ? (bool)$flag->enabled : false,
+                'is_premium' => (bool) $m->is_premium,
+                'enabled' => $flag ? (bool) $flag->enabled : false,
                 'settings' => $flag?->settings,
             ];
         });
 
-        return response()->json(['items'=>$items]);
+        return response()->json(['items' => $items]);
     }
 
     // Toggle de módulo por empresa (solo admin)
@@ -56,26 +57,28 @@ class ModulesController extends Controller
         $empresaId = $request->user()->empresa_id;
 
         $data = $request->validate([
-            'enabled' => ['required','boolean'],
+            'enabled' => ['required', 'boolean'],
         ]);
 
         $mod = Modulo::where('key', $key)->first();
-        if (!$mod) return response()->json(['message'=>'Módulo no existe'], 404);
+        if (! $mod) {
+            return response()->json(['message' => 'Módulo no existe'], 404);
+        }
 
         $flag = EmpresaModulo::firstOrCreate(
-            ['empresa_id'=>$empresaId, 'modulo_id'=>$mod->id],
-            ['enabled'=>false]
+            ['empresa_id' => $empresaId, 'modulo_id' => $mod->id],
+            ['enabled' => false]
         );
 
         $flag->enabled = $data['enabled'];
         $flag->save();
 
         return response()->json([
-            'message'=>'OK',
-            'module'=>[
-                'key'=>$mod->key,
-                'enabled'=>$flag->enabled,
-            ]
+            'message' => 'OK',
+            'module' => [
+                'key' => $mod->key,
+                'enabled' => $flag->enabled,
+            ],
         ]);
     }
 }

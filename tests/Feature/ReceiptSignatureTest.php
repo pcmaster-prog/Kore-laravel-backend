@@ -7,9 +7,9 @@ use App\Models\Empleado;
 use App\Models\Empresa;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollReceipt;
-use App\Models\ReceiptSignature;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -26,7 +26,7 @@ class ReceiptSignatureTest extends TestCase
             'slug' => 'test-corp',
         ]);
 
-        \Illuminate\Support\Facades\DB::table('empresa_modules')->insert([
+        DB::table('empresa_modules')->insert([
             'id' => Str::uuid(),
             'empresa_id' => $empresa->id,
             'module_slug' => 'nomina',
@@ -99,7 +99,7 @@ class ReceiptSignatureTest extends TestCase
             'slug' => 'test-corp',
         ]);
 
-        \Illuminate\Support\Facades\DB::table('empresa_modules')->insert([
+        DB::table('empresa_modules')->insert([
             'id' => Str::uuid(),
             'empresa_id' => $empresa->id,
             'module_slug' => 'nomina',

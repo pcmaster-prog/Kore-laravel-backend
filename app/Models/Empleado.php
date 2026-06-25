@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Empleado extends Model
@@ -38,12 +38,12 @@ class Empleado extends Model
 
     public function user()
     {
-        return $this->belongsTo(\App\Models\User::class, 'user_id');
+        return $this->belongsTo(User::class, 'user_id');
     }
 
     public function empresa()
     {
-        return $this->belongsTo(\App\Models\Empresa::class, 'empresa_id');
+        return $this->belongsTo(Empresa::class, 'empresa_id');
     }
 
     public function evaluations()
@@ -62,6 +62,7 @@ class Empleado extends Model
             ->withPivot('is_primary')
             ->withTimestamps();
     }
+
     public function modulosIndividuales()
     {
         return $this->hasMany(EmpleadoModulo::class, 'empleado_id');
@@ -71,10 +72,10 @@ class Empleado extends Model
     {
         // Get inherited from position
         $inherited = $this->position ? $this->position->modules->pluck('module_slug')->toArray() : [];
-        
+
         // Get individual exceptions
         $individual = $this->modulosIndividuales->pluck('module_slug')->toArray();
-        
+
         return array_values(array_unique(array_merge($inherited, $individual)));
     }
 }

@@ -29,9 +29,11 @@ class WhatsAppNotificationService
 
         try {
             Http::timeout(15)->get($url);
+
             return true;
         } catch (\Exception $e) {
             Log::error('Error enviando WhatsApp via CallMeBot: '.$e->getMessage());
+
             return false;
         }
     }

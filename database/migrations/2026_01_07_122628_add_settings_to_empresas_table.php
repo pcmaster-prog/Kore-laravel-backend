@@ -10,19 +10,16 @@ return new class extends Migration
      * Run the migrations.
      */
     public function up(): void
-{
-    Schema::table('empresas', function (Blueprint $table) {
-        $table->jsonb('settings')->nullable();
-    });
-}
+    {
+        Schema::table('empresas', function (Blueprint $table) {
+            $table->jsonb('settings')->nullable();
+        });
+    }
 
-public function down(): void
-{
-    Schema::table('empresas', function (Blueprint $table) {
-        $table->dropColumn('settings');
-    });
-}
-
-
-    
+    public function down(): void
+    {
+        Schema::table('empresas', function (Blueprint $table) {
+            $table->dropColumn('settings');
+        });
+    }
 };

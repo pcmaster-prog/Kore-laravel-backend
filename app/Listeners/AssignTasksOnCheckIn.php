@@ -3,14 +3,13 @@
 namespace App\Listeners;
 
 use App\Events\AttendanceCheckedIn;
-use App\Models\TaskAssignmentRule;
-use App\Models\TaskTemplate;
+use App\Jobs\SendPushNotification;
+use App\Models\Empleado;
 use App\Models\Task;
 use App\Models\TaskAssignee;
-use App\Models\Empleado;
-use App\Jobs\SendPushNotification;
+use App\Models\TaskAssignmentRule;
+use App\Models\TaskTemplate;
 use App\Services\ActivityLogger;
-use Illuminate\Support\Facades\Log;
 
 class AssignTasksOnCheckIn
 {
@@ -29,27 +28,27 @@ class AssignTasksOnCheckIn
             ->where(function ($q) use ($empleadoId) {
                 $q->where(function ($q2) use ($empleadoId) {
                     $q2->where('assignee_type', 'empleado')
-                       ->where('assignee_id', $empleadoId);
+                        ->where('assignee_id', $empleadoId);
                 })
-                ->orWhere(function ($q2) use ($empleadoId) {
-                    $q2->where('assignee_type', 'position')
-                       ->whereIn('assignee_id', function ($sub) use ($empleadoId) {
-                           $sub->select('position_id')
-                               ->from('empleados')
-                               ->where('id', $empleadoId)
-                               ->whereNotNull('position_id');
-                       });
-                })
-                ->orWhere(function ($q2) use ($empleadoId) {
-                    $q2->where('assignee_type', 'section_supervisor')
-                       ->whereIn('section_id', function ($sub) use ($empleadoId) {
-                           $sub->select('section_id')
-                               ->from('empleado_sections')
-                               ->where('empleado_id', $empleadoId);
-                       });
-                });
+                    ->orWhere(function ($q2) use ($empleadoId) {
+                        $q2->where('assignee_type', 'position')
+                            ->whereIn('assignee_id', function ($sub) use ($empleadoId) {
+                                $sub->select('position_id')
+                                    ->from('empleados')
+                                    ->where('id', $empleadoId)
+                                    ->whereNotNull('position_id');
+                            });
+                    })
+                    ->orWhere(function ($q2) use ($empleadoId) {
+                        $q2->where('assignee_type', 'section_supervisor')
+                            ->whereIn('section_id', function ($sub) use ($empleadoId) {
+                                $sub->select('section_id')
+                                    ->from('empleado_sections')
+                                    ->where('empleado_id', $empleadoId);
+                            });
+                    });
             })
-            ->with(['items' => fn($q) => $q->where('is_active', true)->orderBy('sort_order')])
+            ->with(['items' => fn ($q) => $q->where('is_active', true)->orderBy('sort_order')])
             ->get();
 
         if ($rules->isEmpty()) {
@@ -72,7 +71,9 @@ class AssignTasksOnCheckIn
 
             foreach ($templateIds as $templateId) {
                 $template = TaskTemplate::where('id', $templateId)->where('is_active', true)->first();
-                if (!$template) continue;
+                if (! $template) {
+                    continue;
+                }
 
                 // Verificar que no exista ya una tarea hoy para este template+empleado
                 $alreadyExists = Task::where('empresa_id', $empresaId)
@@ -83,7 +84,9 @@ class AssignTasksOnCheckIn
                     ->whereRaw("meta->>'catalog_date' = ?", [now()->toDateString()])
                     ->exists();
 
-                if ($alreadyExists) continue;
+                if ($alreadyExists) {
+                    continue;
+                }
 
                 $task = Task::create([
                     'empresa_id' => $empresaId,
@@ -125,7 +128,7 @@ class AssignTasksOnCheckIn
             }
         }
 
-        if (!empty($createdTasks) && $empleado && $empleado->user_id) {
+        if (! empty($createdTasks) && $empleado && $empleado->user_id) {
             ActivityLogger::log(
                 $empresaId,
                 null,

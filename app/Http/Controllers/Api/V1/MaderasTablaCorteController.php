@@ -42,6 +42,7 @@ class MaderasTablaCorteController extends Controller
     public function show(string $id)
     {
         $tabla = MaderasTablaCorte::findOrFail($id);
+
         return response()->json(['data' => $tabla]);
     }
 

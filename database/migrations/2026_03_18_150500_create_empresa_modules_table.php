@@ -20,9 +20,9 @@ return new class extends Migration
 
             // Foreign key to empresas
             $table->foreign('empresa_id')
-                  ->references('id')
-                  ->on('empresas')
-                  ->onDelete('cascade');
+                ->references('id')
+                ->on('empresas')
+                ->onDelete('cascade');
 
             $table->unique(['empresa_id', 'module_slug']);
         });

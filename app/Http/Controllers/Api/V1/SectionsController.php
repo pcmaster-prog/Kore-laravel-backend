@@ -3,10 +3,11 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\Area;
+use App\Models\Empleado;
+use App\Models\Section;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
-use App\Models\Section;
-use App\Models\Empleado;
 
 class SectionsController extends Controller
 {
@@ -55,8 +56,8 @@ class SectionsController extends Controller
         ]);
 
         // Validar que el área pertenezca a la empresa
-        $area = \App\Models\Area::where('empresa_id', $u->empresa_id)->where('id', $data['area_id'])->first();
-        if (!$area) {
+        $area = Area::where('empresa_id', $u->empresa_id)->where('id', $data['area_id'])->first();
+        if (! $area) {
             return response()->json(['message' => 'Área no encontrada'], 404);
         }
 
@@ -77,7 +78,9 @@ class SectionsController extends Controller
         Gate::authorize('supervisor');
 
         $section = Section::where('empresa_id', $u->empresa_id)->where('id', $id)->first();
-        if (!$section) return response()->json(['message' => 'No encontrado'], 404);
+        if (! $section) {
+            return response()->json(['message' => 'No encontrado'], 404);
+        }
 
         return response()->json(['item' => $section]);
     }
@@ -88,7 +91,9 @@ class SectionsController extends Controller
         Gate::authorize('admin');
 
         $section = Section::where('empresa_id', $u->empresa_id)->where('id', $id)->first();
-        if (!$section) return response()->json(['message' => 'No encontrado'], 404);
+        if (! $section) {
+            return response()->json(['message' => 'No encontrado'], 404);
+        }
 
         $data = $request->validate([
             'area_id' => ['sometimes', 'uuid', 'exists:areas,id'],
@@ -99,8 +104,8 @@ class SectionsController extends Controller
 
         // Validar que el área nueva pertenezca a la empresa
         if (isset($data['area_id'])) {
-            $area = \App\Models\Area::where('empresa_id', $u->empresa_id)->where('id', $data['area_id'])->first();
-            if (!$area) {
+            $area = Area::where('empresa_id', $u->empresa_id)->where('id', $data['area_id'])->first();
+            if (! $area) {
                 return response()->json(['message' => 'Área no encontrada'], 404);
             }
         }
@@ -117,14 +122,16 @@ class SectionsController extends Controller
         Gate::authorize('supervisor');
 
         $section = Section::where('empresa_id', $u->empresa_id)->where('id', $id)->first();
-        if (!$section) return response()->json(['message' => 'No encontrado'], 404);
+        if (! $section) {
+            return response()->json(['message' => 'No encontrado'], 404);
+        }
 
         $empleados = Empleado::where('empresa_id', $u->empresa_id)
             ->where('status', 'active')
-            ->whereHas('sections', fn($q) => $q->where('section_id', $id))
+            ->whereHas('sections', fn ($q) => $q->where('section_id', $id))
             ->with('user')
             ->get()
-            ->map(fn($emp) => [
+            ->map(fn ($emp) => [
                 'id' => $emp->id,
                 'full_name' => $emp->full_name,
                 'position_title' => $emp->position_title,
@@ -140,9 +147,12 @@ class SectionsController extends Controller
         Gate::authorize('admin');
 
         $section = Section::where('empresa_id', $u->empresa_id)->where('id', $id)->first();
-        if (!$section) return response()->json(['message' => 'No encontrado'], 404);
+        if (! $section) {
+            return response()->json(['message' => 'No encontrado'], 404);
+        }
 
         $section->delete();
+
         return response()->json(['message' => 'Eliminado']);
     }
 }

@@ -50,6 +50,7 @@ class MaderasInventarioController extends Controller
     public function show(string $id)
     {
         $inventario = MaderasInventario::with('catalogo')->findOrFail($id);
+
         return response()->json($inventario);
     }
 

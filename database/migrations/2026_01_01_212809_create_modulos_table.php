@@ -9,16 +9,16 @@ return new class extends Migration
     /**
      * Run the migrations.
      */
-    public function up(): void {
-  Schema::create('modulos', function (Blueprint $table) {
-    $table->uuid('id')->primary();
-    $table->string('key')->unique(); // employees, attendance, tasks...
-    $table->string('name');
-    $table->boolean('is_premium')->default(false);
-    $table->timestamps();
-  });
-}
-
+    public function up(): void
+    {
+        Schema::create('modulos', function (Blueprint $table) {
+            $table->uuid('id')->primary();
+            $table->string('key')->unique(); // employees, attendance, tasks...
+            $table->string('name');
+            $table->boolean('is_premium')->default(false);
+            $table->timestamps();
+        });
+    }
 
     /**
      * Reverse the migrations.

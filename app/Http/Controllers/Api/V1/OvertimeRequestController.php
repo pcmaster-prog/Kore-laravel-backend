@@ -3,12 +3,11 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\Empleado;
+use App\Models\OvertimeRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
-
-use App\Models\OvertimeRequest;
-use App\Models\Empleado;
 
 class OvertimeRequestController extends Controller
 {
@@ -18,24 +17,24 @@ class OvertimeRequestController extends Controller
         $empresaId = $u->empresa_id;
 
         $data = $request->validate([
-            'fecha'              => ['required', 'date_format:Y-m-d', 'after_or_equal:today'],
-            'motivo'             => ['required', 'string', 'max:500'],
-            'minutos_solicitados'=> ['required', 'integer', 'min:15', 'max:720'],
+            'fecha' => ['required', 'date_format:Y-m-d', 'after_or_equal:today'],
+            'motivo' => ['required', 'string', 'max:500'],
+            'minutos_solicitados' => ['required', 'integer', 'min:15', 'max:720'],
         ]);
 
         $emp = Empleado::where('empresa_id', $empresaId)->where('user_id', $u->id)->first();
-        if (!$emp) {
+        if (! $emp) {
             return response()->json(['message' => 'Empleado no vinculado'], 404);
         }
 
         $ot = OvertimeRequest::create([
-            'id'                 => Str::uuid(),
-            'empresa_id'         => $empresaId,
-            'empleado_id'        => $emp->id,
-            'fecha'              => $data['fecha'],
-            'motivo'             => $data['motivo'],
-            'minutos_solicitados'=> (int)$data['minutos_solicitados'],
-            'status'             => 'pending',
+            'id' => Str::uuid(),
+            'empresa_id' => $empresaId,
+            'empleado_id' => $emp->id,
+            'fecha' => $data['fecha'],
+            'motivo' => $data['motivo'],
+            'minutos_solicitados' => (int) $data['minutos_solicitados'],
+            'status' => 'pending',
         ]);
 
         return response()->json([
@@ -50,7 +49,7 @@ class OvertimeRequestController extends Controller
         $empresaId = $u->empresa_id;
 
         $emp = Empleado::where('empresa_id', $empresaId)->where('user_id', $u->id)->first();
-        if (!$emp) {
+        if (! $emp) {
             return response()->json(['message' => 'Empleado no vinculado'], 404);
         }
 
@@ -84,8 +83,8 @@ class OvertimeRequestController extends Controller
         $empresaId = $u->empresa_id;
 
         $data = $request->validate([
-            'status'       => ['required', 'in:approved,rejected'],
-            'reviewer_note'=> ['nullable', 'string', 'max:500'],
+            'status' => ['required', 'in:approved,rejected'],
+            'reviewer_note' => ['nullable', 'string', 'max:500'],
         ]);
 
         $ot = OvertimeRequest::where('empresa_id', $empresaId)
@@ -93,7 +92,7 @@ class OvertimeRequestController extends Controller
             ->where('status', 'pending')
             ->first();
 
-        if (!$ot) {
+        if (! $ot) {
             return response()->json(['message' => 'Solicitud no encontrada o ya fue revisada'], 404);
         }
 

@@ -26,12 +26,12 @@ class ProductUnitsSeeder extends Seeder
 
         foreach ($units as $unit) {
             DB::table('product_units')->insert([
-                'id'         => (string) Str::uuid(),
+                'id' => (string) Str::uuid(),
                 'empresa_id' => $empresa->id,
-                'name'       => $unit['name'],
+                'name' => $unit['name'],
                 'abbreviation' => $unit['abbreviation'],
                 'conversion_to_default' => null,
-                'is_active'  => true,
+                'is_active' => true,
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);

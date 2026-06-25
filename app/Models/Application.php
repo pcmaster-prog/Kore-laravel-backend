@@ -2,9 +2,9 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Concerns\HasUuids;
 
 class Application extends Model
 {
@@ -26,6 +26,8 @@ class Application extends Model
         'interview_result',
         'manual_review_required',
         'manual_review_reason',
+        'is_rehire',
+        'blacklist_alert',
     ];
 
     protected function casts(): array
@@ -36,6 +38,8 @@ class Application extends Model
             'experience' => 'array',
             'screening_test_results' => 'array',
             'has_induction_video_watched' => 'boolean',
+            'is_rehire' => 'boolean',
+            'blacklist_alert' => 'boolean',
             'induction_video_watched_at' => 'datetime',
             'interview_scheduled_at' => 'datetime',
         ];

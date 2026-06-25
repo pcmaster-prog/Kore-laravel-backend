@@ -20,22 +20,22 @@ return [
     'allowed_methods' => ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
 
     'allowed_origins' => array_filter([
-        'https://kore-react-frontend.vercel.app',
+        // Frontend principal Kore (producción). Debe coincidir con el dominio stateful de Sanctum.
+        env('KORE_FRONTEND_URL'),
+        // Portales ATS bajo el mismo dominio raíz
+        env('APP_FRONTEND_PORTAL_URL'),
+        // Capacitor / aplicación móvil
         'capacitor://localhost',
-        // Portales ATS
-        'https://phj3cqi66s6kw.kimi.page',
-        'https://vacantes.decorartereposteria.mx',
-        // Localhost solo en desarrollo (con puerto explícito)
+        // Orígenes de desarrollo local
         env('APP_ENV') !== 'production' ? 'http://localhost:5173' : null,
         env('APP_ENV') !== 'production' ? 'http://localhost:3000' : null,
-        // Origen adicional configurable por entorno
+        // Origen adicional configurable por entorno (p.ej. preview deploys específicos)
         env('CORS_EXTRA_ORIGIN'),
     ]),
 
-    // Permite preview deploys de Vercel (*.vercel.app)
-    'allowed_origins_patterns' => [
-        '/^https:\/\/kore-.*\.vercel\.app$/',
-    ],
+    // No uses patrones tipo *.vercel.app en producción; agrega cada dominio de preview
+    // explícitamente mediante CORS_EXTRA_ORIGIN.
+    'allowed_origins_patterns' => [],
 
     'allowed_headers' => ['Content-Type', 'X-Requested-With', 'Authorization', 'X-XSRF-TOKEN', 'Accept', 'Origin'],
 

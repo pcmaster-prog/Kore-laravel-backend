@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Mail\ApplicationReceivedMail;
 use App\Mail\InterviewReminderMail;
 use App\Mail\RejectedMail;
 use App\Mail\TemplatedEmail;
@@ -48,6 +47,7 @@ class AtsFase4Test extends TestCase
     private function setupAdmin(): User
     {
         $empresa = $this->createEmpresa();
+
         return $this->createUser('admin', $empresa, 'admin@example.com');
     }
 
@@ -102,16 +102,16 @@ class AtsFase4Test extends TestCase
         $this->createJob($empresa, ['title' => 'Operador de máquina', 'location' => 'CDMX']);
         $this->createJob($empresa, ['title' => 'Cajero', 'location' => 'Guadalajara', 'job_type' => 'part-time', 'department' => 'Ventas']);
 
-        $response = $this->getJson('/api/v1/public/jobs?empresa_id=' . $empresa->id . '&search=operador');
+        $response = $this->getJson('/api/v1/public/jobs?empresa_id='.$empresa->id.'&search=operador');
         $response->assertOk()->assertJsonCount(1, 'data');
 
-        $response = $this->getJson('/api/v1/public/jobs?empresa_id=' . $empresa->id . '&location=Guadalajara');
+        $response = $this->getJson('/api/v1/public/jobs?empresa_id='.$empresa->id.'&location=Guadalajara');
         $response->assertOk()->assertJsonCount(1, 'data');
 
-        $response = $this->getJson('/api/v1/public/jobs?empresa_id=' . $empresa->id . '&job_type=part-time');
+        $response = $this->getJson('/api/v1/public/jobs?empresa_id='.$empresa->id.'&job_type=part-time');
         $response->assertOk()->assertJsonCount(1, 'data');
 
-        $response = $this->getJson('/api/v1/public/jobs?empresa_id=' . $empresa->id . '&department=Operaciones');
+        $response = $this->getJson('/api/v1/public/jobs?empresa_id='.$empresa->id.'&department=Operaciones');
         $response->assertOk()->assertJsonCount(1, 'data');
     }
 
@@ -121,7 +121,7 @@ class AtsFase4Test extends TestCase
         $empresa = Empresa::find($admin->empresa_id);
         $this->createJob($empresa);
 
-        $response = $this->getJson('/api/v1/public/jobs/filters?empresa_id=' . $empresa->id);
+        $response = $this->getJson('/api/v1/public/jobs/filters?empresa_id='.$empresa->id);
 
         $response->assertOk()
             ->assertJsonPath('data.locations.0', 'Ciudad de México')
@@ -135,8 +135,8 @@ class AtsFase4Test extends TestCase
         $empresa = Empresa::find($admin->empresa_id);
         $job = $this->createJob($empresa);
 
-        $this->getJson('/api/v1/public/jobs/' . $job->id . '?empresa_id=' . $empresa->id)->assertOk();
-        $this->getJson('/api/v1/public/jobs/' . $job->id . '?empresa_id=' . $empresa->id)->assertOk();
+        $this->getJson('/api/v1/public/jobs/'.$job->id.'?empresa_id='.$empresa->id)->assertOk();
+        $this->getJson('/api/v1/public/jobs/'.$job->id.'?empresa_id='.$empresa->id)->assertOk();
 
         $this->assertEquals(1, $job->fresh()->views()->count());
     }
@@ -147,7 +147,7 @@ class AtsFase4Test extends TestCase
         $empresa = Empresa::find($admin->empresa_id);
         $job = $this->createJob($empresa, ['slug' => 'operador-especial']);
 
-        $this->getJson('/api/v1/public/jobs/operador-especial?empresa_id=' . $empresa->id)
+        $this->getJson('/api/v1/public/jobs/operador-especial?empresa_id='.$empresa->id)
             ->assertOk()
             ->assertJsonPath('data.id', $job->id);
     }
@@ -376,7 +376,7 @@ class AtsFase4Test extends TestCase
 
         $template = $response->json('data.0');
         $this->actingAs($admin, 'sanctum')
-            ->putJson('/api/v1/ats/email-templates/' . $template['id'], [
+            ->putJson('/api/v1/ats/email-templates/'.$template['id'], [
                 'subject' => 'Actualizado',
             ])
             ->assertOk()

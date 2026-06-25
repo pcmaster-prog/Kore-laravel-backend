@@ -8,7 +8,6 @@ use App\Models\Empleado;
 use App\Models\EmpleadoModulo;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 
 class EmployeeOnboardingService
 {

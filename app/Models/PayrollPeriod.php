@@ -1,9 +1,11 @@
 <?php
+
 // app/Models/PayrollPeriod.php
+
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class PayrollPeriod extends Model
@@ -17,12 +19,12 @@ class PayrollPeriod extends Model
     ];
 
     protected $casts = [
-        'week_start'    => 'date',
-        'week_end'      => 'date',
-        'total_amount'  => 'float',
+        'week_start' => 'date',
+        'week_end' => 'date',
+        'total_amount' => 'float',
         'total_adjustments' => 'float',
         'total_bonuses' => 'float',
-        'approved_at'   => 'datetime',
+        'approved_at' => 'datetime',
     ];
 
     public function entries()

@@ -45,6 +45,7 @@ class DeleteDemoJobOpenings extends Command
 
         if ($jobs->isEmpty()) {
             $this->warn('No se encontraron vacantes de prueba.');
+
             return self::SUCCESS;
         }
 
@@ -64,7 +65,7 @@ class DeleteDemoJobOpenings extends Command
         }
 
         $this->newLine();
-        $this->info("Resumen:");
+        $this->info('Resumen:');
         $this->info("  Vacantes eliminadas: {$deletedJobs}");
         if ($withApplications) {
             $this->info("  Postulaciones eliminadas: {$deletedApplications}");

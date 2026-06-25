@@ -14,6 +14,7 @@ use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
+use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -31,6 +32,9 @@ return Application::configure(basePath: dirname(__DIR__))
             'module' => EnsureModuleEnabled::class,
             'role' => EnsureRole::class,
             'portal.cookie' => PortalCookieAuth::class,
+        ]);
+        $middleware->api(prepend: [
+            EnsureFrontendRequestsAreStateful::class,
         ]);
         $middleware->redirectGuestsTo(fn () => null);
 

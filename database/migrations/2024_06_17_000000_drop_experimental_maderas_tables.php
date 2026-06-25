@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -16,12 +17,12 @@ return new class extends Migration
             'bastones_madera', 'temporadas_madera', 'maderas_catalogos', 'registros_produccion_madera',
             'movimientos_inventario_madera', 'baston_maderas', 'producto_maderas', 'receta_maderas',
             'registro_produccions', 'ensamblajes', 'temporada_maderas', 'tabla_corte_p_x_t_s',
-            'pesaje_registros', 'pesaje_sabors', 'sabor_pesajes', 'registro_pesajes'
+            'pesaje_registros', 'pesaje_sabors', 'sabor_pesajes', 'registro_pesajes',
         ];
 
         foreach ($tablas as $tabla) {
-            if (\Illuminate\Support\Facades\DB::getDriverName() === 'pgsql') {
-                \Illuminate\Support\Facades\DB::statement('DROP TABLE IF EXISTS "' . $tabla . '" CASCADE');
+            if (DB::getDriverName() === 'pgsql') {
+                DB::statement('DROP TABLE IF EXISTS "'.$tabla.'" CASCADE');
             } else {
                 Schema::dropIfExists($tabla);
             }
@@ -30,7 +31,5 @@ return new class extends Migration
         Schema::enableForeignKeyConstraints();
     }
 
-    public function down(): void
-    {
-    }
+    public function down(): void {}
 };

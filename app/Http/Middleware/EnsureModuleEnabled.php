@@ -11,7 +11,7 @@ class EnsureModuleEnabled
     public function handle(Request $request, Closure $next, string $moduleKey)
     {
         $empresaId = $request->user()?->empresa_id;
-        if (!$empresaId) {
+        if (! $empresaId) {
             return response()->json(['message' => 'Tenant inválido'], 403);
         }
 
@@ -20,7 +20,7 @@ class EnsureModuleEnabled
             ->where('module_slug', $moduleKey)
             ->first();
 
-        if (!$flag || !$flag->enabled) {
+        if (! $flag || ! $flag->enabled) {
             return response()->json(['message' => "Módulo deshabilitado: $moduleKey"], 403);
         }
 

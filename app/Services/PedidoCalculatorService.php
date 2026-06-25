@@ -21,7 +21,7 @@ class PedidoCalculatorService
             'tablas_pino' => [],
             'consumibles' => [],
             'servicios_corte' => [],
-            'total_pedido' => 0
+            'total_pedido' => 0,
         ];
 
         $hojasMdfCountRectangular = 0;
@@ -30,7 +30,9 @@ class PedidoCalculatorService
 
         foreach ($metas as $meta) {
             $faltantes = $meta->meta_piezas - $meta->stock_bolsas - $meta->stock_armadas;
-            if ($faltantes <= 0) continue;
+            if ($faltantes <= 0) {
+                continue;
+            }
 
             // Obtener recetas de este producto
             $recetas = DB::table('maderas_recetas as mr')
@@ -52,7 +54,7 @@ class PedidoCalculatorService
                             'nombre' => "Hojas para {$meta->categoria} (Faltan $faltantes piezas) - {$receta->nombre}",
                             'cantidad' => $hojasAPedir,
                             'precio_unitario' => $receta->precio_unitario,
-                            'subtotal' => $subtotal
+                            'subtotal' => $subtotal,
                         ];
                         $pedidoData['total_pedido'] += $subtotal;
 
@@ -73,7 +75,7 @@ class PedidoCalculatorService
                             'nombre' => "{$receta->nombre} (Faltan $faltantes piezas)",
                             'cantidad' => $consumibleAPedir,
                             'precio_unitario' => $receta->precio_unitario,
-                            'subtotal' => $subtotal
+                            'subtotal' => $subtotal,
                         ];
                         $pedidoData['total_pedido'] += $subtotal;
                     }
@@ -93,7 +95,7 @@ class PedidoCalculatorService
                             'nombre' => "Tabla de {$tabla->medida_cm}cm (Faltan $faltantes piezas)",
                             'cantidad' => $tablasRequeridas,
                             'precio_unitario' => $tabla->precio_unitario_tabla,
-                            'subtotal' => $subtotal
+                            'subtotal' => $subtotal,
                         ];
                         $pedidoData['total_pedido'] += $subtotal;
                         $tablasPinoCount += $tablasRequeridas;
@@ -113,7 +115,7 @@ class PedidoCalculatorService
                 'nombre' => "{$srv->nombre} ({$hojasMdfCountRectangular} hojas)",
                 'cantidad' => $hojasMdfCountRectangular,
                 'precio_unitario' => $srv->precio_fijo,
-                'subtotal' => $sub
+                'subtotal' => $sub,
             ];
             $pedidoData['total_pedido'] += $sub;
         }
@@ -126,7 +128,7 @@ class PedidoCalculatorService
                 'nombre' => "{$srv->nombre} ({$hojasMdfCountCircular} hojas)",
                 'cantidad' => $hojasMdfCountCircular,
                 'precio_unitario' => $srv->precio_fijo,
-                'subtotal' => $sub
+                'subtotal' => $sub,
             ];
             $pedidoData['total_pedido'] += $sub;
         }
@@ -139,7 +141,7 @@ class PedidoCalculatorService
                 'nombre' => "{$srv->nombre} ({$tablasPinoCount} tablas)",
                 'cantidad' => $tablasPinoCount,
                 'precio_unitario' => $srv->precio_fijo,
-                'subtotal' => $sub
+                'subtotal' => $sub,
             ];
             $pedidoData['total_pedido'] += $sub;
         }

@@ -32,7 +32,7 @@ class SecurityHeaders
 
         // Strict transport security (only in production with HTTPS)
         if (app()->environment('production') && $request->isSecure()) {
-            $response->headers->set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+            $response->headers->set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
         }
 
         // Content Security Policy (restrictive baseline for API)

@@ -72,7 +72,7 @@ class MaderasDataSeeder extends Seeder
                 'orden_visual' => 3,
                 'created_at' => now(),
                 'updated_at' => now(),
-            ]
+            ],
         ]);
 
         // 4. Producto (Base)
@@ -106,7 +106,7 @@ class MaderasDataSeeder extends Seeder
                 'cantidad_por_unidad' => 15,
                 'created_at' => now(),
                 'updated_at' => now(),
-            ]
+            ],
         ]);
 
         // 6. Temporada y Metas
@@ -128,7 +128,7 @@ class MaderasDataSeeder extends Seeder
             'created_at' => now(),
             'updated_at' => now(),
         ]);
-        
+
         // 7. Bastones
         DB::table('bastones_madera')->insert([
             'empresa_id' => $empresaId,

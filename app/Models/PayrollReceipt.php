@@ -81,7 +81,7 @@ class PayrollReceipt extends Model
                 $year = now()->format('Y');
                 $week = now()->format('W');
                 $last = static::whereYear('generated_at', $year)->count();
-                $receipt->folio = sprintf("NOM-%s-%03d-%03d", $year, $week, $last + 1);
+                $receipt->folio = sprintf('NOM-%s-%03d-%03d', $year, $week, $last + 1);
             }
         });
     }

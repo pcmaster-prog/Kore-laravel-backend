@@ -22,8 +22,7 @@ class InterviewReminderMail extends Mailable implements ShouldQueue
         public ?string $location = null,
         public ?string $meetingUrl = null,
         public string $role = 'candidate', // candidate | interviewer
-    ) {
-    }
+    ) {}
 
     public function envelope(): Envelope
     {

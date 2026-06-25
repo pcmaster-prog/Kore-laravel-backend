@@ -1,14 +1,18 @@
 <?php
+
 // AbsenceRequestController: gestión de solicitudes de ausencia justificada
+
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\EmpleadoResource;
 use App\Models\AttendanceAbsenceRequest;
 use App\Models\Empleado;
 use App\Services\NotificationService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
-use App\Http\Resources\EmpleadoResource;
+use Illuminate\Support\Facades\Log;
 
 class AbsenceRequestController extends Controller
 {
@@ -27,12 +31,12 @@ class AbsenceRequestController extends Controller
             ->where('user_id', $u->id)
             ->first();
 
-        if (!$emp) {
+        if (! $emp) {
             return response()->json(['message' => 'Empleado no vinculado'], 404);
         }
 
         $data = $request->validate([
-            'date'   => ['required', 'date_format:Y-m-d', 'after_or_equal:today'],
+            'date' => ['required', 'date_format:Y-m-d', 'after_or_equal:today'],
             'motivo' => ['required', 'string', 'min:10', 'max:500'],
         ]);
 
@@ -50,11 +54,11 @@ class AbsenceRequestController extends Controller
         }
 
         $req = AttendanceAbsenceRequest::create([
-            'empresa_id'  => $empresaId,
+            'empresa_id' => $empresaId,
             'empleado_id' => $emp->id,
-            'date'        => $data['date'],
-            'motivo'      => $data['motivo'],
-            'status'      => 'pending',
+            'date' => $data['date'],
+            'motivo' => $data['motivo'],
+            'status' => 'pending',
         ]);
 
         // Notificar a admins
@@ -62,16 +66,16 @@ class AbsenceRequestController extends Controller
             app(NotificationService::class)->sendToManagers(
                 empresaId: $empresaId,
                 title: '📋 Solicitud de ausencia',
-                body: ($emp->full_name) . ' solicita ausencia el ' . \Carbon\Carbon::parse($data['date'])->format('d/m/Y') . ': "' . \Str::limit($data['motivo'], 60) . '"',
+                body: ($emp->full_name).' solicita ausencia el '.Carbon::parse($data['date'])->format('d/m/Y').': "'.\Str::limit($data['motivo'], 60).'"',
                 data: [
-                    'type'       => 'absence.new_request',
+                    'type' => 'absence.new_request',
                     'request_id' => $req->id,
-                    'empleado_id'=> $emp->id,
-                    'date'       => $data['date'],
+                    'empleado_id' => $emp->id,
+                    'date' => $data['date'],
                 ]
             );
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error('Error notificando solicitud de ausencia: ' . $e->getMessage());
+            Log::error('Error notificando solicitud de ausencia: '.$e->getMessage());
         }
 
         return response()->json([
@@ -90,14 +94,16 @@ class AbsenceRequestController extends Controller
         $empresaId = $u->empresa_id;
 
         $emp = Empleado::where('empresa_id', $empresaId)->where('user_id', $u->id)->first();
-        if (!$emp) return response()->json(['data' => []]);
+        if (! $emp) {
+            return response()->json(['data' => []]);
+        }
 
         $requests = AttendanceAbsenceRequest::where('empresa_id', $empresaId)
             ->where('empleado_id', $emp->id)
             ->orderByDesc('date')
             ->limit(30)
             ->get()
-            ->map(fn($r) => $this->presentRequest($r));
+            ->map(fn ($r) => $this->presentRequest($r));
 
         return response()->json(['data' => $requests]);
     }
@@ -119,7 +125,7 @@ class AbsenceRequestController extends Controller
             ->with(['empleado'])
             ->orderBy('date')
             ->get()
-            ->map(fn($r) => $this->presentRequest($r, true));
+            ->map(fn ($r) => $this->presentRequest($r, true));
 
         return response()->json(['data' => $requests]);
     }
@@ -134,7 +140,7 @@ class AbsenceRequestController extends Controller
 
         $u = $request->user();
         $data = $request->validate([
-            'status'        => ['required', 'in:approved,rejected'],
+            'status' => ['required', 'in:approved,rejected'],
             'reviewer_note' => ['nullable', 'string', 'max:400'],
         ]);
 
@@ -146,9 +152,9 @@ class AbsenceRequestController extends Controller
         }
 
         $req->update([
-            'status'        => $data['status'],
-            'reviewed_by'   => $u->id,
-            'reviewed_at'   => now(),
+            'status' => $data['status'],
+            'reviewed_by' => $u->id,
+            'reviewed_at' => now(),
             'reviewer_note' => $data['reviewer_note'] ?? null,
         ]);
 
@@ -160,16 +166,16 @@ class AbsenceRequestController extends Controller
                 app(NotificationService::class)->sendToUser(
                     userId: $emp->user_id,
                     title: $isApproved ? '✅ Ausencia aprobada' : '❌ Ausencia rechazada',
-                    body: 'Tu solicitud del ' . $req->date->format('d/m/Y') . ' fue ' . ($isApproved ? 'aprobada' : 'rechazada') . ($data['reviewer_note'] ? ': "' . $data['reviewer_note'] . '"' : '.'),
+                    body: 'Tu solicitud del '.$req->date->format('d/m/Y').' fue '.($isApproved ? 'aprobada' : 'rechazada').($data['reviewer_note'] ? ': "'.$data['reviewer_note'].'"' : '.'),
                     data: [
-                        'type'       => 'absence.reviewed',
+                        'type' => 'absence.reviewed',
                         'request_id' => $req->id,
-                        'status'     => $data['status'],
+                        'status' => $data['status'],
                     ]
                 );
             }
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error('Error notificando respuesta de ausencia: ' . $e->getMessage());
+            Log::error('Error notificando respuesta de ausencia: '.$e->getMessage());
         }
 
         return response()->json([
@@ -183,13 +189,13 @@ class AbsenceRequestController extends Controller
     private function presentRequest(AttendanceAbsenceRequest $r, bool $withEmpleado = false): array
     {
         $data = [
-            'id'            => $r->id,
-            'date'          => $r->date?->toDateString(),
-            'motivo'        => $r->motivo,
-            'status'        => $r->status,
+            'id' => $r->id,
+            'date' => $r->date?->toDateString(),
+            'motivo' => $r->motivo,
+            'status' => $r->status,
             'reviewer_note' => $r->reviewer_note,
-            'reviewed_at'   => $r->reviewed_at?->toISOString(),
-            'created_at'    => $r->created_at?->toISOString(),
+            'reviewed_at' => $r->reviewed_at?->toISOString(),
+            'created_at' => $r->created_at?->toISOString(),
         ];
 
         if ($withEmpleado && $r->relationLoaded('empleado')) {

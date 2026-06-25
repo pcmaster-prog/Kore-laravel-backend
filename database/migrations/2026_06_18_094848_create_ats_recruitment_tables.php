@@ -26,18 +26,18 @@ return new class extends Migration
             $table->foreignUuid('job_opening_id')->constrained('job_openings')->cascadeOnDelete();
             $table->foreignUuid('user_id')->constrained('users')->cascadeOnDelete(); // El aspirante
             $table->string('status')->default('new'); // new, screening, testing, interviewing, offering, hired, rejected
-            
+
             // Expediente Digital / Formulario Base
             $table->json('contact_info')->nullable(); // phone, address, etc
             $table->json('education')->nullable();
             $table->json('experience')->nullable();
-            
+
             // Etapas de evaluación
             $table->boolean('has_induction_video_watched')->default(false);
             $table->timestamp('induction_video_watched_at')->nullable();
-            
+
             $table->json('screening_test_results')->nullable(); // Encuesta de filtrado
-            
+
             // Entrevistas
             $table->timestamp('interview_scheduled_at')->nullable();
             $table->string('interview_notes')->nullable();

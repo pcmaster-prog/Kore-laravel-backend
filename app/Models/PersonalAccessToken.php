@@ -6,8 +6,7 @@ use Laravel\Sanctum\PersonalAccessToken as SanctumPersonalAccessToken;
 
 class PersonalAccessToken extends SanctumPersonalAccessToken
 {
-
     protected $keyType = 'string';
-    public $incrementing = false;
 
+    public $incrementing = false;
 }

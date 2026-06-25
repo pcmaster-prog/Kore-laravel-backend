@@ -36,8 +36,8 @@ class SendPushNotification implements ShouldQueue
         } catch (\Throwable $e) {
             Log::error('SendPushNotification job failed', [
                 'user_id' => $this->userId,
-                'title'   => $this->title,
-                'error'   => $e->getMessage(),
+                'title' => $this->title,
+                'error' => $e->getMessage(),
             ]);
         }
     }

@@ -1,25 +1,32 @@
 <?php
+
 // AttendanceControllerV2: manejo de asistencia (check-in, check-out, pausas) con lógica de estados, eventos y cálculo de totales.
+
 namespace App\Http\Controllers\Api\V1;
 
+use App\Events\AttendanceCheckedIn;
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Gate;
-
+use App\Http\Resources\AttendanceDayResource;
+use App\Jobs\SendPushNotification;
+use App\Jobs\SendPushNotificationToManagers;
 use App\Models\AttendanceDay;
 use App\Models\AttendanceEvent;
 use App\Models\Empleado;
 use App\Models\EmployeeCalendarOverride;
 use App\Models\Empresa;
+use App\Models\GeneratedAbsence;
 use App\Models\Holiday;
 use App\Models\LateArrivalRequest;
-use App\Services\NotificationService;
+use App\Models\PayrollEntry;
+use App\Models\TardinessConfig;
+use App\Services\ActivityLogger;
 use App\Services\AttendanceService;
-use App\Http\Resources\AttendanceDayResource;
-use App\Jobs\SendPushNotification;
-use App\Jobs\SendPushNotificationToManagers;
-use App\Events\AttendanceCheckedIn;
+use Carbon\Carbon;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
+use Symfony\Component\HttpFoundation\IpUtils;
 
 class AttendanceControllerV2 extends Controller
 {
@@ -35,7 +42,7 @@ class AttendanceControllerV2 extends Controller
         // ni después de la hora de salida configurada
         $daySchedule = AttendanceService::getDaySchedule($empresaId, $today);
         if ($daySchedule) {
-            if (!$daySchedule['is_working_day']) {
+            if (! $daySchedule['is_working_day']) {
                 return response()->json([
                     'message' => 'Hoy no es día laborable según el horario configurado.',
                     'code' => 'NON_WORKING_DAY',
@@ -47,30 +54,30 @@ class AttendanceControllerV2 extends Controller
         $effectiveCheckInTime = AttendanceService::getEmployeeCheckInTime($empresaId, $emp->id, $today);
 
         if ($effectiveCheckInTime) {
-            $todayCheckIn  = \Carbon\Carbon::parse($today . ' ' . $effectiveCheckInTime);
+            $todayCheckIn = Carbon::parse($today.' '.$effectiveCheckInTime);
             $todayEarliest = $todayCheckIn->copy()->subMinutes(15);
             $now = now();
 
             if ($now->lessThan($todayEarliest)) {
                 return response()->json([
-                    'message' => "Entrada bloqueada: Aún es muy temprano. El acceso para las " . $todayCheckIn->format('H:i') . " se permite desde las " . $todayEarliest->format('H:i') . ". Tu hora actual es: " . $now->format('H:i'),
-                    'code'                => 'CHECK_IN_TOO_EARLY',
-                    'earliest_allowed'    => $todayEarliest->toTimeString(),
+                    'message' => 'Entrada bloqueada: Aún es muy temprano. El acceso para las '.$todayCheckIn->format('H:i').' se permite desde las '.$todayEarliest->format('H:i').'. Tu hora actual es: '.$now->format('H:i'),
+                    'code' => 'CHECK_IN_TOO_EARLY',
+                    'earliest_allowed' => $todayEarliest->toTimeString(),
                     'current_server_time' => $now->toTimeString(),
                 ], 409);
             }
 
             // Bloqueo por llegada tarde (sin oportunidad aprobada)
-            $tardinessConfig = \App\Models\TardinessConfig::firstOrCreate(
+            $tardinessConfig = TardinessConfig::firstOrCreate(
                 ['empresa_id' => $empresaId],
                 [
-                    'grace_period_minutes'    => 10,
-                    'late_threshold_minutes'  => 1,
-                    'lates_to_absence'        => 3,
-                    'accumulation_period'     => 'month',
-                    'penalize_rest_day'       => true,
+                    'grace_period_minutes' => 10,
+                    'late_threshold_minutes' => 1,
+                    'lates_to_absence' => 3,
+                    'accumulation_period' => 'month',
+                    'penalize_rest_day' => true,
                     'notify_employee_on_late' => true,
-                    'notify_manager_on_late'  => true,
+                    'notify_manager_on_late' => true,
                 ]
             );
 
@@ -86,7 +93,7 @@ class AttendanceControllerV2 extends Controller
                     ->exists();
 
                 if (! $hasApproved) {
-                    \App\Services\ActivityLogger::log(
+                    ActivityLogger::log(
                         $empresaId,
                         $u->id,
                         $emp->id,
@@ -106,14 +113,14 @@ class AttendanceControllerV2 extends Controller
                         SendPushNotificationToManagers::dispatch(
                             $empresaId,
                             '🚫 Entrada bloqueada por retardo',
-                            ($emp->full_name ?? $u->name) . ' intentó marcar entrada a las ' . $now->format('H:i') . ' (hora límite: ' . $lateWindowClosesAt->format('H:i') . ').',
+                            ($emp->full_name ?? $u->name).' intentó marcar entrada a las '.$now->format('H:i').' (hora límite: '.$lateWindowClosesAt->format('H:i').').',
                             [
                                 'type' => 'attendance.check_in_blocked',
                                 'empleado_id' => $emp->id,
                             ]
                         );
                     } catch (\Throwable $e) {
-                        \Illuminate\Support\Facades\Log::error('Error notificando bloqueo de entrada: ' . $e->getMessage());
+                        Log::error('Error notificando bloqueo de entrada: '.$e->getMessage());
                     }
 
                     return response()->json([
@@ -130,28 +137,28 @@ class AttendanceControllerV2 extends Controller
         // Validación de hora de salida (horario de empresa)
         $checkOutTimeStr = $daySchedule['check_out_time'] ?? null;
         if ($checkOutTimeStr) {
-            $todayCheckOut = \Carbon\Carbon::parse($today . ' ' . $checkOutTimeStr);
+            $todayCheckOut = Carbon::parse($today.' '.$checkOutTimeStr);
             $now = now();
 
             if ($now->greaterThan($todayCheckOut)) {
                 return response()->json([
-                    'message' => "Entrada bloqueada: El turno ya terminó. La hora de salida era las " . $todayCheckOut->format('H:i') . ". Tu hora actual es: " . $now->format('H:i'),
-                    'code'                => 'CHECK_IN_TOO_LATE',
-                    'latest_allowed'      => $todayCheckOut->toTimeString(),
+                    'message' => 'Entrada bloqueada: El turno ya terminó. La hora de salida era las '.$todayCheckOut->format('H:i').'. Tu hora actual es: '.$now->format('H:i'),
+                    'code' => 'CHECK_IN_TOO_LATE',
+                    'latest_allowed' => $todayCheckOut->toTimeString(),
                     'current_server_time' => $now->toTimeString(),
                 ], 409);
             }
         }
 
-        if (!$this->validateNetworkAccess($request, $empresa)) {
+        if (! $this->validateNetworkAccess($request, $empresa)) {
             return response()->json([
                 'message' => 'No puedes marcar asistencia fuera de la red de la tienda.',
-                'code' => 'NETWORK_RESTRICTED'
+                'code' => 'NETWORK_RESTRICTED',
             ], 403);
         }
 
         if (AttendanceService::isRestDay($empresaId, $emp->id, $today)) {
-            return response()->json(['message'=>'Hoy es día de descanso'], 409);
+            return response()->json(['message' => 'Hoy es día de descanso'], 409);
         }
 
         $isHoliday = Holiday::where('empresa_id', $empresaId)
@@ -166,14 +173,14 @@ class AttendanceControllerV2 extends Controller
         }
 
         $day = AttendanceDay::firstOrCreate(
-            ['empresa_id'=>$empresaId, 'empleado_id'=>$emp->id, 'date'=>$today],
-            ['status'=>'open']
+            ['empresa_id' => $empresaId, 'empleado_id' => $emp->id, 'date' => $today],
+            ['status' => 'open']
         );
 
         $state = $this->currentState($day);
 
         if ($state !== 'out') {
-            return response()->json(['message'=>'No puedes marcar entrada ahora', 'state'=>$state], 409);
+            return response()->json(['message' => 'No puedes marcar entrada ahora', 'state' => $state], 409);
         }
 
         $this->addEvent($empresaId, $day->id, 'check_in', $request);
@@ -183,28 +190,28 @@ class AttendanceControllerV2 extends Controller
 
         // ⏰ DETECCIÓN DE RETARDO (via TardinessConfig)
         $lateMinutes = 0;
-        $tardCount   = 0;
+        $tardCount = 0;
 
-        $tardinessConfig = \App\Models\TardinessConfig::firstOrCreate(
+        $tardinessConfig = TardinessConfig::firstOrCreate(
             ['empresa_id' => $empresaId],
             [
-                'grace_period_minutes'    => 10,
-                'late_threshold_minutes'  => 1,
-                'lates_to_absence'        => 3,
-                'accumulation_period'     => 'month',
-                'penalize_rest_day'       => true,
+                'grace_period_minutes' => 10,
+                'late_threshold_minutes' => 1,
+                'lates_to_absence' => 3,
+                'accumulation_period' => 'month',
+                'penalize_rest_day' => true,
                 'notify_employee_on_late' => true,
-                'notify_manager_on_late'  => true,
+                'notify_manager_on_late' => true,
             ]
         );
 
         $effectiveCheckInTimeForLate = AttendanceService::getEmployeeCheckInTime($empresaId, $emp->id, $today);
 
         if ($effectiveCheckInTimeForLate) {
-            $scheduledTime = \Carbon\Carbon::parse($today . ' ' . $effectiveCheckInTimeForLate);
-            $graceLimit    = $scheduledTime->copy()->addMinutes($tardinessConfig->grace_period_minutes);
+            $scheduledTime = Carbon::parse($today.' '.$effectiveCheckInTimeForLate);
+            $graceLimit = $scheduledTime->copy()->addMinutes($tardinessConfig->grace_period_minutes);
             $lateThreshold = $graceLimit->copy()->addMinutes($tardinessConfig->late_threshold_minutes);
-            $nowTs         = now();
+            $nowTs = now();
 
             if ($nowTs->greaterThan($lateThreshold)) {
                 $lateMinutes = (int) ceil(abs($nowTs->diffInMinutes($scheduledTime)));
@@ -221,8 +228,8 @@ class AttendanceControllerV2 extends Controller
 
         // Contar retardos acumulados del mes (incluido el de hoy si aplica)
         $monthStart = now()->startOfMonth()->toDateString();
-        $monthEnd   = now()->endOfMonth()->toDateString();
-        $tardCount  = AttendanceDay::where('empresa_id', $empresaId)
+        $monthEnd = now()->endOfMonth()->toDateString();
+        $tardCount = AttendanceDay::where('empresa_id', $empresaId)
             ->where('empleado_id', $emp->id)
             ->whereBetween('date', [$monthStart, $monthEnd])
             ->where('late_minutes', '>', 0)
@@ -231,21 +238,21 @@ class AttendanceControllerV2 extends Controller
         // Generar ausencia si se alcanzó el umbral de retardos
         if ($tardCount >= $tardinessConfig->lates_to_absence
             && $tardinessConfig->penalize_rest_day) {
-            \App\Models\GeneratedAbsence::firstOrCreate(
+            GeneratedAbsence::firstOrCreate(
                 [
                     'empleado_id' => $emp->id,
-                    'period_key'  => now()->format('Y-m'),
-                    'type'        => 'late_accumulation',
+                    'period_key' => now()->format('Y-m'),
+                    'type' => 'late_accumulation',
                 ],
                 [
-                    'empresa_id'              => $empresaId,
+                    'empresa_id' => $empresaId,
                     'affects_rest_day_payment' => true,
                 ]
             );
         }
 
         // 🔔 PARCHE 1: Logging para check_in
-        \App\Services\ActivityLogger::log(
+        ActivityLogger::log(
             $empresaId,
             $u->id,
             $emp->id,
@@ -253,10 +260,10 @@ class AttendanceControllerV2 extends Controller
             'attendance_day',
             $day->id,
             [
-                'employee_name'   => $emp->full_name ?? $u->name,
-                'late_minutes'    => $lateMinutes ?: null,
+                'employee_name' => $emp->full_name ?? $u->name,
+                'late_minutes' => $lateMinutes ?: null,
                 'tardiness_count' => $tardCount,
-                'date'            => $day->date,
+                'date' => $day->date,
             ],
             $request
         );
@@ -268,22 +275,22 @@ class AttendanceControllerV2 extends Controller
                 SendPushNotification::dispatch(
                     $u->id,
                     $lateMinutes > 0 ? '⏰ Llegada tarde registrada' : '⚡ Alerta de puntualidad',
-                    "Ya llevas {$tardCount} retardo(s) este mes" . ($penaltyActive ? ". ¡Tu día de descanso de esta semana no será pagado!" : ". Ten cuidado."),
+                    "Ya llevas {$tardCount} retardo(s) este mes".($penaltyActive ? '. ¡Tu día de descanso de esta semana no será pagado!' : '. Ten cuidado.'),
                     [
-                        'type'           => 'attendance.late_warning',
-                        'tardiness_count' => (string)$tardCount,
+                        'type' => 'attendance.late_warning',
+                        'tardiness_count' => (string) $tardCount,
                         'penalty_active' => $penaltyActive ? '1' : '0',
                     ]
                 );
             } catch (\Throwable $e) {
-                \Illuminate\Support\Facades\Log::error('Error notificando retardo al empleado: ' . $e->getMessage());
+                Log::error('Error notificando retardo al empleado: '.$e->getMessage());
             }
         }
 
         // 🔔 Notificar a managers sobre la entrada (respeta config)
         if ($tardinessConfig->notify_manager_on_late || $lateMinutes === 0) {
             try {
-                $managerBody = ($emp->full_name ?? $u->name) . ' marcó entrada a las ' . now()->format('H:i');
+                $managerBody = ($emp->full_name ?? $u->name).' marcó entrada a las '.now()->format('H:i');
                 if ($lateMinutes > 0) {
                     $managerBody .= " (retardo: {$lateMinutes} min — acumulado mes: {$tardCount} retardo(s))";
                 }
@@ -292,25 +299,25 @@ class AttendanceControllerV2 extends Controller
                     $lateMinutes > 0 ? '⚠️ Entrada tardía' : '📍 Entrada registrada',
                     $managerBody,
                     [
-                        'type'            => 'attendance.check_in',
-                        'empleado_id'     => $emp->id,
-                        'empresa_id'      => $empresaId,
-                        'late_minutes'    => (string)$lateMinutes,
-                        'tardiness_count' => (string)$tardCount,
+                        'type' => 'attendance.check_in',
+                        'empleado_id' => $emp->id,
+                        'empresa_id' => $empresaId,
+                        'late_minutes' => (string) $lateMinutes,
+                        'tardiness_count' => (string) $tardCount,
                     ]
                 );
             } catch (\Throwable $e) {
-                \Illuminate\Support\Facades\Log::error('Error de notificaciones en entrada: ' . $e->getMessage());
+                Log::error('Error de notificaciones en entrada: '.$e->getMessage());
             }
         }
 
         return response()->json([
-            'message'         => $lateMinutes > 0 ? "Entrada registrada con {$lateMinutes} min de retardo" : 'Entrada OK',
-            'is_late'         => $lateMinutes > 0,
-            'late_minutes'    => $lateMinutes,
+            'message' => $lateMinutes > 0 ? "Entrada registrada con {$lateMinutes} min de retardo" : 'Entrada OK',
+            'is_late' => $lateMinutes > 0,
+            'late_minutes' => $lateMinutes,
             'tardiness_count' => $tardCount,
-            'penalty_active'  => $tardCount >= $tardinessConfig->lates_to_absence,
-            'day'             => $this->presentDay($day),
+            'penalty_active' => $tardCount >= $tardinessConfig->lates_to_absence,
+            'day' => $this->presentDay($day),
         ]);
     }
 
@@ -319,23 +326,25 @@ class AttendanceControllerV2 extends Controller
     {
         [$u, $empresaId, $emp] = $this->authEmployee($request);
         $today = now()->toDateString();
-        
-        if (!$this->validateNetworkAccess($request, Empresa::find($empresaId))) {
+
+        if (! $this->validateNetworkAccess($request, Empresa::find($empresaId))) {
             return response()->json(['message' => 'No puedes marcar asistencia fuera de la red de la tienda.', 'code' => 'NETWORK_RESTRICTED'], 403);
         }
 
-        $day = AttendanceDay::where('empresa_id',$empresaId)->where('empleado_id',$emp->id)->where('date',$today)->first();
-        if (!$day) return response()->json(['message'=>'No hay entrada registrada hoy'], 409);
+        $day = AttendanceDay::where('empresa_id', $empresaId)->where('empleado_id', $emp->id)->where('date', $today)->first();
+        if (! $day) {
+            return response()->json(['message' => 'No hay entrada registrada hoy'], 409);
+        }
 
         $state = $this->currentState($day);
         if ($state !== 'working') {
-            return response()->json(['message'=>'No puedes iniciar pausa ahora', 'state'=>$state], 409);
+            return response()->json(['message' => 'No puedes iniciar pausa ahora', 'state' => $state], 409);
         }
 
         $this->addEvent($empresaId, $day->id, 'break_start', $request);
 
         // 🔔 PARCHE 1: Logging para break_start
-        \App\Services\ActivityLogger::log(
+        ActivityLogger::log(
             $empresaId,
             $u->id,
             $emp->id,
@@ -346,7 +355,7 @@ class AttendanceControllerV2 extends Controller
             $request
         );
 
-        return response()->json(['message'=>'Pausa iniciada', 'day'=>$this->presentDay($day->fresh())]);
+        return response()->json(['message' => 'Pausa iniciada', 'day' => $this->presentDay($day->fresh())]);
     }
 
     // EMPLEADO: terminar pausa
@@ -355,16 +364,18 @@ class AttendanceControllerV2 extends Controller
         [$u, $empresaId, $emp] = $this->authEmployee($request);
         $today = now()->toDateString();
 
-        if (!$this->validateNetworkAccess($request, Empresa::find($empresaId))) {
+        if (! $this->validateNetworkAccess($request, Empresa::find($empresaId))) {
             return response()->json(['message' => 'No puedes marcar asistencia fuera de la red de la tienda.', 'code' => 'NETWORK_RESTRICTED'], 403);
         }
 
-        $day = AttendanceDay::where('empresa_id',$empresaId)->where('empleado_id',$emp->id)->where('date',$today)->first();
-        if (!$day) return response()->json(['message'=>'No hay registro hoy'], 409);
+        $day = AttendanceDay::where('empresa_id', $empresaId)->where('empleado_id', $emp->id)->where('date', $today)->first();
+        if (! $day) {
+            return response()->json(['message' => 'No hay registro hoy'], 409);
+        }
 
         $state = $this->currentState($day);
         if ($state !== 'break') {
-            return response()->json(['message'=>'No puedes terminar pausa ahora', 'state'=>$state], 409);
+            return response()->json(['message' => 'No puedes terminar pausa ahora', 'state' => $state], 409);
         }
 
         $this->addEvent($empresaId, $day->id, 'break_end', $request);
@@ -378,7 +389,9 @@ class AttendanceControllerV2 extends Controller
         $breakStart = null;
         $totalBreakSeconds = 0;
         foreach ($events as $e) {
-            if ($e->type === 'break_start') $breakStart = $e->occurred_at;
+            if ($e->type === 'break_start') {
+                $breakStart = $e->occurred_at;
+            }
             if ($e->type === 'break_end' && $breakStart) {
                 $totalBreakSeconds += max(0, $breakStart->diffInSeconds($e->occurred_at));
                 $breakStart = null;
@@ -387,7 +400,7 @@ class AttendanceControllerV2 extends Controller
 
         $empresa = Empresa::find($empresaId);
         $settings = is_array($empresa?->settings) ? $empresa->settings : [];
-        $breakDuration = (int)($settings['operativo']['break_duration_minutes'] ?? 10);
+        $breakDuration = (int) ($settings['operativo']['break_duration_minutes'] ?? 10);
         $totalBreakMinutes = (int) round($totalBreakSeconds / 60);
 
         if ($totalBreakMinutes > $breakDuration) {
@@ -396,20 +409,20 @@ class AttendanceControllerV2 extends Controller
                 SendPushNotificationToManagers::dispatch(
                     $empresaId,
                     '⚠️ Exceso de descanso',
-                    ($emp->full_name ?? $u->name) . " excedió el descanso en {$exceso} min (límite: {$breakDuration} min)",
+                    ($emp->full_name ?? $u->name)." excedió el descanso en {$exceso} min (límite: {$breakDuration} min)",
                     [
-                        'type'        => 'attendance.break_overtime',
+                        'type' => 'attendance.break_overtime',
                         'empleado_id' => $emp->id,
-                        'exceso_min'  => (string) $exceso,
+                        'exceso_min' => (string) $exceso,
                     ]
                 );
             } catch (\Throwable $e) {
-                \Illuminate\Support\Facades\Log::error('Error notificación exceso descanso: ' . $e->getMessage());
+                Log::error('Error notificación exceso descanso: '.$e->getMessage());
             }
         }
 
         // 🔔 PARCHE 1: Logging para break_end
-        \App\Services\ActivityLogger::log(
+        ActivityLogger::log(
             $empresaId,
             $u->id,
             $emp->id,
@@ -420,7 +433,7 @@ class AttendanceControllerV2 extends Controller
             $request
         );
 
-        return response()->json(['message'=>'Pausa terminada', 'day'=>$this->presentDay($day->fresh())]);
+        return response()->json(['message' => 'Pausa terminada', 'day' => $this->presentDay($day->fresh())]);
     }
 
     // EMPLEADO: salida
@@ -428,25 +441,27 @@ class AttendanceControllerV2 extends Controller
     {
         [$u, $empresaId, $emp] = $this->authEmployee($request);
         $today = now()->toDateString();
-        
-        if (!$this->validateNetworkAccess($request, Empresa::find($empresaId))) {
+
+        if (! $this->validateNetworkAccess($request, Empresa::find($empresaId))) {
             return response()->json(['message' => 'No puedes marcar asistencia fuera de la red de la tienda.', 'code' => 'NETWORK_RESTRICTED'], 403);
         }
 
-        $day = AttendanceDay::where('empresa_id',$empresaId)->where('empleado_id',$emp->id)->where('date',$today)->first();
-        if (!$day) return response()->json(['message'=>'No puedes marcar salida sin entrada'], 409);
+        $day = AttendanceDay::where('empresa_id', $empresaId)->where('empleado_id', $emp->id)->where('date', $today)->first();
+        if (! $day) {
+            return response()->json(['message' => 'No puedes marcar salida sin entrada'], 409);
+        }
 
         // 🔒 Bloquear si el día ya fue cerrado por un admin/supervisor (status o salida manual)
         if ($day->status === 'closed' || $day->last_check_out_at !== null) {
             return response()->json([
                 'message' => 'Tu jornada ya fue cerrada por el administrador. No puedes modificarla.',
-                'code'    => 'DAY_ALREADY_CLOSED',
+                'code' => 'DAY_ALREADY_CLOSED',
             ], 409);
         }
 
         $state = $this->currentState($day);
         if ($state !== 'working') {
-            return response()->json(['message'=>'No puedes marcar salida ahora', 'state'=>$state], 409);
+            return response()->json(['message' => 'No puedes marcar salida ahora', 'state' => $state], 409);
         }
 
         $this->addEvent($empresaId, $day->id, 'check_out', $request);
@@ -468,9 +483,9 @@ class AttendanceControllerV2 extends Controller
         // 🔔 PARCHE 1 FIX: calcular totales reales con computeTotals()
         $totals = AttendanceService::computeDayTotals($day);
         $workedMinutes = $totals['worked_minutes'];
-        $breakMinutes  = $totals['break_minutes'];
+        $breakMinutes = $totals['break_minutes'];
 
-        \App\Services\ActivityLogger::log(
+        ActivityLogger::log(
             $empresaId,
             $u->id,
             $emp->id,
@@ -478,10 +493,10 @@ class AttendanceControllerV2 extends Controller
             'attendance_day',
             $day->id,
             [
-                'employee_name'  => $emp->full_name ?? $u->name,
+                'employee_name' => $emp->full_name ?? $u->name,
                 'worked_minutes' => $workedMinutes,   // ← ahora tiene valor real calculado
-                'break_minutes'  => $breakMinutes,    // ← bonus: también registramos pausas
-                'date'           => $day->date,
+                'break_minutes' => $breakMinutes,    // ← bonus: también registramos pausas
+                'date' => $day->date,
             ],
             $request
         );
@@ -491,14 +506,14 @@ class AttendanceControllerV2 extends Controller
             SendPushNotificationToManagers::dispatch(
                 $empresaId,
                 '🚪 Salida registrada',
-                ($emp->full_name ?? $u->name) . ' marcó salida a las ' . now()->format('H:i'),
+                ($emp->full_name ?? $u->name).' marcó salida a las '.now()->format('H:i'),
                 [
-                    'type'        => 'attendance.check_out',
+                    'type' => 'attendance.check_out',
                     'empleado_id' => $emp->id,
                 ]
             );
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error('Error de notificaciones en salida: ' . $e->getMessage());
+            Log::error('Error de notificaciones en salida: '.$e->getMessage());
         }
 
         return response()->json([
@@ -513,10 +528,14 @@ class AttendanceControllerV2 extends Controller
     {
         [$u, $empresaId, $emp] = $this->authEmployee($request);
 
-        $q = AttendanceDay::where('empresa_id',$empresaId)->where('empleado_id',$emp->id);
+        $q = AttendanceDay::where('empresa_id', $empresaId)->where('empleado_id', $emp->id);
 
-        if ($request->filled('from')) $q->whereDate('date','>=',$request->string('from'));
-        if ($request->filled('to')) $q->whereDate('date','<=',$request->string('to'));
+        if ($request->filled('from')) {
+            $q->whereDate('date', '>=', $request->string('from'));
+        }
+        if ($request->filled('to')) {
+            $q->whereDate('date', '<=', $request->string('to'));
+        }
 
         $items = $q->orderByDesc('date')->with(['events'])->paginate(31);
 
@@ -529,7 +548,7 @@ class AttendanceControllerV2 extends Controller
         [$u, $empresaId, $emp] = $this->authEmployee($request);
 
         $monthStart = now()->startOfMonth()->toDateString();
-        $monthEnd   = now()->endOfMonth()->toDateString();
+        $monthEnd = now()->endOfMonth()->toDateString();
 
         $lateDays = AttendanceDay::where('empresa_id', $empresaId)
             ->where('empleado_id', $emp->id)
@@ -548,14 +567,14 @@ class AttendanceControllerV2 extends Controller
             ->value('late_minutes');
 
         return response()->json([
-            'late_count'         => $lateCount,
+            'late_count' => $lateCount,
             'today_late_minutes' => $todayLate,
-            'penalty_active'     => $lateCount >= 3,
-            'late_days'          => $lateDays->map(fn($d) => [
-                'date'         => $d->date?->toDateString(),
+            'penalty_active' => $lateCount >= 3,
+            'late_days' => $lateDays->map(fn ($d) => [
+                'date' => $d->date?->toDateString(),
                 'late_minutes' => $d->late_minutes,
             ]),
-            'month'              => now()->format('Y-m'),
+            'month' => now()->format('Y-m'),
         ]);
     }
 
@@ -578,33 +597,33 @@ class AttendanceControllerV2 extends Controller
                 ->first();
 
             return response()->json([
-                'date'          => $today,
-                'is_rest_day'   => false,
-                'is_holiday'    => true,
-                'holiday_name'  => $holiday->name,
-                'state'         => 'holiday',
-                'status'        => 'holiday',
-                'actions'       => [
-                    'check_in'    => false,
+                'date' => $today,
+                'is_rest_day' => false,
+                'is_holiday' => true,
+                'holiday_name' => $holiday->name,
+                'state' => 'holiday',
+                'status' => 'holiday',
+                'actions' => [
+                    'check_in' => false,
                     'break_start' => false,
-                    'break_end'   => false,
-                    'check_out'   => false,
+                    'break_end' => false,
+                    'check_out' => false,
                 ],
-                'day'           => $day ? $this->presentDay($day) : [
-                    'id'                => null,
-                    'empleado_id'       => $emp->id,
-                    'date'              => $today,
-                    'status'            => 'holiday',
+                'day' => $day ? $this->presentDay($day) : [
+                    'id' => null,
+                    'empleado_id' => $emp->id,
+                    'date' => $today,
+                    'status' => 'holiday',
                     'first_check_in_at' => null,
                     'last_check_out_at' => null,
-                    'late_minutes'      => 0,
-                    'lunch_start_at'    => null,
-                    'lunch_end_at'      => null,
-                    'lunch_minutes'     => null,
-                    'lunch_active'      => false,
-                    'lunch_overtime'    => false,
+                    'late_minutes' => 0,
+                    'lunch_start_at' => null,
+                    'lunch_end_at' => null,
+                    'lunch_minutes' => null,
+                    'lunch_active' => false,
+                    'lunch_overtime' => false,
                 ],
-                'totals'        => null,
+                'totals' => null,
             ]);
         }
 
@@ -612,9 +631,9 @@ class AttendanceControllerV2 extends Controller
         $isNonWorking = AttendanceService::isNonWorkingDay($empresaId, $today);
         $isBlocked = $isRest || $isNonWorking;
 
-        $day = \App\Models\AttendanceDay::where('empresa_id',$empresaId)
-            ->where('empleado_id',$emp->id)
-            ->where('date',$today)
+        $day = AttendanceDay::where('empresa_id', $empresaId)
+            ->where('empleado_id', $emp->id)
+            ->where('date', $today)
             ->first();
 
         $state = $day ? $this->currentState($day) : 'out';
@@ -629,9 +648,9 @@ class AttendanceControllerV2 extends Controller
         $empresa = Empresa::find($empresaId);
         $settings = is_array($empresa?->settings) ? $empresa->settings : [];
         $operativo = $settings['operativo'] ?? [];
-        $mealDuration = (int)($operativo['meal_duration_minutes'] ?? 30);
-        $breakDuration = (int)($operativo['break_duration_minutes'] ?? 10);
-        $breakPausesClock = (bool)($operativo['break_pauses_clock'] ?? true);
+        $mealDuration = (int) ($operativo['meal_duration_minutes'] ?? 30);
+        $breakDuration = (int) ($operativo['break_duration_minutes'] ?? 10);
+        $breakPausesClock = (bool) ($operativo['break_pauses_clock'] ?? true);
 
         // Calcular expected_exit_time (oficial) y required_exit_time (con compensaciones)
         $expectedExitTime = null;
@@ -642,14 +661,14 @@ class AttendanceControllerV2 extends Controller
         }
 
         // El botón de salida está habilitado si hay entrada y no está cerrado
-        $canCheckOut = !$isBlocked && !$adminClosed && $state === 'working';
+        $canCheckOut = ! $isBlocked && ! $adminClosed && $state === 'working';
 
         // acciones permitidas según estado + descanso / día no laborable
         $actions = [
-            'check_in'    => !$isBlocked && !$adminClosed && $state === 'out',
-            'break_start' => !$isBlocked && !$adminClosed && $state === 'working',
-            'break_end'   => !$isBlocked && !$adminClosed && $state === 'break',
-            'check_out'   => $canCheckOut,
+            'check_in' => ! $isBlocked && ! $adminClosed && $state === 'out',
+            'break_start' => ! $isBlocked && ! $adminClosed && $state === 'working',
+            'break_end' => ! $isBlocked && ! $adminClosed && $state === 'break',
+            'check_out' => $canCheckOut,
         ];
 
         $totals = null;
@@ -662,31 +681,31 @@ class AttendanceControllerV2 extends Controller
         }
 
         [$weekStart, $weekEnd] = AttendanceService::weekRangeForDate($empresaId, $today);
-        $restUsedThisWeek = \App\Models\EmployeeCalendarOverride::where('empresa_id', $empresaId)
+        $restUsedThisWeek = EmployeeCalendarOverride::where('empresa_id', $empresaId)
             ->where('empleado_id', $emp->id)
             ->whereBetween('date', [$weekStart, $weekEnd])
             ->where('type', 'rest')
             ->exists();
 
-        $canMarkRest = ($emp->payment_type === 'daily' && !$hasCheckIn && !$restUsedThisWeek && !$isBlocked && !$adminClosed);
+        $canMarkRest = ($emp->payment_type === 'daily' && ! $hasCheckIn && ! $restUsedThisWeek && ! $isBlocked && ! $adminClosed);
 
         // Información de hora de llegada y oportunidades
         $employeeCheckInTime = AttendanceService::getEmployeeCheckInTime($empresaId, $emp->id, $today);
         $lateWindowClosesAt = null;
         if ($employeeCheckInTime) {
-            $tardinessConfig = \App\Models\TardinessConfig::firstOrCreate(
+            $tardinessConfig = TardinessConfig::firstOrCreate(
                 ['empresa_id' => $empresaId],
                 [
-                    'grace_period_minutes'    => 10,
-                    'late_threshold_minutes'  => 1,
-                    'lates_to_absence'        => 3,
-                    'accumulation_period'     => 'month',
-                    'penalize_rest_day'       => true,
+                    'grace_period_minutes' => 10,
+                    'late_threshold_minutes' => 1,
+                    'lates_to_absence' => 3,
+                    'accumulation_period' => 'month',
+                    'penalize_rest_day' => true,
                     'notify_employee_on_late' => true,
-                    'notify_manager_on_late'  => true,
+                    'notify_manager_on_late' => true,
                 ]
             );
-            $lateWindowClosesAt = \Carbon\Carbon::parse($today . ' ' . $employeeCheckInTime)
+            $lateWindowClosesAt = Carbon::parse($today.' '.$employeeCheckInTime)
                 ->addMinutes($tardinessConfig->grace_period_minutes)
                 ->addMinutes($tardinessConfig->late_threshold_minutes)
                 ->format('H:i');
@@ -705,30 +724,30 @@ class AttendanceControllerV2 extends Controller
             ->first();
 
         return response()->json([
-            'date'               => $today,
-            'is_rest_day'        => $isRest,
+            'date' => $today,
+            'is_rest_day' => $isRest,
             'is_non_working_day' => $isNonWorking,
-            'is_holiday'         => false,
-            'state'              => $isBlocked ? ($isRest ? 'rest_day' : 'non_working_day') : $state,
-            'status'             => $isBlocked ? ($isRest ? 'rest_day' : 'non_working_day') : $state,
-            'admin_closed'       => $adminClosed,
-            'is_paid_rest'       => $isRest,
-            'can_mark_rest'      => $canMarkRest,
-            'rest_used_this_week'=> $restUsedThisWeek,
-            'actions'            => $actions,
-            'day'                => $day ? $this->presentDay($day) : null,
-            'totals'             => $totals,
+            'is_holiday' => false,
+            'state' => $isBlocked ? ($isRest ? 'rest_day' : 'non_working_day') : $state,
+            'status' => $isBlocked ? ($isRest ? 'rest_day' : 'non_working_day') : $state,
+            'admin_closed' => $adminClosed,
+            'is_paid_rest' => $isRest,
+            'can_mark_rest' => $canMarkRest,
+            'rest_used_this_week' => $restUsedThisWeek,
+            'actions' => $actions,
+            'day' => $day ? $this->presentDay($day) : null,
+            'totals' => $totals,
             'expected_exit_time' => $expectedExitTime?->toISOString(),
             'required_exit_time' => $requiredExitTime?->toISOString(),
             'early_departure_minutes' => $day?->early_departure_minutes,
             'break_pauses_clock' => $breakPausesClock,
             'meal_duration_minutes' => $mealDuration,
-            'break_duration_minutes'=> $breakDuration,
-            'lunch_reminder_sent'     => (bool)$day?->lunch_reminder_sent,
-            'lunch_pre_reminder_sent' => (bool)$day?->lunch_pre_reminder_sent,
-            'lunch_end_reminder_sent' => (bool)$day?->lunch_end_reminder_sent,
-            'exit_reminder_sent'      => (bool)$day?->exit_reminder_sent,
-            'exit_available_sent'     => (bool)$day?->exit_available_sent,
+            'break_duration_minutes' => $breakDuration,
+            'lunch_reminder_sent' => (bool) $day?->lunch_reminder_sent,
+            'lunch_pre_reminder_sent' => (bool) $day?->lunch_pre_reminder_sent,
+            'lunch_end_reminder_sent' => (bool) $day?->lunch_end_reminder_sent,
+            'exit_reminder_sent' => (bool) $day?->exit_reminder_sent,
+            'exit_available_sent' => (bool) $day?->exit_available_sent,
             'employee_check_in_time' => $employeeCheckInTime,
             'late_window_closes_at' => $lateWindowClosesAt,
             'has_approved_late_request' => (bool) $approvedLateRequest,
@@ -770,7 +789,7 @@ class AttendanceControllerV2 extends Controller
         }
 
         [$weekStart, $weekEnd] = AttendanceService::weekRangeForDate($empresaId, $date);
-        
+
         $hasRestThisWeek = EmployeeCalendarOverride::where('empresa_id', $empresaId)
             ->where('empleado_id', $emp->id)
             ->whereBetween('date', [$weekStart, $weekEnd])
@@ -780,7 +799,7 @@ class AttendanceControllerV2 extends Controller
         if ($hasRestThisWeek) {
             return response()->json([
                 'message' => 'Ya tienes un día de descanso registrado esta semana.',
-                'code' => 'REST_ALREADY_USED'
+                'code' => 'REST_ALREADY_USED',
             ], 409);
         }
 
@@ -792,7 +811,7 @@ class AttendanceControllerV2 extends Controller
         return response()->json([
             'message' => 'Día de descanso registrado correctamente.',
             'date' => $date,
-            'is_paid' => true
+            'is_paid' => true,
         ], 200);
     }
 
@@ -807,8 +826,8 @@ class AttendanceControllerV2 extends Controller
             ->first();
 
         if ($override) {
-            $hasApprovedPayroll = \App\Models\PayrollEntry::where('empleado_id', $emp->id)
-                ->whereHas('period', function($q) use ($date) {
+            $hasApprovedPayroll = PayrollEntry::where('empleado_id', $emp->id)
+                ->whereHas('period', function ($q) use ($date) {
                     $q->where('status', 'approved')->where('start_date', '<=', $date)->where('end_date', '>=', $date);
                 })->exists();
 
@@ -830,8 +849,8 @@ class AttendanceControllerV2 extends Controller
 
         $data = $request->validate([
             'empleado_id' => ['required', 'uuid'],
-            'fecha'       => ['required', 'date_format:Y-m-d'],
-            'motivo'      => ['nullable', 'string', 'max:300'],
+            'fecha' => ['required', 'date_format:Y-m-d'],
+            'motivo' => ['nullable', 'string', 'max:300'],
         ]);
 
         // Verificar que el empleado pertenece a la empresa
@@ -847,19 +866,19 @@ class AttendanceControllerV2 extends Controller
 
         if ($existing && in_array($existing->status, ['present', 'late', 'open', 'working', 'closed'])) {
             return response()->json([
-                'message' => 'El empleado ya tiene asistencia o turno este día. Usa "Ajustar asistencia" si necesitas corregirla.'
+                'message' => 'El empleado ya tiene asistencia o turno este día. Usa "Ajustar asistencia" si necesitas corregirla.',
             ], 409);
         }
 
         // Crear o actualizar el día de descanso (attendance_day)
         $day = AttendanceDay::updateOrCreate(
             [
-                'empresa_id'  => $u->empresa_id,
+                'empresa_id' => $u->empresa_id,
                 'empleado_id' => $emp->id,
-                'date'        => $data['fecha'],
+                'date' => $data['fecha'],
             ],
             [
-                'status'            => 'day_off',
+                'status' => 'day_off',
                 'first_check_in_at' => null,
                 'last_check_out_at' => null,
             ]
@@ -872,7 +891,7 @@ class AttendanceControllerV2 extends Controller
         );
 
         // Log de auditoría
-        \App\Services\ActivityLogger::log(
+        ActivityLogger::log(
             $u->empresa_id,
             $u->id,
             null,
@@ -881,15 +900,15 @@ class AttendanceControllerV2 extends Controller
             $day->id,
             [
                 'empleado_name' => $emp->full_name,
-                'fecha'         => $data['fecha'],
-                'motivo'        => $data['motivo'] ?? 'Sin motivo especificado',
-                'added_by'      => $u->name,
+                'fecha' => $data['fecha'],
+                'motivo' => $data['motivo'] ?? 'Sin motivo especificado',
+                'added_by' => $u->name,
             ],
             $request
         );
 
         return response()->json([
-            'message'    => "Día de descanso registrado para {$emp->full_name}",
+            'message' => "Día de descanso registrado para {$emp->full_name}",
             'attendance' => $day,
         ]);
     }
@@ -902,7 +921,7 @@ class AttendanceControllerV2 extends Controller
 
         $data = $request->validate([
             'empleado_id' => ['required', 'uuid'],
-            'fecha'       => ['required', 'date_format:Y-m-d'],
+            'fecha' => ['required', 'date_format:Y-m-d'],
         ]);
 
         $emp = Empleado::where('empresa_id', $u->empresa_id)
@@ -942,11 +961,11 @@ class AttendanceControllerV2 extends Controller
         $empresaId = $u->empresa_id;
 
         $data = $request->validate([
-            'date' => ['required','date']
+            'date' => ['required', 'date'],
         ]);
         $date = $data['date'];
 
-        $days = AttendanceDay::where('empresa_id',$empresaId)->where('date',$date)->with(['events'])->get();
+        $days = AttendanceDay::where('empresa_id', $empresaId)->where('date', $date)->with(['events'])->get();
 
         return response()->json([
             'date' => $date,
@@ -963,7 +982,7 @@ class AttendanceControllerV2 extends Controller
         $empresaId = $u->empresa_id;
 
         $date = $request->input('date');
-        if (!$date) {
+        if (! $date) {
             $date = now()->timezone(config('app.timezone'))->toDateString();
         }
 
@@ -971,7 +990,7 @@ class AttendanceControllerV2 extends Controller
 
         $attendanceDays = AttendanceDay::where('empresa_id', $empresaId)
             ->where('date', $date)
-            ->get(['id','empleado_id','first_check_in_at','last_check_out_at']);
+            ->get(['id', 'empleado_id', 'first_check_in_at', 'last_check_out_at']);
 
         $closed = $attendanceDays->whereNotNull('last_check_out_at')->count();
         $checkedIn = $attendanceDays->whereNotNull('first_check_in_at')->count();
@@ -996,17 +1015,19 @@ class AttendanceControllerV2 extends Controller
         $empresaId = $u->empresa_id;
 
         $data = $request->validate([
-            'empleado_id' => ['required','uuid'],
-            'date' => ['required','date'], // cualquier fecha dentro de la semana
+            'empleado_id' => ['required', 'uuid'],
+            'date' => ['required', 'date'], // cualquier fecha dentro de la semana
         ]);
 
-        $emp = Empleado::where('empresa_id',$empresaId)->where('id',$data['empleado_id'])->first();
-        if (!$emp) return response()->json(['message'=>'Empleado no encontrado'], 404);
+        $emp = Empleado::where('empresa_id', $empresaId)->where('id', $data['empleado_id'])->first();
+        if (! $emp) {
+            return response()->json(['message' => 'Empleado no encontrado'], 404);
+        }
 
         [$weekStart, $weekEnd] = AttendanceService::weekRangeForDate($empresaId, $data['date']);
 
-        $days = AttendanceDay::where('empresa_id',$empresaId)
-            ->where('empleado_id',$emp->id)
+        $days = AttendanceDay::where('empresa_id', $empresaId)
+            ->where('empleado_id', $emp->id)
             ->whereBetween('date', [$weekStart, $weekEnd])
             ->with(['events'])
             ->get();
@@ -1021,23 +1042,23 @@ class AttendanceControllerV2 extends Controller
         }
 
         // descanso pagado (overrides o descanso semanal)
-        $paidRest = AttendanceService::computePaidRestMinutes($empresaId, $emp->id, $weekStart, $weekEnd, (float)$emp->daily_hours);
+        $paidRest = AttendanceService::computePaidRestMinutes($empresaId, $emp->id, $weekStart, $weekEnd, (float) $emp->daily_hours);
 
         return response()->json([
-            'week' => ['from'=>$weekStart, 'to'=>$weekEnd],
+            'week' => ['from' => $weekStart, 'to' => $weekEnd],
             'empleado' => [
-                'id'=>$emp->id,
-                'full_name'=>$emp->full_name,
-                'daily_hours'=>(float)$emp->daily_hours,
-                'rest_weekday'=>$emp->rest_weekday,
+                'id' => $emp->id,
+                'full_name' => $emp->full_name,
+                'daily_hours' => (float) $emp->daily_hours,
+                'rest_weekday' => $emp->rest_weekday,
             ],
             'days' => AttendanceDayResource::collection($days),
             'totals' => [
-                'worked_minutes'=>$worked,
-                'break_minutes'=>$breaks,
-                'paid_rest_minutes'=>$paidRest,
-                'payable_minutes'=>$worked + $paidRest
-            ]
+                'worked_minutes' => $worked,
+                'break_minutes' => $breaks,
+                'paid_rest_minutes' => $paidRest,
+                'payable_minutes' => $worked + $paidRest,
+            ],
         ]);
     }
 
@@ -1055,9 +1076,9 @@ class AttendanceControllerV2 extends Controller
         $u = $request->user();
 
         $data = $request->validate([
-            'first_check_in_at'  => ['nullable', 'date_format:H:i'],
-            'last_check_out_at'  => ['nullable', 'date_format:H:i'],
-            'motivo'             => ['required', 'string', 'max:300'],
+            'first_check_in_at' => ['nullable', 'date_format:H:i'],
+            'last_check_out_at' => ['nullable', 'date_format:H:i'],
+            'motivo' => ['required', 'string', 'max:300'],
         ]);
 
         $emp = Empleado::where('empresa_id', $u->empresa_id)
@@ -1066,19 +1087,19 @@ class AttendanceControllerV2 extends Controller
 
         $day = AttendanceDay::firstOrCreate(
             [
-                'empresa_id'  => $u->empresa_id,
+                'empresa_id' => $u->empresa_id,
                 'empleado_id' => $emp->id,
-                'date'        => $fecha,
+                'date' => $fecha,
             ],
             ['status' => 'present']
         );
 
         if (array_key_exists('first_check_in_at', $data) && $data['first_check_in_at']) {
-            $day->first_check_in_at = \Carbon\Carbon::parse($fecha . ' ' . $data['first_check_in_at']);
+            $day->first_check_in_at = Carbon::parse($fecha.' '.$data['first_check_in_at']);
         }
 
         if (array_key_exists('last_check_out_at', $data) && $data['last_check_out_at']) {
-            $day->last_check_out_at = \Carbon\Carbon::parse($fecha . ' ' . $data['last_check_out_at']);
+            $day->last_check_out_at = Carbon::parse($fecha.' '.$data['last_check_out_at']);
         }
 
         // 🔒 Si tiene salida ajustada → cerrar el día para que el empleado no pueda seguir marcando
@@ -1090,7 +1111,7 @@ class AttendanceControllerV2 extends Controller
 
         $day->save();
 
-        \App\Services\ActivityLogger::log(
+        ActivityLogger::log(
             $u->empresa_id,
             $u->id,
             null,
@@ -1098,19 +1119,19 @@ class AttendanceControllerV2 extends Controller
             'attendance_day',
             $day->id,
             [
-                'empleado_name'      => $emp->full_name,
-                'fecha'              => $fecha,
-                'motivo'             => $data['motivo'],
-                'adjusted_check_in'  => $data['first_check_in_at'] ?? null,
+                'empleado_name' => $emp->full_name,
+                'fecha' => $fecha,
+                'motivo' => $data['motivo'],
+                'adjusted_check_in' => $data['first_check_in_at'] ?? null,
                 'adjusted_check_out' => $data['last_check_out_at'] ?? null,
-                'adjusted_by'        => $u->name,
+                'adjusted_by' => $u->name,
             ],
             $request
         );
 
         return response()->json([
             'message' => 'Asistencia ajustada correctamente',
-            'day'     => $this->presentDay($day),
+            'day' => $this->presentDay($day),
         ]);
     }
 
@@ -1132,24 +1153,24 @@ class AttendanceControllerV2 extends Controller
             ->where('date', $fecha)
             ->first();
 
-        if (!$day) {
+        if (! $day) {
             return response()->json(['message' => 'No se encontró registro de asistencia para este día'], 404);
         }
 
-        \App\Models\AttendanceEvent::where('attendance_day_id', $day->id)->delete();
+        AttendanceEvent::where('attendance_day_id', $day->id)->delete();
         $day->delete();
 
-        \App\Services\ActivityLogger::log(
+        ActivityLogger::log(
             $u->empresa_id,
             $u->id,
             null,
             'attendance.deleted',
-            'empleado', 
+            'empleado',
             $emp->id,
             [
                 'empleado_name' => $emp->full_name,
-                'fecha'         => $fecha,
-                'deleted_by'    => $u->name,
+                'fecha' => $fecha,
+                'deleted_by' => $u->name,
             ],
             $request
         );
@@ -1171,7 +1192,7 @@ class AttendanceControllerV2 extends Controller
             ->where('date', $hoy)
             ->first();
 
-        if (!$day || !$day->first_check_in_at) {
+        if (! $day || ! $day->first_check_in_at) {
             return response()->json(['message' => 'Debes marcar entrada primero'], 422);
         }
 
@@ -1185,22 +1206,22 @@ class AttendanceControllerV2 extends Controller
         // Leer duración configurada
         $empresa = Empresa::find($empresaId);
         $settings = is_array($empresa?->settings) ? $empresa->settings : [];
-        $mealDuration = (int)($settings['operativo']['meal_duration_minutes'] ?? 30);
+        $mealDuration = (int) ($settings['operativo']['meal_duration_minutes'] ?? 30);
 
         // 🔔 Notificar al supervisor
         try {
             SendPushNotificationToManagers::dispatch(
                 $empresaId,
                 '🍽️ Inicio de comida',
-                ($emp->full_name ?? $u->name) . ' inició su tiempo de comida',
+                ($emp->full_name ?? $u->name).' inició su tiempo de comida',
                 ['type' => 'attendance.lunch_start', 'empleado_id' => $emp->id]
             );
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error('Error de notificaciones en inicio de comida: ' . $e->getMessage());
+            Log::error('Error de notificaciones en inicio de comida: '.$e->getMessage());
         }
 
         return response()->json([
-            'message'        => 'Tiempo de comida iniciado',
+            'message' => 'Tiempo de comida iniciado',
             'lunch_start_at' => $day->lunch_start_at->toISOString(),
             'lunch_limit_at' => $day->lunch_start_at->copy()->addMinutes($mealDuration)->toISOString(),
         ]);
@@ -1220,7 +1241,7 @@ class AttendanceControllerV2 extends Controller
             ->where('date', $hoy)
             ->first();
 
-        if (!$day?->lunch_start_at) {
+        if (! $day?->lunch_start_at) {
             return response()->json(['message' => 'No has iniciado tu tiempo de comida'], 422);
         }
 
@@ -1234,7 +1255,7 @@ class AttendanceControllerV2 extends Controller
         // Leer duración configurada
         $empresa = Empresa::find($empresaId);
         $settings = is_array($empresa?->settings) ? $empresa->settings : [];
-        $mealDuration = (int)($settings['operativo']['meal_duration_minutes'] ?? 30);
+        $mealDuration = (int) ($settings['operativo']['meal_duration_minutes'] ?? 30);
 
         $minutos = (int) round($day->lunch_start_at->diffInMinutes($day->lunch_end_at));
         $excedio = $minutos > $mealDuration;
@@ -1248,24 +1269,24 @@ class AttendanceControllerV2 extends Controller
                 SendPushNotificationToManagers::dispatch(
                     $empresaId,
                     '⚠️ Tiempo de comida excedido',
-                    ($emp->full_name ?? $u->name) . " tardó {$minutos} min en comida (límite: {$mealDuration} min)",
+                    ($emp->full_name ?? $u->name)." tardó {$minutos} min en comida (límite: {$mealDuration} min)",
                     [
-                        'type'        => 'attendance.lunch_overtime',
+                        'type' => 'attendance.lunch_overtime',
                         'empleado_id' => $emp->id,
-                        'minutos'     => (string) $minutos,
+                        'minutos' => (string) $minutos,
                     ]
                 );
             } catch (\Throwable $e) {
-                \Illuminate\Support\Facades\Log::error('Error de notificaciones en termino de comida: ' . $e->getMessage());
+                Log::error('Error de notificaciones en termino de comida: '.$e->getMessage());
             }
         }
 
         return response()->json([
-            'message'        => 'Tiempo de comida terminado',
+            'message' => 'Tiempo de comida terminado',
             'lunch_start_at' => $day->lunch_start_at->toISOString(),
-            'lunch_end_at'   => $day->lunch_end_at->toISOString(),
-            'minutos'        => $minutos,
-            'excedio'        => $excedio,
+            'lunch_end_at' => $day->lunch_end_at->toISOString(),
+            'minutos' => $minutos,
+            'excedio' => $excedio,
         ]);
     }
 
@@ -1274,14 +1295,16 @@ class AttendanceControllerV2 extends Controller
     private function authEmployee(Request $request): array
     {
         $u = $request->user();
-        if (!$u) {
-            abort(response()->json(['message'=>'No autenticado'], 401));
+        if (! $u) {
+            abort(response()->json(['message' => 'No autenticado'], 401));
         }
 
         $empresaId = $u->empresa_id;
 
-        $emp = Empleado::where('empresa_id',$empresaId)->where('user_id',$u->id)->first();
-        if (!$emp) abort(response()->json(['message'=>'Empleado no vinculado'], 404));
+        $emp = Empleado::where('empresa_id', $empresaId)->where('user_id', $u->id)->first();
+        if (! $emp) {
+            abort(response()->json(['message' => 'Empleado no vinculado'], 404));
+        }
 
         return [$u, $empresaId, $emp];
     }
@@ -1289,12 +1312,14 @@ class AttendanceControllerV2 extends Controller
     private function validateNetworkAccess(Request $request, Empresa $empresa): bool
     {
         $allowedIp = $empresa->allowed_ip;
-        if (!$allowedIp) return true;
+        if (! $allowedIp) {
+            return true;
+        }
 
         $clientIp = $request->ip();
 
         if (str_contains($allowedIp, '/')) {
-            return \Symfony\Component\HttpFoundation\IpUtils::checkIp($clientIp, $allowedIp);
+            return IpUtils::checkIp($clientIp, $allowedIp);
         }
 
         return $clientIp === $allowedIp;
@@ -1309,8 +1334,8 @@ class AttendanceControllerV2 extends Controller
             'occurred_at' => now(),
             'meta' => [
                 'ip' => $request->ip(),
-                'ua' => substr((string)$request->userAgent(), 0, 250),
-            ]
+                'ua' => substr((string) $request->userAgent(), 0, 250),
+            ],
         ]);
     }
 
@@ -1318,10 +1343,14 @@ class AttendanceControllerV2 extends Controller
     private function currentState(AttendanceDay $day): string
     {
         // Cerrado si el status es 'closed' O si el admin ya registró una salida manual
-        if ($day->status === 'closed' || $day->last_check_out_at !== null) return 'closed';
+        if ($day->status === 'closed' || $day->last_check_out_at !== null) {
+            return 'closed';
+        }
 
-        $events = AttendanceEvent::where('attendance_day_id',$day->id)->orderBy('occurred_at')->get();
-        if ($events->isEmpty()) return 'out';
+        $events = AttendanceEvent::where('attendance_day_id', $day->id)->orderBy('occurred_at')->get();
+        if ($events->isEmpty()) {
+            return 'out';
+        }
 
         $last = $events->last()->type;
 
@@ -1338,21 +1367,27 @@ class AttendanceControllerV2 extends Controller
     private function computeTotals(string $empresaId, string $dayId): array
     {
         $day = AttendanceDay::find($dayId);
-        $events = AttendanceEvent::where('empresa_id',$empresaId)
-            ->where('attendance_day_id',$dayId)
+        $events = AttendanceEvent::where('empresa_id', $empresaId)
+            ->where('attendance_day_id', $dayId)
             ->orderBy('occurred_at')
             ->get();
 
-        $checkIn    = null;
-        $checkOut   = null;
+        $checkIn = null;
+        $checkOut = null;
         $breakStart = null;
         $breakSeconds = 0;
 
         foreach ($events as $e) {
-            if ($e->type === 'check_in')  $checkIn  = $checkIn ?? $e->occurred_at;
-            if ($e->type === 'check_out') $checkOut = $e->occurred_at;
+            if ($e->type === 'check_in') {
+                $checkIn = $checkIn ?? $e->occurred_at;
+            }
+            if ($e->type === 'check_out') {
+                $checkOut = $e->occurred_at;
+            }
 
-            if ($e->type === 'break_start') $breakStart = $e->occurred_at;
+            if ($e->type === 'break_start') {
+                $breakStart = $e->occurred_at;
+            }
             if ($e->type === 'break_end' && $breakStart) {
                 // ✅ FIX: breakStart (más antiguo) → occurred_at (más nuevo)
                 $breakSeconds += max(0, $breakStart->diffInSeconds($e->occurred_at));
@@ -1360,14 +1395,18 @@ class AttendanceControllerV2 extends Controller
             }
         }
 
-        // Si el admin hizo ajustes manuales (AttendanceDay tiene los datos correctos), 
+        // Si el admin hizo ajustes manuales (AttendanceDay tiene los datos correctos),
         // estos valores tienen prioridad sobre los AttendanceEvent originales.
         if ($day) {
-            if ($day->first_check_in_at) $checkIn = $day->first_check_in_at;
-            if ($day->last_check_out_at) $checkOut = $day->last_check_out_at;
+            if ($day->first_check_in_at) {
+                $checkIn = $day->first_check_in_at;
+            }
+            if ($day->last_check_out_at) {
+                $checkOut = $day->last_check_out_at;
+            }
         }
 
-        if (!$checkIn) {
+        if (! $checkIn) {
             return [0, 0];
         }
 
@@ -1382,12 +1421,12 @@ class AttendanceControllerV2 extends Controller
         }
 
         // ✅ FIX: checkIn (más antiguo) → effectiveCheckOut (más nuevo)
-        $totalSeconds  = max(0, $checkIn->diffInSeconds($effectiveCheckOut));
+        $totalSeconds = max(0, $checkIn->diffInSeconds($effectiveCheckOut));
         $workedSeconds = max(0, $totalSeconds - $breakSeconds);
 
         return [
             (int) round($workedSeconds / 60),
-            (int) round($breakSeconds  / 60),
+            (int) round($breakSeconds / 60),
         ];
     }
 
@@ -1411,7 +1450,7 @@ class AttendanceControllerV2 extends Controller
 
         $empresa = Empresa::find($empresaId);
         $settings = is_array($empresa?->settings) ? $empresa->settings : [];
-        $mealDuration = (int)($settings['operativo']['meal_duration_minutes'] ?? 30);
+        $mealDuration = (int) ($settings['operativo']['meal_duration_minutes'] ?? 30);
 
         $now = now();
         $data = $days->map(function (AttendanceDay $d) use ($now, $mealDuration) {
@@ -1455,7 +1494,7 @@ class AttendanceControllerV2 extends Controller
         // Si hay retardo registrado, reportar 'late'.
         // Si no hay late_minutes en DB, intentar calcularlo al vuelo usando la config de la empresa.
         $effectiveStatus = $d->status;
-        $lateMins = (int)($d->late_minutes ?? 0);
+        $lateMins = (int) ($d->late_minutes ?? 0);
 
         if ($lateMins === 0 && $d->first_check_in_at) {
             $daySchedule = AttendanceService::getDaySchedule($d->empresa_id, $d->date->toDateString());
@@ -1473,30 +1512,29 @@ class AttendanceControllerV2 extends Controller
         // Leer duración configurada para overtime de comida
         $empresa = Empresa::find($d->empresa_id);
         $settings = is_array($empresa?->settings) ? $empresa->settings : [];
-        $mealDuration = (int)($settings['operativo']['meal_duration_minutes'] ?? 30);
+        $mealDuration = (int) ($settings['operativo']['meal_duration_minutes'] ?? 30);
 
         return [
-            'id'                => $d->id,
-            'empleado_id'       => $d->empleado_id,
-            'date'              => $d->date?->toDateString(),
-            'status'            => $effectiveStatus,
+            'id' => $d->id,
+            'empleado_id' => $d->empleado_id,
+            'date' => $d->date?->toDateString(),
+            'status' => $effectiveStatus,
             'first_check_in_at' => $d->first_check_in_at?->toISOString(),
             'last_check_out_at' => $d->last_check_out_at?->toISOString(),
             // Retardo
-            'late_minutes'      => $lateMins,
+            'late_minutes' => $lateMins,
             // Salida anticipada y exceso comida
             'early_departure_minutes' => $d->early_departure_minutes,
-            'meal_overtime_minutes'   => $d->meal_overtime_minutes,
-            'required_exit_time' => \App\Services\AttendanceService::calculateRequiredExitTime($d)?->toISOString(),
+            'meal_overtime_minutes' => $d->meal_overtime_minutes,
+            'required_exit_time' => AttendanceService::calculateRequiredExitTime($d)?->toISOString(),
             // Campos de comida
-            'lunch_start_at'    => $d->lunch_start_at?->toISOString(),
-            'lunch_end_at'      => $d->lunch_end_at?->toISOString(),
-            'lunch_minutes'     => $lunchMinutes,
-            'lunch_active'      => $d->lunch_start_at && !$d->lunch_end_at,
-            'lunch_overtime'    => $d->lunch_start_at && !$d->lunch_end_at
+            'lunch_start_at' => $d->lunch_start_at?->toISOString(),
+            'lunch_end_at' => $d->lunch_end_at?->toISOString(),
+            'lunch_minutes' => $lunchMinutes,
+            'lunch_active' => $d->lunch_start_at && ! $d->lunch_end_at,
+            'lunch_overtime' => $d->lunch_start_at && ! $d->lunch_end_at
                 ? now()->diffInMinutes($d->lunch_start_at) > $mealDuration
                 : false,
         ];
     }
-
 }

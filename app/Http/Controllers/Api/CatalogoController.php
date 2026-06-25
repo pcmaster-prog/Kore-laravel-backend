@@ -3,31 +3,30 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-
 use App\Models\MaderasCatalogo;
 use App\Models\MaderasTablaCorte;
+use Illuminate\Http\Request;
 
 class CatalogoController extends Controller
 {
     public function productos()
     {
         return response()->json([
-            'data' => MaderasCatalogo::where('tipo', 'producto_terminado')->orderBy('nombre')->get()
+            'data' => MaderasCatalogo::where('tipo', 'producto_terminado')->orderBy('nombre')->get(),
         ]);
     }
 
     public function bastones()
     {
         return response()->json([
-            'data' => MaderasCatalogo::where('tipo', 'baston')->orderBy('nombre')->get()
+            'data' => MaderasCatalogo::where('tipo', 'baston')->orderBy('nombre')->get(),
         ]);
     }
 
     public function tablasCortes()
     {
         return response()->json([
-            'data' => MaderasTablaCorte::orderBy('nombre')->get()
+            'data' => MaderasTablaCorte::orderBy('nombre')->get(),
         ]);
     }
 

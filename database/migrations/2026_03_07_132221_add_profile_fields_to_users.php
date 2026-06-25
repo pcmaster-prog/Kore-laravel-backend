@@ -1,4 +1,5 @@
 <?php
+
 // database/migrations/xxxx_add_profile_fields_to_users.php
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;

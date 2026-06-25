@@ -9,9 +9,16 @@ class ApiResponse
     public static function ok($data = null, array $meta = [], string $message = 'ok', int $status = 200)
     {
         $payload = [];
-        if (!is_null($data)) $payload['data'] = $data;
-        if (!empty($meta)) $payload['meta'] = $meta;
-        if ($message) $payload['message'] = $message;
+        if (! is_null($data)) {
+            $payload['data'] = $data;
+        }
+        if (! empty($meta)) {
+            $payload['meta'] = $meta;
+        }
+        if ($message) {
+            $payload['message'] = $message;
+        }
+
         return response()->json($payload, $status);
     }
 
@@ -31,9 +38,11 @@ class ApiResponse
 
     public static function error(string $message, int $status = 422, array $errors = [])
     {
-    $payload = ['message' => $message];
-    if (!empty($errors)) $payload['errors'] = $errors;
-    return response()->json($payload, $status);
+        $payload = ['message' => $message];
+        if (! empty($errors)) {
+            $payload['errors'] = $errors;
         }
 
+        return response()->json($payload, $status);
+    }
 }

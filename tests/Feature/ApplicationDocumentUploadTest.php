@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Models\Application;
 use App\Models\Empresa;
 use App\Models\JobOpening;
-use App\Models\PersonalAccessToken;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -21,34 +20,34 @@ class ApplicationDocumentUploadTest extends TestCase
     private function setupPortalUserAndApplication(): array
     {
         $empresa = Empresa::create([
-            'id'   => Str::uuid(),
+            'id' => Str::uuid(),
             'name' => 'Test Corp',
             'slug' => 'test-corp',
         ]);
 
         $user = User::create([
-            'id'         => Str::uuid(),
+            'id' => Str::uuid(),
             'empresa_id' => $empresa->id,
-            'name'       => 'Aspirante',
-            'email'      => 'aspirante@example.com',
-            'password'   => Hash::make('password'),
-            'role'       => 'aspirante',
-            'is_active'  => true,
+            'name' => 'Aspirante',
+            'email' => 'aspirante@example.com',
+            'password' => Hash::make('password'),
+            'role' => 'aspirante',
+            'is_active' => true,
         ]);
 
         $job = JobOpening::create([
-            'id'          => Str::uuid(),
-            'empresa_id'  => $empresa->id,
-            'title'       => 'Operador',
-            'status'      => 'open',
+            'id' => Str::uuid(),
+            'empresa_id' => $empresa->id,
+            'title' => 'Operador',
+            'status' => 'open',
         ]);
 
         $application = Application::create([
-            'id'            => Str::uuid(),
-            'empresa_id'    => $empresa->id,
-            'job_opening_id'=> $job->id,
-            'user_id'       => $user->id,
-            'status'        => 'pending',
+            'id' => Str::uuid(),
+            'empresa_id' => $empresa->id,
+            'job_opening_id' => $job->id,
+            'user_id' => $user->id,
+            'status' => 'pending',
         ]);
 
         return [$user, $application];
@@ -57,6 +56,7 @@ class ApplicationDocumentUploadTest extends TestCase
     private function portalCookieFor(User $user): string
     {
         $token = $user->createToken('portal');
+
         return $token->plainTextToken;
     }
 
@@ -83,10 +83,10 @@ class ApplicationDocumentUploadTest extends TestCase
 
         $this->assertDatabaseHas('application_documents', [
             'application_id' => $application->id,
-            'document_type'  => 'address_proof',
+            'document_type' => 'address_proof',
         ]);
 
-        Storage::disk('local')->assertExists('applications/' . $application->id . '/' . $file->hashName());
+        Storage::disk('local')->assertExists('applications/'.$application->id.'/'.$file->hashName());
     }
 
     public function test_portal_rejects_unsupported_document_type(): void

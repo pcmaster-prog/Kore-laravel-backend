@@ -2,26 +2,29 @@
 
 namespace App\Console\Commands;
 
-use Illuminate\Console\Command;
-use App\Models\MealSchedule;
 use App\Models\AttendanceDay;
+use App\Models\MealSchedule;
+use App\Models\User;
 use App\Services\NotificationService;
 use Carbon\Carbon;
+use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
 class SendMealNotifications extends Command
 {
-    protected $signature   = 'meals:notify';
+    protected $signature = 'meals:notify';
+
     protected $description = 'Envia notificaciones de comida: pre-aviso, inicio y 5 minutos antes de terminar';
 
-    private const PRE_MINUTES  = 5;
-    private const END_MINUTES  = 5;
+    private const PRE_MINUTES = 5;
+
+    private const END_MINUTES = 5;
 
     public function handle(): void
     {
-        $now   = now();
+        $now = now();
         $today = $now->toDateString();
-        $time  = $now->format('H:i');
+        $time = $now->format('H:i');
         $timeWithSeconds = $now->format('H:i:s');
 
         $notifier = app(NotificationService::class);
@@ -29,9 +32,9 @@ class SendMealNotifications extends Command
         $preTime = $now->copy()->addMinutes(self::PRE_MINUTES)->format('H:i');
         $endTime = $now->copy()->addMinutes(self::END_MINUTES)->format('H:i');
 
-        $preSent  = $this->sendPreReminders($preTime, $today, $notifier);
+        $preSent = $this->sendPreReminders($preTime, $today, $notifier);
         $startSent = $this->sendStartReminders($time, $today, $notifier);
-        $endSent  = $this->sendEndReminders($endTime, $today, $notifier);
+        $endSent = $this->sendEndReminders($endTime, $today, $notifier);
 
         $this->info("Pre-avisos: {$preSent} | Inicios: {$startSent} | Fin proximo: {$endSent} a las {$time}.");
     }
@@ -41,7 +44,7 @@ class SendMealNotifications extends Command
      */
     private function sendPreReminders(string $preTime, string $today, NotificationService $notifier): int
     {
-        $schedules = MealSchedule::where('meal_start_time', 'LIKE', $preTime . '%')
+        $schedules = MealSchedule::where('meal_start_time', 'LIKE', $preTime.'%')
             ->with('employee')
             ->get();
 
@@ -63,7 +66,7 @@ class SendMealNotifications extends Command
                     title: '🍽️ Comida pronto',
                     body: "Tu tiempo de comida comienza en 5 minutos ({$schedule->meal_start_time}). Tienes {$schedule->duration_minutes} minutos.",
                     data: [
-                        'type'             => 'meal_pre_reminder',
+                        'type' => 'meal_pre_reminder',
                         'duration_minutes' => (string) $schedule->duration_minutes,
                     ]
                 );
@@ -71,7 +74,7 @@ class SendMealNotifications extends Command
                 $day->save();
                 $sent++;
             } catch (\Throwable $e) {
-                Log::warning("Error enviando pre-aviso de comida a usuario {$user->id}: " . $e->getMessage());
+                Log::warning("Error enviando pre-aviso de comida a usuario {$user->id}: ".$e->getMessage());
             }
         }
 
@@ -83,7 +86,7 @@ class SendMealNotifications extends Command
      */
     private function sendStartReminders(string $time, string $today, NotificationService $notifier): int
     {
-        $schedules = MealSchedule::where('meal_start_time', 'LIKE', $time . '%')
+        $schedules = MealSchedule::where('meal_start_time', 'LIKE', $time.'%')
             ->with('employee')
             ->get();
 
@@ -105,7 +108,7 @@ class SendMealNotifications extends Command
                     title: '🍽️ Hora de comida',
                     body: "Tu horario de comida comienza ahora ({$time}). Tienes {$schedule->duration_minutes} minutos.",
                     data: [
-                        'type'             => 'meal_reminder',
+                        'type' => 'meal_reminder',
                         'duration_minutes' => (string) $schedule->duration_minutes,
                     ]
                 );
@@ -113,7 +116,7 @@ class SendMealNotifications extends Command
                 $day->save();
                 $sent++;
             } catch (\Throwable $e) {
-                Log::warning("Error enviando recordatorio de comida a usuario {$user->id}: " . $e->getMessage());
+                Log::warning("Error enviando recordatorio de comida a usuario {$user->id}: ".$e->getMessage());
             }
         }
 
@@ -139,7 +142,7 @@ class SendMealNotifications extends Command
                 continue;
             }
 
-            $user = \App\Models\User::find($emp->user_id);
+            $user = User::find($emp->user_id);
             if (! $user || ! $user->is_active) {
                 continue;
             }
@@ -163,29 +166,29 @@ class SendMealNotifications extends Command
                     title: '⏱️ Comida por terminar',
                     body: "Te quedan {$minutesRemaining} minutos para terminar tu comida.",
                     data: [
-                        'type'             => 'meal_end_reminder',
-                        'minutes_remaining'=> (string) $minutesRemaining,
+                        'type' => 'meal_end_reminder',
+                        'minutes_remaining' => (string) $minutesRemaining,
                     ]
                 );
                 $day->lunch_end_reminder_sent = true;
                 $day->save();
                 $sent++;
             } catch (\Throwable $e) {
-                Log::warning("Error enviando aviso de fin de comida a usuario {$user->id}: " . $e->getMessage());
+                Log::warning("Error enviando aviso de fin de comida a usuario {$user->id}: ".$e->getMessage());
             }
         }
 
         return $sent;
     }
 
-    private function resolveUser(MealSchedule $schedule): ?\App\Models\User
+    private function resolveUser(MealSchedule $schedule): ?User
     {
         $empleado = $schedule->employee;
         if (! $empleado || ! $empleado->user_id) {
             return null;
         }
 
-        $user = \App\Models\User::find($empleado->user_id);
+        $user = User::find($empleado->user_id);
         if (! $user || ! $user->is_active) {
             return null;
         }
@@ -205,11 +208,11 @@ class SendMealNotifications extends Command
         }
 
         return AttendanceDay::create([
-            'empresa_id'    => $schedule->empresa_id,
-            'empleado_id'   => $schedule->employee_id,
-            'date'          => $today,
-            'status'        => 'open',
-            'totals'        => [],
+            'empresa_id' => $schedule->empresa_id,
+            'empleado_id' => $schedule->employee_id,
+            'date' => $today,
+            'status' => 'open',
+            'totals' => [],
         ]);
     }
 }

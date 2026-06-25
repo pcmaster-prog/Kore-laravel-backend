@@ -14,7 +14,7 @@ return new class extends Migration
             $table->foreignUuid('empresa_id')->constrained('empresas')->cascadeOnDelete();
             $table->string('token', 500);           // Token FCM del dispositivo
             $table->string('platform', 20)          // 'web' | 'android' | 'ios'
-                  ->default('web');
+                ->default('web');
             $table->string('user_agent', 300)->nullable();
             $table->timestamp('last_used_at')->nullable();
             $table->timestamps();

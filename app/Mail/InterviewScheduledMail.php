@@ -19,8 +19,7 @@ class InterviewScheduledMail extends Mailable
         public string $method,
         public ?string $location,
         public ?string $meetingUrl,
-    ) {
-    }
+    ) {}
 
     public function envelope(): Envelope
     {

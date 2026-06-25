@@ -2,18 +2,18 @@
 
 namespace App\Console\Commands;
 
-use Illuminate\Console\Command;
+use App\Jobs\SendPushNotification;
+use App\Models\Empleado;
 use App\Models\RoutineSchedule;
-use App\Models\TaskRoutineItem;
 use App\Models\Task;
 use App\Models\TaskAssignee;
-use App\Models\Empleado;
-use App\Jobs\SendPushNotification;
-use Illuminate\Support\Facades\Log;
+use App\Models\TaskRoutineItem;
+use Illuminate\Console\Command;
 
 class ProcessRoutineSchedules extends Command
 {
     protected $signature = 'tasks:process-routine-schedules';
+
     protected $description = 'Procesa rutinas automáticas configuradas por horario';
 
     public function handle(): int
@@ -31,14 +31,16 @@ class ProcessRoutineSchedules extends Command
             ->whereJsonContains('trigger_days', $todayDow)
             ->whereTime('trigger_time', '>=', $windowStart)
             ->whereTime('trigger_time', '<=', $windowEnd)
-            ->with(['routine' => fn($q) => $q->where('is_active', true)])
+            ->with(['routine' => fn ($q) => $q->where('is_active', true)])
             ->cursor();
 
         $createdCount = 0;
 
         foreach ($schedules as $schedule) {
             $routine = $schedule->routine;
-            if (!$routine) continue;
+            if (! $routine) {
+                continue;
+            }
 
             $items = TaskRoutineItem::where('routine_id', $routine->id)
                 ->where('is_active', true)
@@ -46,30 +48,37 @@ class ProcessRoutineSchedules extends Command
                 ->with('taskTemplate')
                 ->get();
 
-            if ($items->isEmpty()) continue;
+            if ($items->isEmpty()) {
+                continue;
+            }
 
             $empleadoIds = $this->resolveRoutineAssignees($schedule);
 
             if (empty($empleadoIds)) {
                 // Notificar a supervisores de la rutina/empresa
                 $this->warn("Rutina {$routine->name} sin asignados");
+
                 continue;
             }
 
             foreach ($empleadoIds as $empleadoId) {
                 foreach ($items as $item) {
                     $template = $item->taskTemplate;
-                    if (!$template || !$template->is_active) continue;
+                    if (! $template || ! $template->is_active) {
+                        continue;
+                    }
 
                     // Deduplicación: template_id + empleado_id + fecha
                     $exists = Task::where('empresa_id', $schedule->empresa_id)
-                        ->whereHas('assignees', fn($q) => $q->where('empleado_id', $empleadoId))
+                        ->whereHas('assignees', fn ($q) => $q->where('empleado_id', $empleadoId))
                         ->whereRaw("meta->>'template_id' = ?", [$template->id])
                         ->whereRaw("meta->>'catalog_date' = ?", [$now->toDateString()])
                         ->whereRaw("meta->>'source' = ?", ['auto_routine'])
                         ->exists();
 
-                    if ($exists) continue;
+                    if ($exists) {
+                        continue;
+                    }
 
                     $task = Task::create([
                         'empresa_id' => $schedule->empresa_id,
@@ -103,7 +112,7 @@ class ProcessRoutineSchedules extends Command
                         if ($emp && $emp->user_id) {
                             SendPushNotification::dispatch(
                                 $emp->user_id,
-                                '📋 Rutina asignada: ' . $routine->name,
+                                '📋 Rutina asignada: '.$routine->name,
                                 "Se te asignó: {$task->title}",
                                 ['type' => 'routine.assigned', 'task_id' => $task->id, 'routine_id' => $routine->id]
                             );
@@ -114,19 +123,26 @@ class ProcessRoutineSchedules extends Command
         }
 
         $this->info("Completado: {$createdCount} tareas creadas desde rutinas.");
+
         return self::SUCCESS;
     }
 
     private function resolveRoutineAssignees(RoutineSchedule $schedule): array
     {
         if ($schedule->assignee_type === 'empleado') {
-            if (!$schedule->assignee_id) return [];
+            if (! $schedule->assignee_id) {
+                return [];
+            }
             $emp = Empleado::where('id', $schedule->assignee_id)->where('status', 'active')->first();
+
             return $emp ? [$emp->id] : [];
         }
 
         if ($schedule->assignee_type === 'position') {
-            if (!$schedule->assignee_id) return [];
+            if (! $schedule->assignee_id) {
+                return [];
+            }
+
             return Empleado::where('position_id', $schedule->assignee_id)
                 ->where('status', 'active')
                 ->pluck('id')
@@ -134,17 +150,23 @@ class ProcessRoutineSchedules extends Command
         }
 
         if ($schedule->assignee_type === 'section') {
-            if (!$schedule->section_id) return [];
+            if (! $schedule->section_id) {
+                return [];
+            }
+
             return Empleado::where('status', 'active')
-                ->whereHas('sections', fn($q) => $q->where('section_id', $schedule->section_id))
+                ->whereHas('sections', fn ($q) => $q->where('section_id', $schedule->section_id))
                 ->pluck('id')
                 ->all();
         }
 
         if ($schedule->assignee_type === 'area') {
-            if (!$schedule->area_id) return [];
+            if (! $schedule->area_id) {
+                return [];
+            }
+
             return Empleado::where('status', 'active')
-                ->whereHas('sections', fn($q) => $q->whereHas('area', fn($a) => $a->where('id', $schedule->area_id)))
+                ->whereHas('sections', fn ($q) => $q->whereHas('area', fn ($a) => $a->where('id', $schedule->area_id)))
                 ->pluck('id')
                 ->all();
         }

@@ -60,7 +60,7 @@ class MaderasEnsambleController extends Controller
                     }
                     $invPieza->update([
                         'stock' => $newStock,
-                        'status' => $status
+                        'status' => $status,
                     ]);
                 }
             }
@@ -71,7 +71,8 @@ class MaderasEnsambleController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json(['error' => 'Error al registrar ensamble: ' . $e->getMessage()], 500);
+
+            return response()->json(['error' => 'Error al registrar ensamble: '.$e->getMessage()], 500);
         }
     }
 
@@ -81,6 +82,7 @@ class MaderasEnsambleController extends Controller
     public function show(string $id)
     {
         $ensamble = MaderasEnsamble::with(['catalogo', 'piezas.catalogo'])->findOrFail($id);
+
         return response()->json($ensamble);
     }
 
@@ -104,16 +106,16 @@ class MaderasEnsambleController extends Controller
                     ['catalogo_id' => $ensamble->catalogo_id],
                     ['stock' => 0, 'stock_minimo' => 0, 'status' => 'critical']
                 );
-                
+
                 $newStock = $inventario->stock + $ensamble->cantidad_generada;
                 $status = 'ok';
                 if ($newStock <= $inventario->stock_minimo) {
                     $status = $newStock == 0 ? 'critical' : 'low';
                 }
-                
+
                 $inventario->update([
                     'stock' => $newStock,
-                    'status' => $status
+                    'status' => $status,
                 ]);
             }
 
@@ -124,7 +126,8 @@ class MaderasEnsambleController extends Controller
             return response()->json($ensamble->load(['catalogo', 'piezas.catalogo']));
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json(['error' => 'Error al actualizar ensamble: ' . $e->getMessage()], 500);
+
+            return response()->json(['error' => 'Error al actualizar ensamble: '.$e->getMessage()], 500);
         }
     }
 
@@ -134,6 +137,7 @@ class MaderasEnsambleController extends Controller
     public function destroy(string $id)
     {
         $ensamble = MaderasEnsamble::findOrFail($id);
+
         // La anulación de ensambles completos también debería regresar los materiales al inventario
         // Para simplificar, permitimos borrar en cascada pero no revertimos el inventario aquí (idealmente no se permite delete o se hace un soft_delete)
         return response()->json(['error' => 'No soportado. Considerar anular vía ajuste de inventario'], 400);

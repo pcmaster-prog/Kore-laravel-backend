@@ -3,23 +3,22 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-
 use App\Models\MaderasTemporada;
+use Illuminate\Http\Request;
 
 class TemporadasController extends Controller
 {
     public function index()
     {
         return response()->json([
-            'data' => MaderasTemporada::orderBy('mes_inicio')->get()
+            'data' => MaderasTemporada::orderBy('mes_inicio')->get(),
         ]);
     }
 
     public function activa()
     {
         $currentMonth = (int) date('n');
-        
+
         $temporadas = MaderasTemporada::all();
         $activa = null;
 
@@ -39,7 +38,7 @@ class TemporadasController extends Controller
         }
 
         return response()->json([
-            'data' => $activa
+            'data' => $activa,
         ]);
     }
 

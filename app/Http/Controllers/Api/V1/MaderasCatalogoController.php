@@ -3,23 +3,19 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use App\Models\MaderasCatalogo;
-use App\Models\MaderasProduccion;
-use App\Models\MaderasPedido;
-use App\Models\MaderasInventario;
-use App\Models\MaderasEnsamble;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class MaderasCatalogoController extends Controller
 {
     public function index()
     {
-        $productos = \Illuminate\Support\Facades\DB::table('maderas_productos')->select('id', 'nombre', \Illuminate\Support\Facades\DB::raw("'producto_terminado' as tipo"))->get();
-        $bastones = \Illuminate\Support\Facades\DB::table('bastones_madera')->select('id', 'nombre', \Illuminate\Support\Facades\DB::raw("'baston' as tipo"))->get();
-        $materias = \Illuminate\Support\Facades\DB::table('maderas_materias_primas')->select('id', 'nombre', \Illuminate\Support\Facades\DB::raw("'insumo' as tipo"))->get();
+        $productos = DB::table('maderas_productos')->select('id', 'nombre', DB::raw("'producto_terminado' as tipo"))->get();
+        $bastones = DB::table('bastones_madera')->select('id', 'nombre', DB::raw("'baston' as tipo"))->get();
+        $materias = DB::table('maderas_materias_primas')->select('id', 'nombre', DB::raw("'insumo' as tipo"))->get();
 
         return response()->json([
-            'data' => $productos->concat($bastones)->concat($materias)
+            'data' => $productos->concat($bastones)->concat($materias),
         ]);
     }
 
@@ -46,30 +42,32 @@ class MaderasCatalogoController extends Controller
 
     public function productos()
     {
-        $productos = \Illuminate\Support\Facades\DB::table('maderas_productos')->select('id', 'nombre', \Illuminate\Support\Facades\DB::raw("'producto_terminado' as tipo"))->get();
+        $productos = DB::table('maderas_productos')->select('id', 'nombre', DB::raw("'producto_terminado' as tipo"))->get();
+
         return response()->json(['data' => $productos]);
     }
 
     public function bastones()
     {
-        $bastones = \Illuminate\Support\Facades\DB::table('bastones_madera')->select('id', 'nombre', \Illuminate\Support\Facades\DB::raw("'baston' as tipo"))->get();
-        $materias = \Illuminate\Support\Facades\DB::table('maderas_materias_primas')->select('id', 'nombre', \Illuminate\Support\Facades\DB::raw("'insumo' as tipo"))->get();
+        $bastones = DB::table('bastones_madera')->select('id', 'nombre', DB::raw("'baston' as tipo"))->get();
+        $materias = DB::table('maderas_materias_primas')->select('id', 'nombre', DB::raw("'insumo' as tipo"))->get();
+
         return response()->json(['data' => $bastones->concat($materias)]);
     }
 
     public function dashboard()
     {
         try {
-            $totalProductos = \Illuminate\Support\Facades\DB::table('maderas_productos')->count();
-            $totalBastones = \Illuminate\Support\Facades\DB::table('bastones_madera')->count();
-            $totalMaterias = \Illuminate\Support\Facades\DB::table('maderas_materias_primas')->count();
-            
-            $produccionHoy = 0; 
-            $pedidosPendientes = \Illuminate\Support\Facades\DB::table('pedidos_madera')->where('status', 'pendiente')->count();
-            
-            $stockBajo = \Illuminate\Support\Facades\DB::table('maderas_materias_primas')->whereColumn('stock_actual', '<=', 'alerta_minimo')->count() +
-                         \Illuminate\Support\Facades\DB::table('bastones_madera')->whereColumn('stock', '<=', 'alerta_minimo')->count();
-            
+            $totalProductos = DB::table('maderas_productos')->count();
+            $totalBastones = DB::table('bastones_madera')->count();
+            $totalMaterias = DB::table('maderas_materias_primas')->count();
+
+            $produccionHoy = 0;
+            $pedidosPendientes = DB::table('pedidos_madera')->where('status', 'pendiente')->count();
+
+            $stockBajo = DB::table('maderas_materias_primas')->whereColumn('stock_actual', '<=', 'alerta_minimo')->count() +
+                         DB::table('bastones_madera')->whereColumn('stock', '<=', 'alerta_minimo')->count();
+
             $ensamblesProceso = 0;
 
             return response()->json([
@@ -82,9 +80,9 @@ class MaderasCatalogoController extends Controller
             ]);
         } catch (\Throwable $e) {
             return response()->json([
-                'message' => 'Error real del server: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine(),
+                'message' => 'Error real del server: '.$e->getMessage().' in '.$e->getFile().':'.$e->getLine(),
                 'file' => $e->getFile(),
-                'line' => $e->getLine()
+                'line' => $e->getLine(),
             ], 500);
         }
     }

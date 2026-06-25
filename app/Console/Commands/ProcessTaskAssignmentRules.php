@@ -2,19 +2,20 @@
 
 namespace App\Console\Commands;
 
-use Illuminate\Console\Command;
-use App\Models\TaskAssignmentRule;
-use App\Models\TaskAssignmentRuleItem;
-use App\Models\TaskTemplate;
+use App\Jobs\SendPushNotification;
+use App\Models\Empleado;
+use App\Models\SupervisorSection;
 use App\Models\Task;
 use App\Models\TaskAssignee;
-use App\Models\Empleado;
-use App\Jobs\SendPushNotification;
+use App\Models\TaskAssignmentRule;
+use App\Models\TaskTemplate;
+use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
 class ProcessTaskAssignmentRules extends Command
 {
     protected $signature = 'tasks:process-assignment-rules';
+
     protected $description = 'Procesa reglas de asignación automática de tareas por horario';
 
     public function handle(): int
@@ -32,7 +33,7 @@ class ProcessTaskAssignmentRules extends Command
             ->whereNotNull('trigger_time')
             ->whereTime('trigger_time', '>=', $windowStart)
             ->whereTime('trigger_time', '<=', $windowEnd)
-            ->with(['items' => fn($q) => $q->where('is_active', true)->orderBy('sort_order')])
+            ->with(['items' => fn ($q) => $q->where('is_active', true)->orderBy('sort_order')])
             ->cursor();
 
         $createdCount = 0;
@@ -61,7 +62,9 @@ class ProcessTaskAssignmentRules extends Command
                 // Crear tareas huérfanas para cada template
                 foreach ($templateIds as $templateId) {
                     $template = TaskTemplate::where('id', $templateId)->where('is_active', true)->first();
-                    if (!$template) continue;
+                    if (! $template) {
+                        continue;
+                    }
 
                     $alreadyExists = Task::where('empresa_id', $empresaId)
                         ->whereRaw("meta->>'template_id' = ?", [$templateId])
@@ -69,7 +72,7 @@ class ProcessTaskAssignmentRules extends Command
                         ->whereRaw("meta->>'unassigned_reason' = ?", ['missing_assignee'])
                         ->exists();
 
-                    if (!$alreadyExists) {
+                    if (! $alreadyExists) {
                         Task::create([
                             'empresa_id' => $empresaId,
                             'created_by' => $rule->created_by,
@@ -94,13 +97,16 @@ class ProcessTaskAssignmentRules extends Command
                     $this->createMissingAssigneeIncident($rule, $template, $empresaId);
                 }
                 $missingAssigneeCount++;
+
                 continue;
             }
 
             foreach ($empleadoIds as $empleadoId) {
                 foreach ($templateIds as $templateId) {
                     $template = TaskTemplate::where('id', $templateId)->where('is_active', true)->first();
-                    if (!$template) continue;
+                    if (! $template) {
+                        continue;
+                    }
 
                     // Deduplicación por template+empleado+fecha
                     $alreadyExists = Task::where('empresa_id', $empresaId)
@@ -113,6 +119,7 @@ class ProcessTaskAssignmentRules extends Command
 
                     if ($alreadyExists) {
                         $skippedCount++;
+
                         continue;
                     }
 
@@ -167,13 +174,19 @@ class ProcessTaskAssignmentRules extends Command
     private function resolveAssignees(TaskAssignmentRule $rule): array
     {
         if ($rule->assignee_type === 'empleado') {
-            if (!$rule->assignee_id) return [];
+            if (! $rule->assignee_id) {
+                return [];
+            }
             $emp = Empleado::where('id', $rule->assignee_id)->where('status', 'active')->first();
+
             return $emp ? [$emp->id] : [];
         }
 
         if ($rule->assignee_type === 'position') {
-            if (!$rule->assignee_id) return [];
+            if (! $rule->assignee_id) {
+                return [];
+            }
+
             return Empleado::where('position_id', $rule->assignee_id)
                 ->where('status', 'active')
                 ->pluck('id')
@@ -181,9 +194,12 @@ class ProcessTaskAssignmentRules extends Command
         }
 
         if ($rule->assignee_type === 'section_supervisor') {
-            if (!$rule->section_id) return [];
+            if (! $rule->section_id) {
+                return [];
+            }
+
             return Empleado::where('status', 'active')
-                ->whereHas('sections', fn($q) => $q->where('section_id', $rule->section_id))
+                ->whereHas('sections', fn ($q) => $q->where('section_id', $rule->section_id))
                 ->pluck('id')
                 ->all();
         }
@@ -193,13 +209,17 @@ class ProcessTaskAssignmentRules extends Command
 
     private function createMissingAssigneeIncident(TaskAssignmentRule $rule, $template, string $empresaId): void
     {
-        if (!$rule->section_id) return;
+        if (! $rule->section_id) {
+            return;
+        }
 
-        $supervisors = \App\Models\SupervisorSection::where('section_id', $rule->section_id)
+        $supervisors = SupervisorSection::where('section_id', $rule->section_id)
             ->pluck('supervisor_user_id')
             ->all();
 
-        if (empty($supervisors)) return;
+        if (empty($supervisors)) {
+            return;
+        }
 
         foreach ($supervisors as $supervisorId) {
             SendPushNotification::dispatch(

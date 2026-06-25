@@ -2,9 +2,9 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
-use App\Models\JobOpening;
 use App\Models\Empresa;
+use App\Models\JobOpening;
+use Illuminate\Database\Seeder;
 
 class JobOpeningSeeder extends Seeder
 {
@@ -22,6 +22,7 @@ class JobOpeningSeeder extends Seeder
 
         if (! $empresa) {
             $this->command->info('No hay empresa, saltando JobOpeningSeeder');
+
             return;
         }
 

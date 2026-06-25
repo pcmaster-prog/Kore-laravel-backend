@@ -13,9 +13,10 @@ class EnsurePortalAccess
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if (!$request->user() || $request->user()->role !== 'aspirante') {
+        if (! $request->user() || $request->user()->role !== 'aspirante') {
             return response()->json(['message' => 'Acceso denegado. Solo aspirantes.'], 403);
         }
+
         return $next($request);
     }
 }

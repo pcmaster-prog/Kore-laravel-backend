@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Model;
 
 class EmployeeEvaluation extends Model
 {
@@ -17,9 +17,9 @@ class EmployeeEvaluation extends Model
     ];
 
     protected $casts = [
-        'is_active'       => 'boolean',
-        'activated_at'    => 'datetime',
-        'deactivated_at'  => 'datetime',
+        'is_active' => 'boolean',
+        'activated_at' => 'datetime',
+        'deactivated_at' => 'datetime',
     ];
 
     public function empleado()

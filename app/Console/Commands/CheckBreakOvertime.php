@@ -2,16 +2,18 @@
 
 namespace App\Console\Commands;
 
-use Illuminate\Console\Command;
 use App\Models\AttendanceDay;
 use App\Models\AttendanceEvent;
 use App\Models\Empresa;
+use App\Models\User;
 use App\Services\NotificationService;
+use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
 class CheckBreakOvertime extends Command
 {
-    protected $signature   = 'breaks:check-overtime';
+    protected $signature = 'breaks:check-overtime';
+
     protected $description = 'Detecta breaks activos que excedan la duración configurada y notifica';
 
     public function handle(): void
@@ -27,6 +29,7 @@ class CheckBreakOvertime extends Command
 
         if ($days->isEmpty()) {
             $this->info('No hay jornadas activas hoy.');
+
             return;
         }
 
@@ -40,19 +43,23 @@ class CheckBreakOvertime extends Command
                 ->orderByDesc('occurred_at')
                 ->first();
 
-            if (!$lastBreak || $lastBreak->type !== 'break_start') {
+            if (! $lastBreak || $lastBreak->type !== 'break_start') {
                 continue;
             }
 
             $emp = $day->empleado;
-            if (!$emp || !$emp->user_id) continue;
+            if (! $emp || ! $emp->user_id) {
+                continue;
+            }
 
-            $user = \App\Models\User::find($emp->user_id);
-            if (!$user || !$user->is_active) continue;
+            $user = User::find($emp->user_id);
+            if (! $user || ! $user->is_active) {
+                continue;
+            }
 
             $empresa = Empresa::find($day->empresa_id);
             $settings = is_array($empresa?->settings) ? $empresa->settings : [];
-            $breakDuration = (int)($settings['operativo']['break_duration_minutes'] ?? 10);
+            $breakDuration = (int) ($settings['operativo']['break_duration_minutes'] ?? 10);
 
             $breakMinutes = (int) now()->diffInMinutes($lastBreak->occurred_at);
 
@@ -64,14 +71,14 @@ class CheckBreakOvertime extends Command
                         title: '⚠️ Tu descanso ha excedido el tiempo',
                         body: "Llevas {$breakMinutes} min de descanso (límite: {$breakDuration} min). Exceso: {$exceso} min.",
                         data: [
-                            'type'         => 'break_overtime',
-                            'exceso_min'   => (string) $exceso,
-                            'break_minutes'=> (string) $breakMinutes,
+                            'type' => 'break_overtime',
+                            'exceso_min' => (string) $exceso,
+                            'break_minutes' => (string) $breakMinutes,
                         ]
                     );
                     $notified++;
                 } catch (\Throwable $e) {
-                    Log::warning("Error notificando exceso de break a {$user->id}: " . $e->getMessage());
+                    Log::warning("Error notificando exceso de break a {$user->id}: ".$e->getMessage());
                 }
             }
         }

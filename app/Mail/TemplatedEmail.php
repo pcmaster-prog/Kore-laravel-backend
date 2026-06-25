@@ -16,8 +16,7 @@ class TemplatedEmail extends Mailable implements ShouldQueue
     public function __construct(
         public string $emailSubject,
         public string $htmlBody,
-    ) {
-    }
+    ) {}
 
     public function envelope(): Envelope
     {

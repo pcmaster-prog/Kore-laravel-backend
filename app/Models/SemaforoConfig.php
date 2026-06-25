@@ -21,10 +21,10 @@ class SemaforoConfig extends Model
 
     protected $casts = [
         'criterios_admin' => 'array',
-        'criterios_peer'  => 'array',
-        'peso_admin'      => 'integer',
-        'peso_peer'       => 'integer',
-        'umbral_verde'    => 'integer',
+        'criterios_peer' => 'array',
+        'peso_admin' => 'integer',
+        'peso_peer' => 'integer',
+        'umbral_verde' => 'integer',
         'umbral_amarillo' => 'integer',
     ];
 

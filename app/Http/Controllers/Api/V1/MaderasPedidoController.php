@@ -3,10 +3,10 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use App\Services\PedidoCalculatorService;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class MaderasPedidoController extends Controller
@@ -21,7 +21,7 @@ class MaderasPedidoController extends Controller
     public function calcular(Request $request)
     {
         $request->validate([
-            'temporada_id' => 'required|integer'
+            'temporada_id' => 'required|integer',
         ]);
 
         $empresaId = 1; // Ajustar con auth()->user()->empresa_id en prod
@@ -29,7 +29,7 @@ class MaderasPedidoController extends Controller
         $pedidoData = $this->calculator->calculatePedido($request->temporada_id, $empresaId);
 
         return response()->json([
-            'data' => $pedidoData
+            'data' => $pedidoData,
         ]);
     }
 
@@ -54,7 +54,7 @@ class MaderasPedidoController extends Controller
 
             DB::beginTransaction();
             try {
-                $codigo = 'PED-AUTO-' . strtoupper(Str::random(5));
+                $codigo = 'PED-AUTO-'.strtoupper(Str::random(5));
 
                 $pedidoId = DB::table('pedidos_madera')->insertGetId([
                     'empresa_id' => $empresaId,
@@ -70,7 +70,9 @@ class MaderasPedidoController extends Controller
                 $secciones = ['hojas_mdf', 'tablas_pino', 'consumibles', 'servicios_corte'];
 
                 foreach ($secciones as $seccion) {
-                    if (!isset($pedidoData[$seccion])) continue;
+                    if (! isset($pedidoData[$seccion])) {
+                        continue;
+                    }
 
                     foreach ($pedidoData[$seccion] as $item) {
                         $detalles[] = [
@@ -95,11 +97,12 @@ class MaderasPedidoController extends Controller
                 return response()->json([
                     'message' => 'Pedido generado automáticamente',
                     'pedido_id' => $pedidoId,
-                    'codigo' => $codigo
+                    'codigo' => $codigo,
                 ], 201);
             } catch (\Exception $e) {
                 DB::rollBack();
-                return response()->json(['message' => 'Error al generar pedido: ' . $e->getMessage()], 500);
+
+                return response()->json(['message' => 'Error al generar pedido: '.$e->getMessage()], 500);
             }
         } else {
             // MODO MANUAL
@@ -111,7 +114,7 @@ class MaderasPedidoController extends Controller
 
             DB::beginTransaction();
             try {
-                $totalPedido = array_reduce($request->items, function($carry, $item) {
+                $totalPedido = array_reduce($request->items, function ($carry, $item) {
                     return $carry + ($item['total'] ?? ($item['cantidad'] * $item['precio_unitario']));
                 }, 0);
 
@@ -129,9 +132,15 @@ class MaderasPedidoController extends Controller
                 foreach ($request->items as $item) {
                     // Mapeamos las categorias manuales a la seccion_pdf que se espera, o se pone un default
                     $seccionPdf = 'hojas_mdf';
-                    if (str_contains(strtolower($item['categoria']), 'tabla')) $seccionPdf = 'tablas_pino';
-                    if (str_contains(strtolower($item['categoria']), 'consumible')) $seccionPdf = 'consumibles';
-                    if (str_contains(strtolower($item['categoria']), 'corte')) $seccionPdf = 'servicios_corte';
+                    if (str_contains(strtolower($item['categoria']), 'tabla')) {
+                        $seccionPdf = 'tablas_pino';
+                    }
+                    if (str_contains(strtolower($item['categoria']), 'consumible')) {
+                        $seccionPdf = 'consumibles';
+                    }
+                    if (str_contains(strtolower($item['categoria']), 'corte')) {
+                        $seccionPdf = 'servicios_corte';
+                    }
 
                     $detalles[] = [
                         'empresa_id' => $empresaId,
@@ -154,11 +163,12 @@ class MaderasPedidoController extends Controller
                 return response()->json([
                     'message' => 'Pedido manual creado',
                     'pedido_id' => $pedidoId,
-                    'codigo' => $request->codigo
+                    'codigo' => $request->codigo,
                 ], 201);
             } catch (\Exception $e) {
                 DB::rollBack();
-                return response()->json(['message' => 'Error al guardar pedido manual: ' . $e->getMessage()], 500);
+
+                return response()->json(['message' => 'Error al guardar pedido manual: '.$e->getMessage()], 500);
             }
         }
     }
@@ -166,7 +176,7 @@ class MaderasPedidoController extends Controller
     public function pdf($id)
     {
         $pedido = DB::table('pedidos_madera')->where('id', $id)->first();
-        if (!$pedido) {
+        if (! $pedido) {
             return response()->json(['message' => 'Pedido no encontrado'], 404);
         }
 
@@ -180,13 +190,16 @@ class MaderasPedidoController extends Controller
     public function index()
     {
         $pedidos = DB::table('pedidos_madera')->orderBy('created_at', 'desc')->get();
+
         return response()->json($pedidos);
     }
 
     public function show(string $id)
     {
         $pedido = DB::table('pedidos_madera')->where('id', $id)->first();
-        if (!$pedido) return response()->json(['message' => 'Not found'], 404);
+        if (! $pedido) {
+            return response()->json(['message' => 'Not found'], 404);
+        }
 
         $detalles = DB::table('detalle_pedido_madera')->where('pedido_id', $id)->get();
         $pedido->detalles = $detalles;
@@ -197,14 +210,16 @@ class MaderasPedidoController extends Controller
     public function update(Request $request, string $id)
     {
         $pedido = DB::table('pedidos_madera')->where('id', $id)->first();
-        if (!$pedido) return response()->json(['message' => 'Not found'], 404);
+        if (! $pedido) {
+            return response()->json(['message' => 'Not found'], 404);
+        }
 
         if ($request->has('status')) {
             DB::table('pedidos_madera')
                 ->where('id', $id)
                 ->update([
                     'status' => $request->status,
-                    'updated_at' => now()
+                    'updated_at' => now(),
                 ]);
         }
 
@@ -214,6 +229,7 @@ class MaderasPedidoController extends Controller
     public function destroy(string $id)
     {
         DB::table('pedidos_madera')->where('id', $id)->delete();
+
         return response()->json(null, 204);
     }
 }

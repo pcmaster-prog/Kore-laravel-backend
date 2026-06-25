@@ -1,15 +1,18 @@
 <?php
-//TaskRoutinesController: CRUD de rutinas, asignación masiva, manejo de items (templates)
+
+// TaskRoutinesController: CRUD de rutinas, asignación masiva, manejo de items (templates)
+
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
-use Illuminate\Support\Facades\Gate;
-
 use App\Models\TaskRoutine;
 use App\Models\TaskRoutineItem;
 use App\Models\TaskTemplate;
+use App\Services\TaskService;
+use Carbon\Carbon;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 
 class TaskRoutinesController extends Controller
 {
@@ -18,7 +21,7 @@ class TaskRoutinesController extends Controller
         $u = $request->user();
         Gate::authorize('supervisor');
 
-        $q = TaskRoutine::where('empresa_id',$u->empresa_id);
+        $q = TaskRoutine::where('empresa_id', $u->empresa_id);
 
         if ($request->filled('active')) {
             $q->where('is_active', filter_var($request->string('active'), FILTER_VALIDATE_BOOLEAN));
@@ -37,35 +40,35 @@ class TaskRoutinesController extends Controller
         Gate::authorize('supervisor');
 
         $data = $request->validate([
-            'name' => ['required','string','max:120'],
-            'description' => ['nullable','string'],
-            'recurrence' => ['required', Rule::in(['daily','weekly'])],
-            'weekdays' => ['nullable','array'],
-            'weekdays.*' => ['integer','min:0','max:6'],
-            'start_date' => ['nullable','date'],
-            'end_date' => ['nullable','date'],
-            'is_active' => ['nullable','boolean'],
-            'show_in_dashboard' => ['nullable','boolean'],
+            'name' => ['required', 'string', 'max:120'],
+            'description' => ['nullable', 'string'],
+            'recurrence' => ['required', Rule::in(['daily', 'weekly'])],
+            'weekdays' => ['nullable', 'array'],
+            'weekdays.*' => ['integer', 'min:0', 'max:6'],
+            'start_date' => ['nullable', 'date'],
+            'end_date' => ['nullable', 'date'],
+            'is_active' => ['nullable', 'boolean'],
+            'show_in_dashboard' => ['nullable', 'boolean'],
         ]);
 
         if ($data['recurrence'] === 'weekly' && empty($data['weekdays'])) {
-            return response()->json(['message'=>'weekdays requerido para weekly'], 422);
+            return response()->json(['message' => 'weekdays requerido para weekly'], 422);
         }
 
         $r = TaskRoutine::create([
-            'empresa_id'=>$u->empresa_id,
-            'created_by'=>$u->id,
-            'name'=>$data['name'],
-            'description'=>$data['description'] ?? null,
-            'recurrence'=>$data['recurrence'],
-            'weekdays'=>$data['weekdays'] ?? null,
-            'start_date'=>$data['start_date'] ?? null,
-            'end_date'=>$data['end_date'] ?? null,
-            'is_active'=>$data['is_active'] ?? true,
-            'show_in_dashboard'=>$data['show_in_dashboard'] ?? false,
+            'empresa_id' => $u->empresa_id,
+            'created_by' => $u->id,
+            'name' => $data['name'],
+            'description' => $data['description'] ?? null,
+            'recurrence' => $data['recurrence'],
+            'weekdays' => $data['weekdays'] ?? null,
+            'start_date' => $data['start_date'] ?? null,
+            'end_date' => $data['end_date'] ?? null,
+            'is_active' => $data['is_active'] ?? true,
+            'show_in_dashboard' => $data['show_in_dashboard'] ?? false,
         ]);
 
-        return response()->json(['item'=>$r], 201);
+        return response()->json(['item' => $r], 201);
     }
 
     public function show(Request $request, string $id)
@@ -73,16 +76,18 @@ class TaskRoutinesController extends Controller
         $u = $request->user();
         Gate::authorize('supervisor');
 
-        $r = TaskRoutine::where('empresa_id',$u->empresa_id)->where('id',$id)->first();
-        if (!$r) return response()->json(['message'=>'No encontrado'], 404);
+        $r = TaskRoutine::where('empresa_id', $u->empresa_id)->where('id', $id)->first();
+        if (! $r) {
+            return response()->json(['message' => 'No encontrado'], 404);
+        }
 
-        $items = TaskRoutineItem::where('empresa_id',$u->empresa_id)
-            ->where('routine_id',$r->id)
+        $items = TaskRoutineItem::where('empresa_id', $u->empresa_id)
+            ->where('routine_id', $r->id)
             ->where('is_active', true)
             ->orderBy('sort_order')
             ->get();
 
-        return response()->json(['item'=>$r, 'items'=>$items]);
+        return response()->json(['item' => $r, 'items' => $items]);
     }
 
     public function update(Request $request, string $id)
@@ -90,25 +95,27 @@ class TaskRoutinesController extends Controller
         $u = $request->user();
         $this->requireManager($u);
 
-        $r = TaskRoutine::where('empresa_id',$u->empresa_id)->where('id',$id)->first();
-        if (!$r) return response()->json(['message'=>'No encontrado'], 404);
+        $r = TaskRoutine::where('empresa_id', $u->empresa_id)->where('id', $id)->first();
+        if (! $r) {
+            return response()->json(['message' => 'No encontrado'], 404);
+        }
 
         $data = $request->validate([
-            'name' => ['sometimes','string','max:120'],
-            'description' => ['sometimes','nullable','string'],
-            'recurrence' => ['sometimes', Rule::in(['daily','weekly'])],
-            'weekdays' => ['sometimes','nullable','array'],
-            'weekdays.*' => ['integer','min:0','max:6'],
-            'start_date' => ['sometimes','nullable','date'],
-            'end_date' => ['sometimes','nullable','date'],
-            'is_active' => ['sometimes','boolean'],
-            'show_in_dashboard' => ['sometimes','boolean'],
+            'name' => ['sometimes', 'string', 'max:120'],
+            'description' => ['sometimes', 'nullable', 'string'],
+            'recurrence' => ['sometimes', Rule::in(['daily', 'weekly'])],
+            'weekdays' => ['sometimes', 'nullable', 'array'],
+            'weekdays.*' => ['integer', 'min:0', 'max:6'],
+            'start_date' => ['sometimes', 'nullable', 'date'],
+            'end_date' => ['sometimes', 'nullable', 'date'],
+            'is_active' => ['sometimes', 'boolean'],
+            'show_in_dashboard' => ['sometimes', 'boolean'],
         ]);
 
         $r->fill($data);
         $r->save();
 
-        return response()->json(['item'=>$r]);
+        return response()->json(['item' => $r]);
     }
 
     public function destroy(Request $request, string $id)
@@ -116,11 +123,14 @@ class TaskRoutinesController extends Controller
         $u = $request->user();
         Gate::authorize('admin');
 
-        $r = TaskRoutine::where('empresa_id',$u->empresa_id)->where('id',$id)->first();
-        if (!$r) return response()->json(['message'=>'No encontrado'], 404);
+        $r = TaskRoutine::where('empresa_id', $u->empresa_id)->where('id', $id)->first();
+        if (! $r) {
+            return response()->json(['message' => 'No encontrado'], 404);
+        }
 
         $r->delete();
-        return response()->json(['message'=>'Eliminado']);
+
+        return response()->json(['message' => 'Eliminado']);
     }
 
     // POST /task-routines/{id}/items
@@ -129,36 +139,38 @@ class TaskRoutinesController extends Controller
         $u = $request->user();
         $this->requireManager($u);
 
-        $r = TaskRoutine::where('empresa_id',$u->empresa_id)->where('id',$id)->first();
-        if (!$r) return response()->json(['message'=>'Rutina no encontrada'], 404);
+        $r = TaskRoutine::where('empresa_id', $u->empresa_id)->where('id', $id)->first();
+        if (! $r) {
+            return response()->json(['message' => 'Rutina no encontrada'], 404);
+        }
 
         $data = $request->validate([
-            'template_ids' => ['required','array','min:1'],
+            'template_ids' => ['required', 'array', 'min:1'],
             'template_ids.*' => ['uuid'],
         ]);
 
         // validar templates de la empresa
-        $valid = TaskTemplate::where('empresa_id',$u->empresa_id)
+        $valid = TaskTemplate::where('empresa_id', $u->empresa_id)
             ->whereIn('id', $data['template_ids'])
             ->pluck('id')->all();
 
         if (count($valid) !== count($data['template_ids'])) {
-            return response()->json(['message'=>'Uno o más templates no pertenecen a la empresa'], 422);
+            return response()->json(['message' => 'Uno o más templates no pertenecen a la empresa'], 422);
         }
 
-        $maxSort = (int) TaskRoutineItem::where('empresa_id',$u->empresa_id)
-            ->where('routine_id',$r->id)
+        $maxSort = (int) TaskRoutineItem::where('empresa_id', $u->empresa_id)
+            ->where('routine_id', $r->id)
             ->max('sort_order');
 
         foreach ($valid as $tid) {
             $maxSort++;
             TaskRoutineItem::firstOrCreate(
-                ['empresa_id'=>$u->empresa_id,'routine_id'=>$r->id,'template_id'=>$tid],
-                ['sort_order'=>$maxSort,'is_active'=>true]
+                ['empresa_id' => $u->empresa_id, 'routine_id' => $r->id, 'template_id' => $tid],
+                ['sort_order' => $maxSort, 'is_active' => true]
             );
         }
 
-        return response()->json(['message'=>'Items agregados']);
+        return response()->json(['message' => 'Items agregados']);
     }
 
     // DELETE /task-routines/{id}/items/{itemId}
@@ -167,86 +179,89 @@ class TaskRoutinesController extends Controller
         $u = $request->user();
         Gate::authorize('supervisor');
 
-        $item = TaskRoutineItem::where('empresa_id',$u->empresa_id)
-            ->where('routine_id',$id)
-            ->where('id',$itemId)
+        $item = TaskRoutineItem::where('empresa_id', $u->empresa_id)
+            ->where('routine_id', $id)
+            ->where('id', $itemId)
             ->first();
 
-        if (!$item) return response()->json(['message'=>'Item no encontrado'], 404);
+        if (! $item) {
+            return response()->json(['message' => 'Item no encontrado'], 404);
+        }
 
         $item->delete();
-        return response()->json(['message'=>'Item eliminado']);
+
+        return response()->json(['message' => 'Item eliminado']);
     }
+
     public function assignRoutine(Request $request, string $id)
     {
-    $u = $request->user();
-    Gate::authorize('supervisor');
+        $u = $request->user();
+        Gate::authorize('supervisor');
 
-    $empresaId = $u->empresa_id;
+        $empresaId = $u->empresa_id;
 
-    $data = $request->validate([
-        'date' => ['required','date'],
-        'empleado_ids' => ['required','array','min:1'],
-        'empleado_ids.*' => ['uuid'],
-        'due_at' => ['nullable','date'],
-        'allow_duplicate' => ['nullable','boolean'],
-    ]);
+        $data = $request->validate([
+            'date' => ['required', 'date'],
+            'empleado_ids' => ['required', 'array', 'min:1'],
+            'empleado_ids.*' => ['uuid'],
+            'due_at' => ['nullable', 'date'],
+            'allow_duplicate' => ['nullable', 'boolean'],
+        ]);
 
-    $routine = TaskRoutine::where('empresa_id',$empresaId)
-        ->where('id',$id)
-        ->where('is_active',true)
-        ->first();
+        $routine = TaskRoutine::where('empresa_id', $empresaId)
+            ->where('id', $id)
+            ->where('is_active', true)
+            ->first();
 
-    if (!$routine) {
-        return response()->json(['message'=>'Rutina no encontrada'], 404);
-    }
-
-    // validar que la rutina aplique a la fecha
-    $dow = \Carbon\Carbon::parse($data['date'])->dayOfWeek;
-
-    if ($routine->recurrence === 'weekly') {
-        $weekdays = is_array($routine->weekdays) ? $routine->weekdays : [];
-        if (!in_array($dow, $weekdays, true)) {
-            return response()->json([
-                'message'=>'La rutina no aplica a esta fecha'
-            ], 422);
-        }
-    }
-
-    // obtener templates activos de la rutina
-    $items = TaskRoutineItem::where('empresa_id',$empresaId)
-        ->where('routine_id',$routine->id)
-        ->where('is_active',true)
-        ->orderBy('sort_order')
-        ->get();
-
-    if ($items->isEmpty()) {
-        return response()->json(['message'=>'La rutina no tiene tareas'], 422);
-    }
-
-    // Validar sección para supervisores
-    $templateIds = $items->pluck('template_id')->unique()->values()->all();
-    $templates = TaskTemplate::where('empresa_id', $empresaId)
-        ->whereIn('id', $templateIds)
-        ->get();
-
-    foreach ($templates as $tpl) {
-        \App\Services\TaskService::requireSupervisorSection($u, $tpl->section);
-    }
-
-    // Reusar el bulk assign
-    $bulkRequest = new Request([
-        'date' => $data['date'],
-        'template_ids' => $items->pluck('template_id')->all(),
-        'empleado_ids' => $data['empleado_ids'],
-        'due_at' => $data['due_at'] ?? null,
-        'allow_duplicate' => $data['allow_duplicate'] ?? false,
-    ]);
-
-    $bulkRequest->setUserResolver(fn() => $u);
-
-    return app(\App\Http\Controllers\Api\V1\TaskCatalogController::class)
-        ->createBulkFromTemplates($bulkRequest);
+        if (! $routine) {
+            return response()->json(['message' => 'Rutina no encontrada'], 404);
         }
 
+        // validar que la rutina aplique a la fecha
+        $dow = Carbon::parse($data['date'])->dayOfWeek;
+
+        if ($routine->recurrence === 'weekly') {
+            $weekdays = is_array($routine->weekdays) ? $routine->weekdays : [];
+            if (! in_array($dow, $weekdays, true)) {
+                return response()->json([
+                    'message' => 'La rutina no aplica a esta fecha',
+                ], 422);
+            }
+        }
+
+        // obtener templates activos de la rutina
+        $items = TaskRoutineItem::where('empresa_id', $empresaId)
+            ->where('routine_id', $routine->id)
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->get();
+
+        if ($items->isEmpty()) {
+            return response()->json(['message' => 'La rutina no tiene tareas'], 422);
+        }
+
+        // Validar sección para supervisores
+        $templateIds = $items->pluck('template_id')->unique()->values()->all();
+        $templates = TaskTemplate::where('empresa_id', $empresaId)
+            ->whereIn('id', $templateIds)
+            ->get();
+
+        foreach ($templates as $tpl) {
+            TaskService::requireSupervisorSection($u, $tpl->section);
+        }
+
+        // Reusar el bulk assign
+        $bulkRequest = new Request([
+            'date' => $data['date'],
+            'template_ids' => $items->pluck('template_id')->all(),
+            'empleado_ids' => $data['empleado_ids'],
+            'due_at' => $data['due_at'] ?? null,
+            'allow_duplicate' => $data['allow_duplicate'] ?? false,
+        ]);
+
+        $bulkRequest->setUserResolver(fn () => $u);
+
+        return app(TaskCatalogController::class)
+            ->createBulkFromTemplates($bulkRequest);
+    }
 }

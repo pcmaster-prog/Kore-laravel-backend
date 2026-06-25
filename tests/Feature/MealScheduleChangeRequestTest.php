@@ -9,6 +9,7 @@ use App\Models\MealSchedule;
 use App\Models\MealScheduleChangeRequest;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -20,7 +21,7 @@ class MealScheduleChangeRequestTest extends TestCase
     private function setupEmpresaAdminYEmpleado(): array
     {
         $empresa = Empresa::create([
-            'id'   => Str::uuid(),
+            'id' => Str::uuid(),
             'name' => 'Test Corp',
             'slug' => 'test-corp',
             'settings' => [
@@ -35,52 +36,52 @@ class MealScheduleChangeRequestTest extends TestCase
             ],
         ]);
 
-        \Illuminate\Support\Facades\DB::table('empresa_modules')->insert([
-            'id'          => Str::uuid(),
-            'empresa_id'  => $empresa->id,
+        DB::table('empresa_modules')->insert([
+            'id' => Str::uuid(),
+            'empresa_id' => $empresa->id,
             'module_slug' => 'asistencia',
-            'enabled'     => true,
-            'created_at'  => now(),
-            'updated_at'  => now(),
+            'enabled' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
         ]);
 
         $admin = User::create([
-            'id'         => Str::uuid(),
+            'id' => Str::uuid(),
             'empresa_id' => $empresa->id,
-            'name'       => 'Admin',
-            'email'      => 'admin@example.com',
-            'password'   => Hash::make('password'),
-            'role'       => 'admin',
-            'is_active'  => true,
+            'name' => 'Admin',
+            'email' => 'admin@example.com',
+            'password' => Hash::make('password'),
+            'role' => 'admin',
+            'is_active' => true,
         ]);
 
         $employeeUser = User::create([
-            'id'         => Str::uuid(),
+            'id' => Str::uuid(),
             'empresa_id' => $empresa->id,
-            'name'       => 'Employee',
-            'email'      => 'employee@example.com',
-            'password'   => Hash::make('password'),
-            'role'       => 'employee',
-            'is_active'  => true,
+            'name' => 'Employee',
+            'email' => 'employee@example.com',
+            'password' => Hash::make('password'),
+            'role' => 'employee',
+            'is_active' => true,
         ]);
 
         $empleado = Empleado::create([
-            'id'              => Str::uuid(),
-            'empresa_id'      => $empresa->id,
-            'user_id'         => $employeeUser->id,
-            'full_name'       => 'Empleado Test',
-            'position_title'  => 'Operador',
-            'payment_type'    => 'weekly',
-            'daily_hours'     => 8,
-            'check_in_time'   => '09:00',
+            'id' => Str::uuid(),
+            'empresa_id' => $empresa->id,
+            'user_id' => $employeeUser->id,
+            'full_name' => 'Empleado Test',
+            'position_title' => 'Operador',
+            'payment_type' => 'weekly',
+            'daily_hours' => 8,
+            'check_in_time' => '09:00',
         ]);
 
         MealSchedule::create([
-            'id'                => Str::uuid(),
-            'empresa_id'        => $empresa->id,
-            'employee_id'       => $empleado->id,
-            'meal_start_time'   => '14:00',
-            'duration_minutes'  => 30,
+            'id' => Str::uuid(),
+            'empresa_id' => $empresa->id,
+            'employee_id' => $empleado->id,
+            'meal_start_time' => '14:00',
+            'duration_minutes' => 30,
         ]);
 
         return [$empresa, $admin, $employeeUser, $empleado];
@@ -88,11 +89,11 @@ class MealScheduleChangeRequestTest extends TestCase
 
     public function test_empleado_puede_crear_solicitud_de_cambio_de_horario(): void
     {
-        list(,, $user, $empleado) = $this->setupEmpresaAdminYEmpleado();
+        [, , $user, $empleado] = $this->setupEmpresaAdminYEmpleado();
 
         $token = $user->createToken('test')->plainTextToken;
 
-        $res = $this->withHeader('Authorization', 'Bearer ' . $token)
+        $res = $this->withHeader('Authorization', 'Bearer '.$token)
             ->postJson('/api/v1/asistencia/meal-schedule-change-requests', [
                 'requested_meal_start_time' => '15:00',
                 'duration_minutes' => 45,
@@ -113,7 +114,7 @@ class MealScheduleChangeRequestTest extends TestCase
 
     public function test_admin_puede_aprobar_y_se_actualiza_meal_schedule(): void
     {
-        list($empresa, $admin, $user, $empleado) = $this->setupEmpresaAdminYEmpleado();
+        [$empresa, $admin, $user, $empleado] = $this->setupEmpresaAdminYEmpleado();
 
         $request = MealScheduleChangeRequest::create([
             'id' => Str::uuid(),
@@ -127,7 +128,7 @@ class MealScheduleChangeRequestTest extends TestCase
 
         $token = $admin->createToken('test')->plainTextToken;
 
-        $res = $this->withHeader('Authorization', 'Bearer ' . $token)
+        $res = $this->withHeader('Authorization', 'Bearer '.$token)
             ->patchJson("/api/v1/asistencia/meal-schedule-change-requests/{$request->id}/review", [
                 'status' => 'approved',
                 'reviewer_note' => 'Ok',
@@ -145,7 +146,7 @@ class MealScheduleChangeRequestTest extends TestCase
 
     public function test_admin_puede_listar_solicitudes_pendientes(): void
     {
-        list($empresa, $admin, $user, $empleado) = $this->setupEmpresaAdminYEmpleado();
+        [$empresa, $admin, $user, $empleado] = $this->setupEmpresaAdminYEmpleado();
 
         MealScheduleChangeRequest::create([
             'id' => Str::uuid(),
@@ -159,7 +160,7 @@ class MealScheduleChangeRequestTest extends TestCase
 
         $token = $admin->createToken('test')->plainTextToken;
 
-        $this->withHeader('Authorization', 'Bearer ' . $token)
+        $this->withHeader('Authorization', 'Bearer '.$token)
             ->getJson('/api/v1/asistencia/meal-schedule-change-requests?status=pending')
             ->assertOk()
             ->assertJsonCount(1, 'data');
@@ -167,7 +168,7 @@ class MealScheduleChangeRequestTest extends TestCase
 
     public function test_empleado_no_puede_revisar_solicitud(): void
     {
-        list($empresa,, $user, $empleado) = $this->setupEmpresaAdminYEmpleado();
+        [$empresa, , $user, $empleado] = $this->setupEmpresaAdminYEmpleado();
 
         $request = MealScheduleChangeRequest::create([
             'id' => Str::uuid(),
@@ -181,7 +182,7 @@ class MealScheduleChangeRequestTest extends TestCase
 
         $token = $user->createToken('test')->plainTextToken;
 
-        $this->withHeader('Authorization', 'Bearer ' . $token)
+        $this->withHeader('Authorization', 'Bearer '.$token)
             ->patchJson("/api/v1/asistencia/meal-schedule-change-requests/{$request->id}/review", [
                 'status' => 'approved',
             ])
@@ -190,7 +191,7 @@ class MealScheduleChangeRequestTest extends TestCase
 
     public function test_endpoint_en_comida_muestra_empleados_en_comida(): void
     {
-        list($empresa, $admin, $user, $empleado) = $this->setupEmpresaAdminYEmpleado();
+        [$empresa, $admin, $user, $empleado] = $this->setupEmpresaAdminYEmpleado();
 
         AttendanceDay::create([
             'id' => Str::uuid(),
@@ -204,7 +205,7 @@ class MealScheduleChangeRequestTest extends TestCase
 
         $token = $admin->createToken('test')->plainTextToken;
 
-        $res = $this->withHeader('Authorization', 'Bearer ' . $token)
+        $res = $this->withHeader('Authorization', 'Bearer '.$token)
             ->getJson('/api/v1/asistencia/en-comida');
         $res->assertOk()
             ->assertJsonCount(1, 'data')
@@ -215,11 +216,11 @@ class MealScheduleChangeRequestTest extends TestCase
 
     public function test_en_comida_requiere_rol_admin_supervisor_rh(): void
     {
-        list(,, $user,) = $this->setupEmpresaAdminYEmpleado();
+        [, , $user] = $this->setupEmpresaAdminYEmpleado();
 
         $token = $user->createToken('test')->plainTextToken;
 
-        $this->withHeader('Authorization', 'Bearer ' . $token)
+        $this->withHeader('Authorization', 'Bearer '.$token)
             ->getJson('/api/v1/asistencia/en-comida')
             ->assertForbidden();
     }

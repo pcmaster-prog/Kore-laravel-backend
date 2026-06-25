@@ -1,18 +1,23 @@
 <?php
-//TaskCatalogController: endpoint para mostrar catálogo de tareas basado en rutinas e instanciar tareas desde templates (con opción de evitar duplicados por fecha+template)
+
+// TaskCatalogController: endpoint para mostrar catálogo de tareas basado en rutinas e instanciar tareas desde templates (con opción de evitar duplicados por fecha+template)
+
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\Empleado;
+use App\Models\Task;
+use App\Models\TaskAssignee;
+use App\Models\TaskRoutine;
+use App\Models\TaskRoutineItem;
+use App\Models\TaskTemplate;
+use App\Services\ActivityLogger;
+use App\Services\TaskService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
-
-use App\Models\TaskTemplate;
-use App\Models\TaskRoutine;
-use App\Models\TaskRoutineItem;
-use App\Models\Task;
-use App\Models\TaskAssignee;
-use App\Models\Empleado;
+use Illuminate\Support\Facades\Log;
 
 class TaskCatalogController extends Controller
 {
@@ -23,25 +28,33 @@ class TaskCatalogController extends Controller
 
         $empresaId = $u->empresa_id;
         $date = $request->input('date', now()->toDateString());
-        $dow = \Carbon\Carbon::parse($date)->dayOfWeek;
+        $dow = Carbon::parse($date)->dayOfWeek;
 
         $section = $request->input('section');
-        if ($u->role === 'supervisor' && !$section && $u->section) {
+        if ($u->role === 'supervisor' && ! $section && $u->section) {
             $section = $u->section;
         }
 
-        $routines = TaskRoutine::where('empresa_id',$empresaId)
+        $routines = TaskRoutine::where('empresa_id', $empresaId)
             ->where('is_active', true)
             ->get()
             ->filter(function ($r) use ($date, $dow) {
-                if ($r->start_date && $date < $r->start_date->toDateString()) return false;
-                if ($r->end_date && $date > $r->end_date->toDateString()) return false;
+                if ($r->start_date && $date < $r->start_date->toDateString()) {
+                    return false;
+                }
+                if ($r->end_date && $date > $r->end_date->toDateString()) {
+                    return false;
+                }
 
-                if ($r->recurrence === 'daily') return true;
+                if ($r->recurrence === 'daily') {
+                    return true;
+                }
                 if ($r->recurrence === 'weekly') {
                     $w = is_array($r->weekdays) ? $r->weekdays : [];
+
                     return in_array($dow, $w, true);
                 }
+
                 return false;
             })
             ->values();
@@ -51,8 +64,8 @@ class TaskCatalogController extends Controller
 
         $routineIds = $routines->pluck('id')->all();
 
-        $items = TaskRoutineItem::where('empresa_id',$empresaId)
-            ->whereIn('routine_id',$routineIds)
+        $items = TaskRoutineItem::where('empresa_id', $empresaId)
+            ->whereIn('routine_id', $routineIds)
             ->where('is_active', true)
             ->orderBy('routine_id')
             ->orderBy('sort_order')
@@ -60,8 +73,8 @@ class TaskCatalogController extends Controller
 
         $templateIds = $items->pluck('template_id')->unique()->values()->all();
 
-        $templatesQuery = TaskTemplate::where('empresa_id',$empresaId)
-            ->whereIn('id',$templateIds)
+        $templatesQuery = TaskTemplate::where('empresa_id', $empresaId)
+            ->whereIn('id', $templateIds)
             ->where('is_active', true);
 
         if ($section) {
@@ -72,7 +85,9 @@ class TaskCatalogController extends Controller
 
         $catalog = $items->map(function ($it) use ($templates, $routinesById) {
             $t = $templates->get($it->template_id);
-            if (!$t) return null;
+            if (! $t) {
+                return null;
+            }
 
             return [
                 'routine_item_id' => $it->id,
@@ -99,41 +114,44 @@ class TaskCatalogController extends Controller
         $empresaId = $u->empresa_id;
 
         $data = $request->validate([
-            'template_id' => ['required','uuid'],
-            'empleado_ids' => ['required','array','min:1'],
+            'template_id' => ['required', 'uuid'],
+            'empleado_ids' => ['required', 'array', 'min:1'],
             'empleado_ids.*' => ['uuid'],
-            'date' => ['nullable','date'],
-            'due_at' => ['nullable','date'],
+            'date' => ['nullable', 'date'],
+            'due_at' => ['nullable', 'date'],
         ]);
 
-        $tpl = TaskTemplate::where('empresa_id',$empresaId)->where('id',$data['template_id'])->first();
-        if (!$tpl) return response()->json(['message'=>'Template no encontrado'], 404);
+        $tpl = TaskTemplate::where('empresa_id', $empresaId)->where('id', $data['template_id'])->first();
+        if (! $tpl) {
+            return response()->json(['message' => 'Template no encontrado'], 404);
+        }
 
-        \App\Services\TaskService::requireSupervisorSection($u, $tpl->section);
+        TaskService::requireSupervisorSection($u, $tpl->section);
 
-        $validEmployees = Empleado::where('empresa_id',$empresaId)
+        $validEmployees = Empleado::where('empresa_id', $empresaId)
             ->whereIn('id', $data['empleado_ids'])
             ->pluck('id')->all();
 
         if (count($validEmployees) !== count($data['empleado_ids'])) {
-            return response()->json(['message'=>'Uno o más empleados no pertenecen a la empresa'], 422);
+            return response()->json(['message' => 'Uno o más empleados no pertenecen a la empresa'], 422);
         }
 
         $catalogDate = $data['date'] ?? now()->toDateString();
 
         $taskResult = DB::transaction(function () use ($u, $empresaId, $tpl, $validEmployees, $data, $catalogDate) {
-            $existingTask = \App\Models\Task::where('empresa_id', $empresaId)
+            $existingTask = Task::where('empresa_id', $empresaId)
                 ->whereRaw("meta->>'template_id' = ?", [$tpl->id])
                 ->whereRaw("meta->>'catalog_date' = ?", [$catalogDate])
                 ->first();
 
             if ($existingTask) {
                 foreach ($validEmployees as $empId) {
-                    \App\Models\TaskAssignee::firstOrCreate(
+                    TaskAssignee::firstOrCreate(
                         ['empresa_id' => $empresaId, 'task_id' => $existingTask->id, 'empleado_id' => $empId],
                         ['status' => 'assigned']
                     );
                 }
+
                 return ['task' => $existingTask, 'reused' => true];
             }
 
@@ -154,8 +172,8 @@ class TaskCatalogController extends Controller
 
             foreach ($validEmployees as $empId) {
                 TaskAssignee::firstOrCreate(
-                    ['empresa_id'=>$empresaId,'task_id'=>$task->id,'empleado_id'=>$empId],
-                    ['status'=>'assigned']
+                    ['empresa_id' => $empresaId, 'task_id' => $task->id, 'empleado_id' => $empId],
+                    ['status' => 'assigned']
                 );
             }
 
@@ -170,7 +188,7 @@ class TaskCatalogController extends Controller
         $actualTask = $taskResult['task'];
         $wasReused = $taskResult['reused'];
 
-        \App\Services\ActivityLogger::log(
+        ActivityLogger::log(
             $empresaId,
             $u->id,
             null,
@@ -182,12 +200,12 @@ class TaskCatalogController extends Controller
                 'task_title' => $tpl->title,           // <-- AGREGADO: título de la tarea
                 'catalog_date' => $catalogDate,
                 'created_by_name' => $u->name,
-                'empleado_ids' => $validEmployees
+                'empleado_ids' => $validEmployees,
             ],
             $request
         );
 
-        return response()->json(['message'=>'Tarea creada desde template', 'task'=>$actualTask], 201);
+        return response()->json(['message' => 'Tarea creada desde template', 'task' => $actualTask], 201);
     }
 
     public function createBulkFromTemplates(Request $request)
@@ -198,34 +216,34 @@ class TaskCatalogController extends Controller
         $empresaId = $u->empresa_id;
 
         $data = $request->validate([
-            'date' => ['required','date'],
-            'template_ids' => ['required','array','min:1'],
+            'date' => ['required', 'date'],
+            'template_ids' => ['required', 'array', 'min:1'],
             'template_ids.*' => ['uuid'],
-            'empleado_ids' => ['required','array','min:1'],
+            'empleado_ids' => ['required', 'array', 'min:1'],
             'empleado_ids.*' => ['uuid'],
-            'due_at' => ['nullable','date'],
-            'allow_duplicate' => ['nullable','boolean'],
+            'due_at' => ['nullable', 'date'],
+            'allow_duplicate' => ['nullable', 'boolean'],
         ]);
 
-        $allowDuplicate = (bool)($data['allow_duplicate'] ?? false);
+        $allowDuplicate = (bool) ($data['allow_duplicate'] ?? false);
         $catalogDate = $data['date'];
 
-        $validEmployees = \App\Models\Empleado::where('empresa_id',$empresaId)
+        $validEmployees = Empleado::where('empresa_id', $empresaId)
             ->whereIn('id', $data['empleado_ids'])
             ->pluck('id')->all();
 
         if (count($validEmployees) !== count($data['empleado_ids'])) {
-            return response()->json(['message'=>'Uno o más empleados no pertenecen a la empresa'], 422);
+            return response()->json(['message' => 'Uno o más empleados no pertenecen a la empresa'], 422);
         }
 
-        $templates = \App\Models\TaskTemplate::where('empresa_id',$empresaId)
+        $templates = TaskTemplate::where('empresa_id', $empresaId)
             ->whereIn('id', $data['template_ids'])
             ->where('is_active', true)
             ->get()
             ->keyBy('id');
 
         foreach ($templates as $tpl) {
-            \App\Services\TaskService::requireSupervisorSection($u, $tpl->section);
+            TaskService::requireSupervisorSection($u, $tpl->section);
         }
 
         $results = [
@@ -237,34 +255,35 @@ class TaskCatalogController extends Controller
 
         foreach ($data['template_ids'] as $tplId) {
             $tpl = $templates->get($tplId);
-            if (!$tpl) {
-                $results['errors'][] = ['template_id'=>$tplId, 'reason'=>'Template no válido o inactivo'];
+            if (! $tpl) {
+                $results['errors'][] = ['template_id' => $tplId, 'reason' => 'Template no válido o inactivo'];
+
                 continue;
             }
 
             try {
-                $out = \Illuminate\Support\Facades\DB::transaction(function () use ($u, $empresaId, $tpl, $validEmployees, $data, $allowDuplicate) {
+                $out = DB::transaction(function () use ($u, $empresaId, $tpl, $validEmployees, $data, $allowDuplicate) {
                     $existingTask = null;
 
-                    if (!$allowDuplicate) {
-                        $existingTask = \App\Models\Task::where('empresa_id',$empresaId)
+                    if (! $allowDuplicate) {
+                        $existingTask = Task::where('empresa_id', $empresaId)
                             ->whereRaw("meta->>'template_id' = ?", [$tpl->id])
                             ->whereRaw("meta->>'catalog_date' = ?", [$data['date']])
                             ->first();
                     }
 
                     if ($existingTask) {
-                        $already = \App\Models\TaskAssignee::where('empresa_id',$empresaId)
-                            ->where('task_id',$existingTask->id)
-                            ->whereIn('empleado_id',$validEmployees)
+                        $already = TaskAssignee::where('empresa_id', $empresaId)
+                            ->where('task_id', $existingTask->id)
+                            ->whereIn('empleado_id', $validEmployees)
                             ->pluck('empleado_id')->all();
 
                         $toAdd = array_values(array_diff($validEmployees, $already));
 
                         foreach ($toAdd as $empId) {
-                            \App\Models\TaskAssignee::firstOrCreate(
-                                ['empresa_id'=>$empresaId,'task_id'=>$existingTask->id,'empleado_id'=>$empId],
-                                ['status'=>'assigned']
+                            TaskAssignee::firstOrCreate(
+                                ['empresa_id' => $empresaId, 'task_id' => $existingTask->id, 'empleado_id' => $empId],
+                                ['status' => 'assigned']
                             );
                         }
 
@@ -280,7 +299,7 @@ class TaskCatalogController extends Controller
                     $meta['template_id'] = $tpl->id;
                     $meta['catalog_date'] = $data['date'];
 
-                    $task = \App\Models\Task::create([
+                    $task = Task::create([
                         'empresa_id' => $empresaId,
                         'created_by' => $u->id,
                         'title' => $tpl->title,
@@ -292,9 +311,9 @@ class TaskCatalogController extends Controller
                     ]);
 
                     foreach ($validEmployees as $empId) {
-                        \App\Models\TaskAssignee::firstOrCreate(
-                            ['empresa_id'=>$empresaId,'task_id'=>$task->id,'empleado_id'=>$empId],
-                            ['status'=>'assigned']
+                        TaskAssignee::firstOrCreate(
+                            ['empresa_id' => $empresaId, 'task_id' => $task->id, 'empleado_id' => $empId],
+                            ['status' => 'assigned']
                         );
                     }
 
@@ -311,7 +330,7 @@ class TaskCatalogController extends Controller
 
                 if ($out['mode'] === 'created') {
                     // 🔔 PARCHE 2: Logging con task_title para bulk_created
-                    \App\Services\ActivityLogger::log(
+                    ActivityLogger::log(
                         $empresaId,
                         $u->id,
                         null,
@@ -320,7 +339,7 @@ class TaskCatalogController extends Controller
                         $out['task_id'],
                         [
                             'template_id' => $tplId,
-                            'task_title'  => $tpl->title,        // <-- AGREGADO: título de la tarea
+                            'task_title' => $tpl->title,        // <-- AGREGADO: título de la tarea
                             'catalog_date' => $catalogDate,
                             'created_by_name' => $u->name,
                             'empleados_added' => $out['added_empleados'],
@@ -335,7 +354,7 @@ class TaskCatalogController extends Controller
                     ];
                 } else {
                     // 🔔 PARCHE 2: Logging con task_title para bulk_reused (consistencia)
-                    \App\Services\ActivityLogger::log(
+                    ActivityLogger::log(
                         $empresaId,
                         $u->id,
                         null,
@@ -344,7 +363,7 @@ class TaskCatalogController extends Controller
                         $out['task_id'],
                         [
                             'template_id' => $tplId,
-                            'task_title'  => $tpl->title,  
+                            'task_title' => $tpl->title,
                             'created_by_name' => $u->name,      // <-- AGREGADO: título de la tarea
                             'catalog_date' => $catalogDate,
                             'empleados_added' => $out['added_empleados'],
@@ -370,8 +389,8 @@ class TaskCatalogController extends Controller
                 }
 
             } catch (\Throwable $e) {
-                \Illuminate\Support\Facades\Log::error('Error en bulk create de tareas: ' . $e->getMessage(), ['exception' => $e, 'template_id' => $tplId]);
-                $results['errors'][] = ['template_id'=>$tplId, 'reason'=>'Error interno al procesar la plantilla.'];
+                Log::error('Error en bulk create de tareas: '.$e->getMessage(), ['exception' => $e, 'template_id' => $tplId]);
+                $results['errors'][] = ['template_id' => $tplId, 'reason' => 'Error interno al procesar la plantilla.'];
             }
         }
 

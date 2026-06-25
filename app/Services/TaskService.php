@@ -30,9 +30,15 @@ class TaskService
     {
         $targetRole = $empleado->user?->role ?? 'empleado';
 
-        if ($empleado->user_id === $authUser->id) return false;
-        if ($authUser->role === 'supervisor' && in_array($targetRole, ['supervisor', 'admin'])) return false;
-        if ($authUser->role === 'admin' && $targetRole === 'admin') return false;
+        if ($empleado->user_id === $authUser->id) {
+            return false;
+        }
+        if ($authUser->role === 'supervisor' && in_array($targetRole, ['supervisor', 'admin'])) {
+            return false;
+        }
+        if ($authUser->role === 'admin' && $targetRole === 'admin') {
+            return false;
+        }
 
         return true;
     }
@@ -53,7 +59,7 @@ class TaskService
         }
 
         foreach ($empleados as $emp) {
-            if (!self::canAssignTo($authUser, $emp)) {
+            if (! self::canAssignTo($authUser, $emp)) {
                 $targetRole = $emp->user?->role ?? 'empleado';
 
                 if ($emp->user_id === $authUser->id) {

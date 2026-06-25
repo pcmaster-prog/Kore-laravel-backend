@@ -3,15 +3,15 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
-use Illuminate\Support\Facades\Gate;
-use App\Models\RoutineSchedule;
-use App\Models\TaskRoutine;
+use App\Models\Area;
 use App\Models\Empleado;
 use App\Models\Position;
-use App\Models\Area;
+use App\Models\RoutineSchedule;
 use App\Models\Section;
+use App\Models\TaskRoutine;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 
 class RoutineSchedulesController extends Controller
 {
@@ -55,43 +55,43 @@ class RoutineSchedulesController extends Controller
 
         // Validar que la rutina pertenezca a la empresa
         $routine = TaskRoutine::where('empresa_id', $u->empresa_id)->where('id', $data['routine_id'])->first();
-        if (!$routine) {
+        if (! $routine) {
             return response()->json(['message' => 'Rutina no encontrada'], 404);
         }
 
         // Validaciones adicionales de nuevos campos
-        if (!empty($data['assignee_type']) && $data['assignee_type'] === 'empleado' && !empty($data['assignee_id'])) {
+        if (! empty($data['assignee_type']) && $data['assignee_type'] === 'empleado' && ! empty($data['assignee_id'])) {
             $empleado = Empleado::where('empresa_id', $u->empresa_id)->where('id', $data['assignee_id'])->where('status', 'active')->first();
-            if (!$empleado) {
+            if (! $empleado) {
                 return response()->json(['message' => 'Empleado no válido o inactivo'], 422);
             }
         }
 
-        if (!empty($data['assignee_type']) && $data['assignee_type'] === 'position' && !empty($data['assignee_id'])) {
+        if (! empty($data['assignee_type']) && $data['assignee_type'] === 'position' && ! empty($data['assignee_id'])) {
             $position = Position::where('empresa_id', $u->empresa_id)->where('id', $data['assignee_id'])->first();
-            if (!$position) {
+            if (! $position) {
                 return response()->json(['message' => 'Posición no válida'], 422);
             }
         }
 
-        if (!empty($data['assignee_type']) && $data['assignee_type'] === 'section' && empty($data['section_id'])) {
+        if (! empty($data['assignee_type']) && $data['assignee_type'] === 'section' && empty($data['section_id'])) {
             return response()->json(['message' => 'section_id es requerido cuando assignee_type es section'], 422);
         }
 
-        if (!empty($data['assignee_type']) && $data['assignee_type'] === 'area' && empty($data['area_id'])) {
+        if (! empty($data['assignee_type']) && $data['assignee_type'] === 'area' && empty($data['area_id'])) {
             return response()->json(['message' => 'area_id es requerido cuando assignee_type es area'], 422);
         }
 
-        if (!empty($data['area_id'])) {
+        if (! empty($data['area_id'])) {
             $area = Area::where('empresa_id', $u->empresa_id)->where('id', $data['area_id'])->first();
-            if (!$area) {
+            if (! $area) {
                 return response()->json(['message' => 'Área no encontrada'], 404);
             }
         }
 
-        if (!empty($data['section_id'])) {
+        if (! empty($data['section_id'])) {
             $section = Section::where('empresa_id', $u->empresa_id)->where('id', $data['section_id'])->first();
-            if (!$section) {
+            if (! $section) {
                 return response()->json(['message' => 'Sección no encontrada'], 404);
             }
         }
@@ -120,7 +120,9 @@ class RoutineSchedulesController extends Controller
         Gate::authorize('supervisor');
 
         $schedule = RoutineSchedule::where('empresa_id', $u->empresa_id)->where('id', $id)->first();
-        if (!$schedule) return response()->json(['message' => 'No encontrado'], 404);
+        if (! $schedule) {
+            return response()->json(['message' => 'No encontrado'], 404);
+        }
 
         return response()->json(['item' => $schedule]);
     }
@@ -131,7 +133,9 @@ class RoutineSchedulesController extends Controller
         Gate::authorize('admin');
 
         $schedule = RoutineSchedule::where('empresa_id', $u->empresa_id)->where('id', $id)->first();
-        if (!$schedule) return response()->json(['message' => 'No encontrado'], 404);
+        if (! $schedule) {
+            return response()->json(['message' => 'No encontrado'], 404);
+        }
 
         $data = $request->validate([
             'trigger_time' => ['sometimes', 'date_format:H:i'],
@@ -158,9 +162,12 @@ class RoutineSchedulesController extends Controller
         Gate::authorize('admin');
 
         $schedule = RoutineSchedule::where('empresa_id', $u->empresa_id)->where('id', $id)->first();
-        if (!$schedule) return response()->json(['message' => 'No encontrado'], 404);
+        if (! $schedule) {
+            return response()->json(['message' => 'No encontrado'], 404);
+        }
 
         $schedule->delete();
+
         return response()->json(['message' => 'Eliminado']);
     }
 }

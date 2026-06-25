@@ -12,6 +12,7 @@ class PayrollReceiptPolicy
         if ($user->role === 'admin') {
             return true;
         }
+
         return $receipt->user_id === $user->id;
     }
 

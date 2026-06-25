@@ -43,6 +43,7 @@ class AtsFase3Test extends TestCase
     private function createAdmin(): User
     {
         $empresa = $this->createEmpresa();
+
         return $this->createUser('admin', $empresa, 'admin@example.com');
     }
 

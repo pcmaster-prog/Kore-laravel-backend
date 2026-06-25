@@ -2,9 +2,9 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Concerns\HasUuids;
 
 class JobOpening extends Model
 {
@@ -41,6 +41,7 @@ class JobOpening extends Model
         'induction_video_url',
         'screening_questions',
         'screening_pass_score',
+        'scorecard_template',
     ];
 
     protected function casts(): array
@@ -55,6 +56,7 @@ class JobOpening extends Model
             'performance_indicators' => 'array',
             'offer_details' => 'array',
             'screening_questions' => 'array',
+            'scorecard_template' => 'array',
             'screening_pass_score' => 'integer',
             'vacancies_count' => 'integer',
             'benefits' => 'array',

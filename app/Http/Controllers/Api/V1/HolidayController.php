@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Holiday;
+use App\Services\ActivityLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -138,7 +139,7 @@ class HolidayController extends Controller
         }
 
         // Auditoría
-        \App\Services\ActivityLogger::log(
+        ActivityLogger::log(
             $user->empresa_id,
             $user->id,
             null,

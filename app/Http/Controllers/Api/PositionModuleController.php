@@ -3,8 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
 use App\Models\Position;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class PositionModuleController extends Controller
 {
@@ -20,6 +21,7 @@ class PositionModuleController extends Controller
     {
         $position = Position::with('modules')->findOrFail($id);
         $slugs = $position->modules->pluck('module_slug');
+
         return response()->json(['data' => $slugs]);
     }
 
@@ -27,7 +29,7 @@ class PositionModuleController extends Controller
     {
         $request->validate([
             'modules' => 'array',
-            'modules.*' => 'string'
+            'modules.*' => 'string',
         ]);
 
         $position = Position::findOrFail($id);
@@ -43,31 +45,31 @@ class PositionModuleController extends Controller
     public function myModules(Request $request)
     {
         $user = $request->user();
-        
+
         // Obtener los modulos a nivel empresa que estan habilitados
-        $companyModules = \Illuminate\Support\Facades\DB::table('empresa_modules')
+        $companyModules = DB::table('empresa_modules')
             ->where('empresa_id', $user->empresa_id)
             ->where('enabled', true)
             ->pluck('module_slug')
             ->toArray();
 
         if ($user->role === 'admin') {
-            // Asegurar que el admin siempre tenga acceso a todo lo de la empresa 
+            // Asegurar que el admin siempre tenga acceso a todo lo de la empresa
             // mas maderas y pesaje para que pueda ver los dashboards
             return response()->json([
-                'modulos' => array_unique(array_merge($companyModules, ['produccion_maderas', 'produccion_pesaje']))
+                'modulos' => array_unique(array_merge($companyModules, ['produccion_maderas', 'produccion_pesaje'])),
             ]);
         }
 
         $empleado = $user->empleado;
-        if (!$empleado) {
+        if (! $empleado) {
             return response()->json(['modulos' => $companyModules]);
         }
 
         $modulosEfectivos = $empleado->modulos_efectivos ?? [];
-        
+
         return response()->json([
-            'modulos' => array_unique(array_merge($companyModules, $modulosEfectivos))
+            'modulos' => array_unique(array_merge($companyModules, $modulosEfectivos)),
         ]);
     }
 }

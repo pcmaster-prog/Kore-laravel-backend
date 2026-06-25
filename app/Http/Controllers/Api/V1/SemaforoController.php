@@ -3,14 +3,14 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use App\Models\EmployeeEvaluation;
+use App\Http\Resources\EmpleadoResource;
+use App\Http\Resources\EmployeeEvaluationResource;
 use App\Models\DesempenoEvaluacion;
 use App\Models\DesempenoPeerEvaluacion;
 use App\Models\Empleado;
+use App\Models\EmployeeEvaluation;
 use App\Models\SemaforoConfig;
 use Illuminate\Http\Request;
-use App\Http\Resources\EmployeeEvaluationResource;
-use App\Http\Resources\EmpleadoResource;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Validator;
 
@@ -32,16 +32,14 @@ class SemaforoController extends Controller
         $hasPeer = $evaluation->peerEvaluaciones->isNotEmpty();
 
         if ($hasEval) {
-            $evalScore = round($evaluation->evaluaciones->avg(fn ($e) =>
-                ($e->puntualidad + $e->responsabilidad + $e->actitud_trabajo +
+            $evalScore = round($evaluation->evaluaciones->avg(fn ($e) => ($e->puntualidad + $e->responsabilidad + $e->actitud_trabajo +
                  $e->orden_limpieza + $e->atencion_cliente + $e->trabajo_equipo +
                  $e->iniciativa + $e->aprendizaje_adaptacion) / 40 * 100
             ), 1);
         }
 
         if ($hasPeer) {
-            $peerScore = round($evaluation->peerEvaluaciones->avg(fn ($p) =>
-                ($p->colaboracion + $p->puntualidad + $p->actitud + $p->comunicacion) / 4 * 100
+            $peerScore = round($evaluation->peerEvaluaciones->avg(fn ($p) => ($p->colaboracion + $p->puntualidad + $p->actitud + $p->comunicacion) / 4 * 100
             ), 1);
         }
 
@@ -57,15 +55,15 @@ class SemaforoController extends Controller
             $semaforo = match (true) {
                 $finalScore >= 80 => 'verde',
                 $finalScore >= 60 => 'amarillo',
-                default           => 'rojo',
+                default => 'rojo',
             };
         }
 
         return [
-            'eval_score'  => $evalScore,
-            'peer_score'  => $peerScore,
+            'eval_score' => $evalScore,
+            'peer_score' => $peerScore,
             'final_score' => $finalScore,
-            'semaforo'    => $semaforo,
+            'semaforo' => $semaforo,
         ];
     }
 
@@ -94,17 +92,17 @@ class SemaforoController extends Controller
                 $scores = $this->calcularResultado($evaluation);
 
                 $evalData = [
-                    'id'                      => $evaluation->id,
-                    'is_active'               => $evaluation->is_active,
-                    'activated_at'            => $evaluation->activated_at,
-                    'evaluaciones_count'      => $evaluation->evaluaciones->count(),
+                    'id' => $evaluation->id,
+                    'is_active' => $evaluation->is_active,
+                    'activated_at' => $evaluation->activated_at,
+                    'evaluaciones_count' => $evaluation->evaluaciones->count(),
                     'peer_evaluaciones_count' => $evaluation->peerEvaluaciones->count(),
-                    'semaforo'                => $scores['semaforo'],
+                    'semaforo' => $scores['semaforo'],
                 ];
             }
 
             return [
-                'empleado'   => new EmpleadoResource($emp),
+                'empleado' => new EmpleadoResource($emp),
                 'evaluation' => $evalData,
             ];
         });
@@ -139,10 +137,10 @@ class SemaforoController extends Controller
         }
 
         $evaluation = EmployeeEvaluation::create([
-            'empresa_id'   => $u->empresa_id,
-            'empleado_id'  => $empleadoId,
+            'empresa_id' => $u->empresa_id,
+            'empleado_id' => $empleadoId,
             'activated_by' => $u->id,
-            'is_active'    => true,
+            'is_active' => true,
             'activated_at' => now(),
         ]);
 
@@ -163,14 +161,14 @@ class SemaforoController extends Controller
             ->where('is_active', true)
             ->first();
 
-        if (!$evaluation) {
+        if (! $evaluation) {
             return response()->json([
                 'message' => 'No hay evaluación activa para este empleado',
             ], 404);
         }
 
         $evaluation->update([
-            'is_active'      => false,
+            'is_active' => false,
             'deactivated_at' => now(),
         ]);
 
@@ -192,7 +190,7 @@ class SemaforoController extends Controller
             ->orderByDesc('created_at')
             ->first();
 
-        if (!$evaluation) {
+        if (! $evaluation) {
             return response()->json([
                 'message' => 'No hay evaluaciones para este empleado',
             ], 404);
@@ -210,22 +208,22 @@ class SemaforoController extends Controller
         $evaluaciones = $evaluation->evaluaciones->map(fn ($e) => [
             'evaluador' => [
                 'full_name' => $e->evaluador->name,
-                'role'      => $e->evaluador_rol,
+                'role' => $e->evaluador_rol,
             ],
-            'evaluador_rol'           => $e->evaluador_rol,
-            'puntualidad'             => $e->puntualidad,
-            'responsabilidad'         => $e->responsabilidad,
-            'actitud_trabajo'         => $e->actitud_trabajo,
-            'orden_limpieza'          => $e->orden_limpieza,
-            'atencion_cliente'        => $e->atencion_cliente,
-            'trabajo_equipo'          => $e->trabajo_equipo,
-            'iniciativa'              => $e->iniciativa,
-            'aprendizaje_adaptacion'  => $e->aprendizaje_adaptacion,
-            'total'                   => $e->total,
-            'porcentaje'              => $e->porcentaje,
-            'acciones'                => $e->acciones,
-            'observaciones'           => $e->observaciones,
-            'created_at'              => $e->created_at,
+            'evaluador_rol' => $e->evaluador_rol,
+            'puntualidad' => $e->puntualidad,
+            'responsabilidad' => $e->responsabilidad,
+            'actitud_trabajo' => $e->actitud_trabajo,
+            'orden_limpieza' => $e->orden_limpieza,
+            'atencion_cliente' => $e->atencion_cliente,
+            'trabajo_equipo' => $e->trabajo_equipo,
+            'iniciativa' => $e->iniciativa,
+            'aprendizaje_adaptacion' => $e->aprendizaje_adaptacion,
+            'total' => $e->total,
+            'porcentaje' => $e->porcentaje,
+            'acciones' => $e->acciones,
+            'observaciones' => $e->observaciones,
+            'created_at' => $e->created_at,
         ]);
 
         // Formatear peer evaluaciones (admin SÍ ve quién evaluó)
@@ -233,26 +231,26 @@ class SemaforoController extends Controller
             'evaluador' => [
                 'full_name' => $p->evaluador->name,
             ],
-            'colaboracion'  => $p->colaboracion,
-            'puntualidad'   => $p->puntualidad,
-            'actitud'       => $p->actitud,
-            'comunicacion'  => $p->comunicacion,
-            'promedio'      => $p->promedio,
-            'porcentaje'    => $p->porcentaje,
+            'colaboracion' => $p->colaboracion,
+            'puntualidad' => $p->puntualidad,
+            'actitud' => $p->actitud,
+            'comunicacion' => $p->comunicacion,
+            'promedio' => $p->promedio,
+            'porcentaje' => $p->porcentaje,
         ]);
 
         return response()->json([
             'empleado' => new EmpleadoResource($evaluation->empleado),
-            'is_active'         => $evaluation->is_active,
-            'activated_at'      => $evaluation->activated_at,
-            'deactivated_at'    => $evaluation->deactivated_at,
-            'final_score'       => $scores['final_score'],
-            'semaforo'          => $scores['semaforo'],
-            'eval_score'        => $scores['eval_score'],
-            'peer_score'        => $scores['peer_score'],
-            'evaluaciones'      => $evaluaciones,
+            'is_active' => $evaluation->is_active,
+            'activated_at' => $evaluation->activated_at,
+            'deactivated_at' => $evaluation->deactivated_at,
+            'final_score' => $scores['final_score'],
+            'semaforo' => $scores['semaforo'],
+            'eval_score' => $scores['eval_score'],
+            'peer_score' => $scores['peer_score'],
+            'evaluaciones' => $evaluaciones,
             'peer_evaluaciones' => $peerEvaluaciones,
-            'peer_count'        => $evaluation->peerEvaluaciones->count(),
+            'peer_count' => $evaluation->peerEvaluaciones->count(),
         ]);
     }
 
@@ -268,18 +266,18 @@ class SemaforoController extends Controller
 
         $u = $request->user();
         $data = $request->validate([
-            'empleado_id'             => ['required', 'uuid'],
-            'puntualidad'             => ['required', 'integer', 'min:1', 'max:5'],
-            'responsabilidad'         => ['required', 'integer', 'min:1', 'max:5'],
-            'actitud_trabajo'         => ['required', 'integer', 'min:1', 'max:5'],
-            'orden_limpieza'          => ['required', 'integer', 'min:1', 'max:5'],
-            'atencion_cliente'        => ['required', 'integer', 'min:1', 'max:5'],
-            'trabajo_equipo'          => ['required', 'integer', 'min:1', 'max:5'],
-            'iniciativa'              => ['required', 'integer', 'min:1', 'max:5'],
-            'aprendizaje_adaptacion'  => ['required', 'integer', 'min:1', 'max:5'],
-            'acciones'                => ['nullable', 'array'],
-            'acciones.*'              => ['string', 'in:mantener_desempeno,capacitacion,llamada_atencion,seguimiento_30_dias'],
-            'observaciones'           => ['nullable', 'string', 'max:2000'],
+            'empleado_id' => ['required', 'uuid'],
+            'puntualidad' => ['required', 'integer', 'min:1', 'max:5'],
+            'responsabilidad' => ['required', 'integer', 'min:1', 'max:5'],
+            'actitud_trabajo' => ['required', 'integer', 'min:1', 'max:5'],
+            'orden_limpieza' => ['required', 'integer', 'min:1', 'max:5'],
+            'atencion_cliente' => ['required', 'integer', 'min:1', 'max:5'],
+            'trabajo_equipo' => ['required', 'integer', 'min:1', 'max:5'],
+            'iniciativa' => ['required', 'integer', 'min:1', 'max:5'],
+            'aprendizaje_adaptacion' => ['required', 'integer', 'min:1', 'max:5'],
+            'acciones' => ['nullable', 'array'],
+            'acciones.*' => ['string', 'in:mantener_desempeno,capacitacion,llamada_atencion,seguimiento_30_dias'],
+            'observaciones' => ['nullable', 'string', 'max:2000'],
         ]);
 
         // Verificar evaluación activa
@@ -288,7 +286,7 @@ class SemaforoController extends Controller
             ->where('is_active', true)
             ->first();
 
-        if (!$evaluation) {
+        if (! $evaluation) {
             return response()->json([
                 'message' => 'No hay evaluación activa para este empleado',
             ], 404);
@@ -306,28 +304,28 @@ class SemaforoController extends Controller
         }
 
         $eval = DesempenoEvaluacion::create([
-            'empresa_id'              => $u->empresa_id,
-            'employee_evaluation_id'  => $evaluation->id,
-            'evaluador_id'            => $u->id,
-            'evaluado_id'             => $data['empleado_id'],
-            'evaluador_rol'           => $u->role,
-            'puntualidad'             => $data['puntualidad'],
-            'responsabilidad'         => $data['responsabilidad'],
-            'actitud_trabajo'         => $data['actitud_trabajo'],
-            'orden_limpieza'          => $data['orden_limpieza'],
-            'atencion_cliente'        => $data['atencion_cliente'],
-            'trabajo_equipo'          => $data['trabajo_equipo'],
-            'iniciativa'              => $data['iniciativa'],
-            'aprendizaje_adaptacion'  => $data['aprendizaje_adaptacion'],
-            'acciones'                => $data['acciones'] ?? null,
-            'observaciones'           => $data['observaciones'] ?? null,
+            'empresa_id' => $u->empresa_id,
+            'employee_evaluation_id' => $evaluation->id,
+            'evaluador_id' => $u->id,
+            'evaluado_id' => $data['empleado_id'],
+            'evaluador_rol' => $u->role,
+            'puntualidad' => $data['puntualidad'],
+            'responsabilidad' => $data['responsabilidad'],
+            'actitud_trabajo' => $data['actitud_trabajo'],
+            'orden_limpieza' => $data['orden_limpieza'],
+            'atencion_cliente' => $data['atencion_cliente'],
+            'trabajo_equipo' => $data['trabajo_equipo'],
+            'iniciativa' => $data['iniciativa'],
+            'aprendizaje_adaptacion' => $data['aprendizaje_adaptacion'],
+            'acciones' => $data['acciones'] ?? null,
+            'observaciones' => $data['observaciones'] ?? null,
         ]);
 
         return response()->json([
-            'message'    => 'Evaluación registrada',
+            'message' => 'Evaluación registrada',
             'evaluacion' => [
-                'id'         => $eval->id,
-                'total'      => $eval->total,
+                'id' => $eval->id,
+                'total' => $eval->total,
                 'porcentaje' => $eval->porcentaje,
             ],
         ], 201);
@@ -350,7 +348,7 @@ class SemaforoController extends Controller
 
         // Filtrar los que el usuario NO ha evaluado aún
         $pendientes = $activeEvaluations->filter(function ($eval) use ($u) {
-            return !$eval->evaluaciones->contains('evaluador_id', $u->id);
+            return ! $eval->evaluaciones->contains('evaluador_id', $u->id);
         });
 
         $result = $pendientes->values()->map(function ($eval) {
@@ -359,12 +357,12 @@ class SemaforoController extends Controller
             return [
                 'empleado' => new EmpleadoResource($eval->empleado),
                 'evaluation' => [
-                    'id'                      => $eval->id,
-                    'is_active'               => $eval->is_active,
-                    'activated_at'            => $eval->activated_at,
-                    'evaluaciones_count'      => $eval->evaluaciones->count(),
+                    'id' => $eval->id,
+                    'is_active' => $eval->is_active,
+                    'activated_at' => $eval->activated_at,
+                    'evaluaciones_count' => $eval->evaluaciones->count(),
                     'peer_evaluaciones_count' => $eval->peerEvaluaciones->count(),
-                    'semaforo'                => $scores['semaforo'],
+                    'semaforo' => $scores['semaforo'],
                 ],
             ];
         });
@@ -398,7 +396,7 @@ class SemaforoController extends Controller
 
         // Excluir al propio usuario
         $companeros = $activeEvaluations->filter(function ($eval) use ($miEmpleado) {
-            return !$miEmpleado || $eval->empleado_id !== $miEmpleado->id;
+            return ! $miEmpleado || $eval->empleado_id !== $miEmpleado->id;
         });
 
         $evaluated = 0;
@@ -414,19 +412,19 @@ class SemaforoController extends Controller
             }
 
             return [
-                'id'             => $eval->empleado->id,
-                'nombre'         => $eval->empleado->full_name,
+                'id' => $eval->empleado->id,
+                'nombre' => $eval->empleado->full_name,
                 'position_title' => $eval->empleado->position_title,
-                'avatar_url'     => $eval->empleado->expediente_url,
+                'avatar_url' => $eval->empleado->expediente_url,
                 'already_evaluated' => $alreadyEvaluated,
             ];
         });
 
         return response()->json([
             'companeros' => $result,
-            'progress'   => [
+            'progress' => [
                 'evaluados' => $evaluated,
-                'total'     => $total,
+                'total' => $total,
             ],
         ]);
     }
@@ -444,11 +442,11 @@ class SemaforoController extends Controller
 
         $data = $request->validate([
             'employee_evaluation_id' => ['required', 'uuid'],
-            'evaluado_empleado_id'   => ['required', 'uuid'],
-            'colaboracion'           => ['required', 'integer', 'min:1', 'max:5'],
-            'puntualidad'            => ['required', 'integer', 'min:1', 'max:5'],
-            'actitud'                => ['required', 'integer', 'min:1', 'max:5'],
-            'comunicacion'           => ['required', 'integer', 'min:1', 'max:5'],
+            'evaluado_empleado_id' => ['required', 'uuid'],
+            'colaboracion' => ['required', 'integer', 'min:1', 'max:5'],
+            'puntualidad' => ['required', 'integer', 'min:1', 'max:5'],
+            'actitud' => ['required', 'integer', 'min:1', 'max:5'],
+            'comunicacion' => ['required', 'integer', 'min:1', 'max:5'],
         ]);
 
         // Verificar que la evaluación existe y está activa
@@ -457,7 +455,7 @@ class SemaforoController extends Controller
             ->where('is_active', true)
             ->first();
 
-        if (!$evaluation) {
+        if (! $evaluation) {
             return response()->json([
                 'message' => 'No hay evaluación activa para este empleado',
             ], 404);
@@ -468,7 +466,7 @@ class SemaforoController extends Controller
             ->where('empresa_id', $u->empresa_id)
             ->first();
 
-        if (!$evaluado) {
+        if (! $evaluado) {
             return response()->json([
                 'message' => 'El empleado evaluado no existe en tu empresa',
             ], 404);
@@ -497,23 +495,23 @@ class SemaforoController extends Controller
         }
 
         $peer = DesempenoPeerEvaluacion::create([
-            'empresa_id'              => $u->empresa_id,
-            'employee_evaluation_id'  => $evaluation->id,
-            'evaluador_id'            => $u->id,
-            'evaluado_id'             => $data['evaluado_empleado_id'],
-            'colaboracion'            => $data['colaboracion'],
-            'puntualidad'             => $data['puntualidad'],
-            'actitud'                 => $data['actitud'],
-            'comunicacion'            => $data['comunicacion'],
+            'empresa_id' => $u->empresa_id,
+            'employee_evaluation_id' => $evaluation->id,
+            'evaluador_id' => $u->id,
+            'evaluado_id' => $data['evaluado_empleado_id'],
+            'colaboracion' => $data['colaboracion'],
+            'puntualidad' => $data['puntualidad'],
+            'actitud' => $data['actitud'],
+            'comunicacion' => $data['comunicacion'],
         ]);
 
         // NUNCA devolver evaluador_id en respuestas para empleados
         return response()->json([
             'message' => 'Evaluación de compañero registrada',
-            'peer'    => [
-                'id'          => $peer->id,
-                'promedio'    => $peer->promedio,
-                'porcentaje'  => $peer->porcentaje,
+            'peer' => [
+                'id' => $peer->id,
+                'promedio' => $peer->promedio,
+                'porcentaje' => $peer->porcentaje,
             ],
         ], 201);
     }
@@ -539,9 +537,9 @@ class SemaforoController extends Controller
                 ['key' => 'responsabilidad', 'label' => 'Responsabilidad', 'icon' => 'Shield'],
                 ['key' => 'apoyo', 'label' => 'Apoyo al equipo', 'icon' => 'Heart'],
             ],
-            'peso_admin'      => 70,
-            'peso_peer'       => 30,
-            'umbral_verde'    => 80,
+            'peso_admin' => 70,
+            'peso_peer' => 30,
+            'umbral_verde' => 80,
             'umbral_amarillo' => 60,
         ];
     }
@@ -555,18 +553,18 @@ class SemaforoController extends Controller
         $u = $request->user();
         $config = SemaforoConfig::where('empresa_id', $u->empresa_id)->first();
 
-        if (!$config) {
+        if (! $config) {
             return response()->json($this->defaultSemaforoConfig());
         }
 
         return response()->json([
             'criterios_admin' => $config->criterios_admin,
-            'criterios_peer'  => $config->criterios_peer,
-            'peso_admin'      => $config->peso_admin,
-            'peso_peer'       => $config->peso_peer,
-            'umbral_verde'    => $config->umbral_verde,
+            'criterios_peer' => $config->criterios_peer,
+            'peso_admin' => $config->peso_admin,
+            'peso_peer' => $config->peso_peer,
+            'umbral_verde' => $config->umbral_verde,
             'umbral_amarillo' => $config->umbral_amarillo,
-            'updated_at'      => $config->updated_at,
+            'updated_at' => $config->updated_at,
         ]);
     }
 
@@ -577,28 +575,28 @@ class SemaforoController extends Controller
     public function configStore(Request $request)
     {
         $u = $request->user();
-        if (!in_array($u->role, ['admin', 'superadmin'])) {
+        if (! in_array($u->role, ['admin', 'superadmin'])) {
             return response()->json(['message' => 'No autorizado'], 403);
         }
 
         $validator = Validator::make($request->all(), [
             'criterios_admin' => ['required', 'array', 'min:1'],
-            'criterios_admin.*.key'   => ['required', 'string', 'regex:/^[a-z0-9_]+$/', 'max:50'],
+            'criterios_admin.*.key' => ['required', 'string', 'regex:/^[a-z0-9_]+$/', 'max:50'],
             'criterios_admin.*.label' => ['required', 'string', 'max:50'],
-            'criterios_peer'  => ['required', 'array', 'min:1'],
-            'criterios_peer.*.key'   => ['required', 'string', 'regex:/^[a-z0-9_]+$/', 'max:50'],
+            'criterios_peer' => ['required', 'array', 'min:1'],
+            'criterios_peer.*.key' => ['required', 'string', 'regex:/^[a-z0-9_]+$/', 'max:50'],
             'criterios_peer.*.label' => ['required', 'string', 'max:50'],
-            'criterios_peer.*.icon'  => ['required', 'string', 'max:50'],
-            'peso_admin'      => ['required', 'integer', 'min:0', 'max:100'],
-            'peso_peer'       => ['required', 'integer', 'min:0', 'max:100'],
-            'umbral_verde'    => ['required', 'integer', 'min:0', 'max:100'],
+            'criterios_peer.*.icon' => ['required', 'string', 'max:50'],
+            'peso_admin' => ['required', 'integer', 'min:0', 'max:100'],
+            'peso_peer' => ['required', 'integer', 'min:0', 'max:100'],
+            'umbral_verde' => ['required', 'integer', 'min:0', 'max:100'],
             'umbral_amarillo' => ['required', 'integer', 'min:0', 'max:100'],
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'message' => 'Error de validación',
-                'errors'  => $validator->errors(),
+                'errors' => $validator->errors(),
             ], 422);
         }
 
@@ -607,40 +605,40 @@ class SemaforoController extends Controller
         if ($data['peso_admin'] + $data['peso_peer'] !== 100) {
             return response()->json([
                 'message' => 'Los pesos deben sumar 100',
-                'errors'  => ['peso_admin' => ['peso_admin + peso_peer debe sumar 100']],
+                'errors' => ['peso_admin' => ['peso_admin + peso_peer debe sumar 100']],
             ], 422);
         }
 
         if ($data['umbral_verde'] <= $data['umbral_amarillo']) {
             return response()->json([
                 'message' => 'El umbral verde debe ser mayor que el umbral amarillo',
-                'errors'  => ['umbral_verde' => ['umbral_verde debe ser mayor que umbral_amarillo']],
+                'errors' => ['umbral_verde' => ['umbral_verde debe ser mayor que umbral_amarillo']],
             ], 422);
         }
 
         $config = SemaforoConfig::updateOrCreate(
             ['empresa_id' => $u->empresa_id],
             [
-                'created_by'      => $u->id,
+                'created_by' => $u->id,
                 'criterios_admin' => $data['criterios_admin'],
-                'criterios_peer'  => $data['criterios_peer'],
-                'peso_admin'      => $data['peso_admin'],
-                'peso_peer'       => $data['peso_peer'],
-                'umbral_verde'    => $data['umbral_verde'],
+                'criterios_peer' => $data['criterios_peer'],
+                'peso_admin' => $data['peso_admin'],
+                'peso_peer' => $data['peso_peer'],
+                'umbral_verde' => $data['umbral_verde'],
                 'umbral_amarillo' => $data['umbral_amarillo'],
             ]
         );
 
         return response()->json([
             'message' => 'Configuración guardada correctamente',
-            'config'  => [
+            'config' => [
                 'criterios_admin' => $config->criterios_admin,
-                'criterios_peer'  => $config->criterios_peer,
-                'peso_admin'      => $config->peso_admin,
-                'peso_peer'       => $config->peso_peer,
-                'umbral_verde'    => $config->umbral_verde,
+                'criterios_peer' => $config->criterios_peer,
+                'peso_admin' => $config->peso_admin,
+                'peso_peer' => $config->peso_peer,
+                'umbral_verde' => $config->umbral_verde,
                 'umbral_amarillo' => $config->umbral_amarillo,
-                'updated_at'      => $config->updated_at,
+                'updated_at' => $config->updated_at,
             ],
         ]);
     }

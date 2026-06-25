@@ -3,10 +3,11 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\Section;
+use App\Models\SupervisorSection;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
-use App\Models\SupervisorSection;
-use App\Models\Section;
 
 class SupervisorSectionsController extends Controller
 {
@@ -39,16 +40,16 @@ class SupervisorSectionsController extends Controller
 
         // Validar que la sección pertenezca a la empresa
         $section = Section::where('empresa_id', $u->empresa_id)->where('id', $data['section_id'])->first();
-        if (!$section) {
+        if (! $section) {
             return response()->json(['message' => 'Sección no encontrada'], 404);
         }
 
         // Validar que el supervisor pertenezca a la empresa
-        $supervisor = \App\Models\User::where('empresa_id', $u->empresa_id)
+        $supervisor = User::where('empresa_id', $u->empresa_id)
             ->where('id', $data['supervisor_user_id'])
             ->whereIn('role', ['supervisor', 'admin'])
             ->first();
-        if (!$supervisor) {
+        if (! $supervisor) {
             return response()->json(['message' => 'Supervisor no encontrado'], 404);
         }
 
@@ -67,9 +68,12 @@ class SupervisorSectionsController extends Controller
         Gate::authorize('admin');
 
         $assignment = SupervisorSection::where('empresa_id', $u->empresa_id)->where('id', $id)->first();
-        if (!$assignment) return response()->json(['message' => 'No encontrado'], 404);
+        if (! $assignment) {
+            return response()->json(['message' => 'No encontrado'], 404);
+        }
 
         $assignment->delete();
+
         return response()->json(['message' => 'Eliminado']);
     }
 }

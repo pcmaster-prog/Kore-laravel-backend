@@ -3,16 +3,16 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
 use App\Models\PesajeRegistro;
 use Carbon\Carbon;
+use Illuminate\Http\Request;
 
 class PesajeRegistroController extends Controller
 {
     public function index(Request $request)
     {
         $query = PesajeRegistro::with(['empleado', 'sabor'])->orderBy('fecha_registro', 'desc');
-        
+
         if ($request->has('limit')) {
             $query->limit($request->limit);
         }
@@ -28,7 +28,7 @@ class PesajeRegistroController extends Controller
         });
 
         return response()->json([
-            'data' => $registros
+            'data' => $registros,
         ]);
     }
 
@@ -43,7 +43,7 @@ class PesajeRegistroController extends Controller
         $data['fecha_registro'] = now();
 
         $item = PesajeRegistro::create($data);
-        
+
         // Load relationships
         $item->load(['empleado', 'sabor']);
         if ($item->empleado) {
@@ -58,7 +58,7 @@ class PesajeRegistroController extends Controller
     public function show($id)
     {
         $registro = PesajeRegistro::with(['empleado', 'sabor'])->findOrFail($id);
-        
+
         if ($registro->empleado) {
             $parts = explode(' ', $registro->empleado->full_name);
             $registro->empleado->nombres = $parts[0] ?? '';
@@ -72,23 +72,24 @@ class PesajeRegistroController extends Controller
     {
         $registro = PesajeRegistro::findOrFail($id);
         $registro->delete();
+
         return response()->json(['message' => 'Registro de pesaje eliminado']);
     }
 
     public function dashboard()
     {
         $hoy = Carbon::today();
-        
+
         $registrosHoy = PesajeRegistro::whereDate('fecha_registro', $hoy)->get();
-        
+
         $kgHoy = $registrosHoy->sum('peso');
         $viajesHoy = $registrosHoy->count();
-        
+
         // Stats from yesterday for comparison
         $ayer = Carbon::yesterday();
         $registrosAyer = PesajeRegistro::whereDate('fecha_registro', $ayer)->get();
         $kgAyer = $registrosAyer->sum('peso');
-        
+
         $trend = $kgAyer > 0 ? (($kgHoy - $kgAyer) / $kgAyer) * 100 : ($kgHoy > 0 ? 100 : 0);
 
         $ultimosViajes = PesajeRegistro::with(['empleado', 'sabor'])
@@ -109,8 +110,8 @@ class PesajeRegistroController extends Controller
                 'kgIngresadosHoy' => round($kgHoy, 2),
                 'viajesHoy' => $viajesHoy,
                 'tendencia' => round($trend, 1),
-                'ultimosViajes' => $ultimosViajes
-            ]
+                'ultimosViajes' => $ultimosViajes,
+            ],
         ]);
     }
 }

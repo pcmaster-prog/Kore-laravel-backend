@@ -10,7 +10,6 @@ use App\Models\GratificationType;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Validation\ValidationException;
 
 class AdminGratificationController extends Controller
 {
@@ -69,7 +68,7 @@ class AdminGratificationController extends Controller
         $tipo = GratificationType::where('empresa_id', $empresaId)->findOrFail($id);
 
         $data = $request->validate([
-            'code' => ['sometimes', 'string', 'max:10', 'unique:gratification_types,code,' . $tipo->id],
+            'code' => ['sometimes', 'string', 'max:10', 'unique:gratification_types,code,'.$tipo->id],
             'name' => ['sometimes', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:1000'],
             'frequency' => ['sometimes', 'in:annual,biannual,quarterly,monthly,one_time'],
@@ -172,16 +171,20 @@ class AdminGratificationController extends Controller
         DB::transaction(function () use ($empresaId, $tipo, $data, $employeeIds, $u, &$receipts) {
             foreach ($employeeIds as $empId) {
                 $emp = Empleado::where('empresa_id', $empresaId)->where('id', $empId)->first();
-                if (!$emp) continue;
+                if (! $emp) {
+                    continue;
+                }
 
                 $amountData = $data['amounts'][$empId] ?? null;
-                if (!$amountData) continue;
+                if (! $amountData) {
+                    continue;
+                }
 
                 $breakdown = [];
                 $totalGratification = 0;
 
                 foreach ($amountData as $key => $value) {
-                    if (is_numeric($value) && !in_array($key, ['retentions'])) {
+                    if (is_numeric($value) && ! in_array($key, ['retentions'])) {
                         $breakdown[] = [
                             'concept' => ucfirst(str_replace('_', ' ', $key)),
                             'amount' => (float) $value,

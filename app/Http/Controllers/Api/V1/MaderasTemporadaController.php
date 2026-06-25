@@ -14,6 +14,7 @@ class MaderasTemporadaController extends Controller
     public function index()
     {
         $temporadas = MaderasTemporada::orderBy('mes_inicio')->get();
+
         return response()->json(['data' => $temporadas]);
     }
 
@@ -45,6 +46,7 @@ class MaderasTemporadaController extends Controller
     public function show(string $id)
     {
         $temporada = MaderasTemporada::findOrFail($id);
+
         return response()->json(['data' => $temporada]);
     }
 
@@ -81,7 +83,7 @@ class MaderasTemporadaController extends Controller
     public function activa()
     {
         $currentMonth = (int) date('n');
-        
+
         $temporadas = MaderasTemporada::all();
         $activa = null;
 
@@ -101,7 +103,7 @@ class MaderasTemporadaController extends Controller
         }
 
         return response()->json([
-            'data' => $activa
+            'data' => $activa,
         ]);
     }
 }

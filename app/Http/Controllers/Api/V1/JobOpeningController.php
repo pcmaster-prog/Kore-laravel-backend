@@ -3,10 +3,10 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\Empresa;
 use App\Models\JobOpening;
 use App\Models\JobOpeningView;
 use Illuminate\Http\Request;
-use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
@@ -21,13 +21,15 @@ class JobOpeningController extends Controller
         }
 
         if ($request->has('empresa_slug')) {
-            $empresa = \App\Models\Empresa::where('slug', $request->input('empresa_slug'))->first();
+            $empresa = Empresa::where('slug', $request->input('empresa_slug'))->first();
+
             return $empresa?->id;
         }
 
         $defaultSlug = config('app.default_empresa_slug');
         if ($defaultSlug) {
-            $empresa = \App\Models\Empresa::where('slug', $defaultSlug)->first();
+            $empresa = Empresa::where('slug', $defaultSlug)->first();
+
             return $empresa?->id;
         }
 
@@ -147,7 +149,7 @@ class JobOpeningController extends Controller
             $query->where('empresa_id', $empresaId);
         }
 
-        $cacheKey = 'job_opening_filters:' . ($empresaId ?? 'global');
+        $cacheKey = 'job_opening_filters:'.($empresaId ?? 'global');
 
         $filters = Cache::remember($cacheKey, now()->addMinutes(10), function () use ($query) {
             return [
@@ -187,7 +189,7 @@ class JobOpeningController extends Controller
             return null;
         }
 
-        $empresa = \App\Models\Empresa::find($empresaId);
+        $empresa = Empresa::find($empresaId);
         $settings = is_array($empresa?->settings) ? $empresa->settings : [];
 
         return $settings['reclutamiento']['welcome_video_url'] ?? null;
@@ -227,6 +229,7 @@ class JobOpeningController extends Controller
             if (is_array($q)) {
                 unset($q['correctIndex']);
             }
+
             return $q;
         }, $questions);
     }
@@ -238,6 +241,7 @@ class JobOpeningController extends Controller
         $jobs = JobOpening::where('empresa_id', $request->user()->empresa_id)
             ->withCount('views')
             ->get();
+
         return response()->json(['data' => $jobs]);
     }
 
@@ -252,7 +256,7 @@ class JobOpeningController extends Controller
 
         $job = JobOpening::create([
             'empresa_id' => $request->user()->empresa_id,
-            ...$validated
+            ...$validated,
         ]);
 
         return response()->json(['data' => $job], 201);
@@ -264,6 +268,7 @@ class JobOpeningController extends Controller
         $job = JobOpening::where('empresa_id', $request->user()->empresa_id)
             ->withCount('views')
             ->findOrFail($id);
+
         return response()->json(['data' => $job]);
     }
 
@@ -297,7 +302,7 @@ class JobOpeningController extends Controller
         $sometimes = $partial ? 'sometimes' : 'required';
 
         return [
-            'title' => ($partial ? 'sometimes' : 'required') . '|string|max:255',
+            'title' => ($partial ? 'sometimes' : 'required').'|string|max:255',
             'description' => 'nullable|string',
             'requirements' => 'nullable|array',
             'about_us' => 'sometimes|nullable|string',
@@ -321,11 +326,12 @@ class JobOpeningController extends Controller
             'is_featured' => 'nullable|boolean',
             'published_at' => 'nullable|date',
             'slug' => 'nullable|string|max:255',
-            'status' => $sometimes . '|in:draft,open,closed',
+            'status' => $sometimes.'|in:draft,open,closed',
             'image_url' => 'nullable|string|url',
             'induction_video_url' => 'nullable|string|url',
             'screening_questions' => 'nullable|array',
             'screening_pass_score' => 'nullable|integer|min:1|max:10',
+            'scorecard_template' => 'nullable|array',
         ];
     }
 
@@ -336,7 +342,7 @@ class JobOpeningController extends Controller
         $counter = 1;
 
         while (JobOpening::where('empresa_id', $empresaId)->where('slug', $slug)->exists()) {
-            $slug = $base . '-' . $counter;
+            $slug = $base.'-'.$counter;
             $counter++;
         }
 

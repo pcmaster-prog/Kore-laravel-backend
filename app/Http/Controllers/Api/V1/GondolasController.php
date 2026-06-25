@@ -3,14 +3,13 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
+use App\Http\Resources\GondolaResource;
 use App\Models\Gondola;
 use App\Models\GondolaProducto;
 use App\Models\Product;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
-use App\Http\Resources\GondolaResource;
-use App\Http\Resources\GondolaOrdenResource;
+use Illuminate\Support\Facades\Storage;
 
 class GondolasController extends Controller
 {
@@ -25,10 +24,10 @@ class GondolasController extends Controller
      */
     public function index(Request $request)
     {
-        $user      = $request->user();
+        $user = $request->user();
         $empresaId = $user->empresa_id;
 
-        if (!in_array($user->role, ['admin', 'supervisor'])) {
+        if (! in_array($user->role, ['admin', 'supervisor'])) {
             return response()->json(['message' => 'Acceso denegado.'], 403);
         }
 
@@ -36,7 +35,7 @@ class GondolasController extends Controller
             ->where('activo', true)
             ->withCount([
                 'productos as productos_count' => fn ($q) => $q->where('activo', true),
-                'ordenes as ordenes_pendientes' => fn ($q) => $q->where('status', 'pendiente')
+                'ordenes as ordenes_pendientes' => fn ($q) => $q->where('status', 'pendiente'),
             ])
             ->with(['ultimaOrden' => fn ($q) => $q->select('id', 'gondola_id', 'created_at', 'status')])
             ->orderBy('orden')
@@ -54,24 +53,24 @@ class GondolasController extends Controller
     {
         $user = $request->user();
 
-        if (!in_array($user->role, ['admin', 'supervisor'])) {
+        if (! in_array($user->role, ['admin', 'supervisor'])) {
             return response()->json(['message' => 'Acceso denegado.'], 403);
         }
 
         $data = $request->validate([
-            'nombre'      => ['required', 'string', 'max:100'],
+            'nombre' => ['required', 'string', 'max:100'],
             'descripcion' => ['nullable', 'string', 'max:300'],
-            'ubicacion'   => ['nullable', 'string', 'max:100'],
-            'orden'       => ['nullable', 'integer'],
+            'ubicacion' => ['nullable', 'string', 'max:100'],
+            'orden' => ['nullable', 'integer'],
         ]);
 
         $gondola = Gondola::create([
-            'empresa_id'  => $user->empresa_id,
-            'nombre'      => $data['nombre'],
+            'empresa_id' => $user->empresa_id,
+            'nombre' => $data['nombre'],
             'descripcion' => $data['descripcion'] ?? null,
-            'ubicacion'   => $data['ubicacion'] ?? null,
-            'orden'       => $data['orden'] ?? 0,
-            'activo'      => true,
+            'ubicacion' => $data['ubicacion'] ?? null,
+            'orden' => $data['orden'] ?? 0,
+            'activo' => true,
         ]);
 
         return (new GondolaResource($gondola))->response()->setStatusCode(201);
@@ -104,10 +103,10 @@ class GondolasController extends Controller
         $gondola = Gondola::where('empresa_id', $user->empresa_id)->findOrFail($id);
 
         $data = $request->validate([
-            'nombre'      => ['sometimes', 'string', 'max:100'],
+            'nombre' => ['sometimes', 'string', 'max:100'],
             'descripcion' => ['nullable', 'string', 'max:300'],
-            'ubicacion'   => ['nullable', 'string', 'max:100'],
-            'orden'       => ['nullable', 'integer'],
+            'ubicacion' => ['nullable', 'string', 'max:100'],
+            'orden' => ['nullable', 'integer'],
         ]);
 
         $gondola->update($data);
@@ -157,33 +156,33 @@ class GondolasController extends Controller
         $productos = $gondola->productos()->with('product')->get()->map(function ($gp) {
             if ($gp->product_id && $gp->product) {
                 return [
-                    'id'           => $gp->product->id,
-                    'location_id'  => $gp->id,
-                    'sku'          => $gp->product->sku,
-                    'name'         => $gp->product->name,
-                    'description'  => $gp->product->description,
+                    'id' => $gp->product->id,
+                    'location_id' => $gp->id,
+                    'sku' => $gp->product->sku,
+                    'name' => $gp->product->name,
+                    'description' => $gp->product->description,
                     'default_unit' => $gp->product->default_unit,
-                    'photo_url'    => $gp->product->photo_url,
-                    'orden'        => $gp->orden,
-                    'activo'       => $gp->activo,
+                    'photo_url' => $gp->product->photo_url,
+                    'orden' => $gp->orden,
+                    'activo' => $gp->activo,
                 ];
             }
 
             // Legacy: datos almacenados directamente en gondola_productos
             return [
-                'id'          => $gp->id,
+                'id' => $gp->id,
                 'location_id' => $gp->id,
-                'empresa_id'  => $gp->empresa_id,
-                'gondola_id'  => $gp->gondola_id,
-                'clave'       => $gp->clave,
-                'nombre'      => $gp->nombre,
+                'empresa_id' => $gp->empresa_id,
+                'gondola_id' => $gp->gondola_id,
+                'clave' => $gp->clave,
+                'nombre' => $gp->nombre,
                 'descripcion' => $gp->descripcion,
-                'unidad'      => $gp->unidad,
-                'foto_url'    => $gp->foto_url,
-                'orden'       => $gp->orden,
-                'activo'      => $gp->activo,
-                'created_at'  => $gp->created_at,
-                'updated_at'  => $gp->updated_at,
+                'unidad' => $gp->unidad,
+                'foto_url' => $gp->foto_url,
+                'orden' => $gp->orden,
+                'activo' => $gp->activo,
+                'created_at' => $gp->created_at,
+                'updated_at' => $gp->updated_at,
             ];
         });
 
@@ -199,7 +198,7 @@ class GondolasController extends Controller
     {
         $user = $request->user();
 
-        if (!in_array($user->role, ['admin', 'supervisor'])) {
+        if (! in_array($user->role, ['admin', 'supervisor'])) {
             return response()->json(['message' => 'Acceso denegado.'], 403);
         }
 
@@ -209,7 +208,7 @@ class GondolasController extends Controller
 
         $data = $request->validate([
             'product_id' => ['required', 'uuid', 'exists:products,id'],
-            'orden'      => ['nullable', 'integer'],
+            'orden' => ['nullable', 'integer'],
         ]);
 
         $productoMaestro = Product::where('empresa_id', $user->empresa_id)
@@ -229,20 +228,21 @@ class GondolasController extends Controller
             }
 
             $existente->update(['activo' => true]);
+
             return response()->json($existente, 200);
         }
 
         $producto = GondolaProducto::create([
-            'empresa_id'  => $user->empresa_id,
-            'gondola_id'  => $gondola->id,
-            'product_id'  => $productoMaestro->id,
-            'clave'       => $productoMaestro->sku,
-            'nombre'      => $productoMaestro->name,
+            'empresa_id' => $user->empresa_id,
+            'gondola_id' => $gondola->id,
+            'product_id' => $productoMaestro->id,
+            'clave' => $productoMaestro->sku,
+            'nombre' => $productoMaestro->name,
             'descripcion' => $productoMaestro->description,
-            'unidad'      => $productoMaestro->default_unit,
-            'foto_url'    => $productoMaestro->photo_url,
-            'orden'       => $data['orden'] ?? 0,
-            'activo'      => true,
+            'unidad' => $productoMaestro->default_unit,
+            'foto_url' => $productoMaestro->photo_url,
+            'orden' => $data['orden'] ?? 0,
+            'activo' => true,
         ]);
 
         return response()->json($producto, 201);
@@ -258,7 +258,7 @@ class GondolasController extends Controller
     {
         $user = $request->user();
 
-        if (!in_array($user->role, ['admin', 'supervisor'])) {
+        if (! in_array($user->role, ['admin', 'supervisor'])) {
             return response()->json(['message' => 'Acceso denegado.'], 403);
         }
 
@@ -267,7 +267,7 @@ class GondolasController extends Controller
             ->findOrFail($pId);
 
         $data = $request->validate([
-            'orden'  => ['sometimes', 'nullable', 'integer'],
+            'orden' => ['sometimes', 'nullable', 'integer'],
             'activo' => ['sometimes', 'boolean'],
         ]);
 
@@ -287,7 +287,7 @@ class GondolasController extends Controller
     {
         $user = $request->user();
 
-        if (!in_array($user->role, ['admin', 'supervisor'])) {
+        if (! in_array($user->role, ['admin', 'supervisor'])) {
             return response()->json(['message' => 'Acceso denegado.'], 403);
         }
 
@@ -310,7 +310,7 @@ class GondolasController extends Controller
     {
         $user = $request->user();
 
-        if (!in_array($user->role, ['admin', 'supervisor'])) {
+        if (! in_array($user->role, ['admin', 'supervisor'])) {
             return response()->json(['message' => 'Acceso denegado.'], 403);
         }
 

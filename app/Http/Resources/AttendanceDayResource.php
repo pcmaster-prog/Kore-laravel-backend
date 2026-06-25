@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Services\AttendanceService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -14,9 +15,9 @@ class AttendanceDayResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        $totals = \App\Services\AttendanceService::computeDayTotals($this->resource);
-        $expectedExit = \App\Services\AttendanceService::calculateOfficialExitTime($this->resource);
-        $requiredExit = \App\Services\AttendanceService::calculateRequiredExitTime($this->resource);
+        $totals = AttendanceService::computeDayTotals($this->resource);
+        $expectedExit = AttendanceService::calculateOfficialExitTime($this->resource);
+        $requiredExit = AttendanceService::calculateRequiredExitTime($this->resource);
 
         return [
             'id' => $this->id,

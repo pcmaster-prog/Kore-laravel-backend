@@ -3,12 +3,12 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use App\Models\Empleado;
 use App\Models\Section;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Str;
 
 class EmpleadoSectionsController extends Controller
 {
@@ -18,7 +18,7 @@ class EmpleadoSectionsController extends Controller
         Gate::authorize('supervisor');
 
         $empleado = Empleado::where('empresa_id', $u->empresa_id)->where('id', $empleadoId)->first();
-        if (!$empleado) {
+        if (! $empleado) {
             return response()->json(['message' => 'Empleado no encontrado'], 404);
         }
 
@@ -33,7 +33,7 @@ class EmpleadoSectionsController extends Controller
         Gate::authorize('admin');
 
         $empleado = Empleado::where('empresa_id', $u->empresa_id)->where('id', $empleadoId)->first();
-        if (!$empleado) {
+        if (! $empleado) {
             return response()->json(['message' => 'Empleado no encontrado'], 404);
         }
 
@@ -43,7 +43,7 @@ class EmpleadoSectionsController extends Controller
         ]);
 
         $section = Section::where('empresa_id', $u->empresa_id)->where('id', $data['section_id'])->first();
-        if (!$section) {
+        if (! $section) {
             return response()->json(['message' => 'Sección no encontrada'], 404);
         }
 
@@ -81,7 +81,7 @@ class EmpleadoSectionsController extends Controller
             ->where('section_id', $sectionId)
             ->delete();
 
-        if (!$deleted) {
+        if (! $deleted) {
             return response()->json(['message' => 'Vínculo no encontrado'], 404);
         }
 
@@ -94,7 +94,7 @@ class EmpleadoSectionsController extends Controller
         Gate::authorize('supervisor');
 
         $section = Section::where('empresa_id', $u->empresa_id)->where('id', $sectionId)->first();
-        if (!$section) {
+        if (! $section) {
             return response()->json(['message' => 'Sección no encontrada'], 404);
         }
 

@@ -3,15 +3,15 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
 use App\Models\PesajeSabor;
+use Illuminate\Http\Request;
 
 class PesajeSaborController extends Controller
 {
     public function index()
     {
         return response()->json([
-            'data' => PesajeSabor::orderBy('nombre')->get()
+            'data' => PesajeSabor::orderBy('nombre')->get(),
         ]);
     }
 
@@ -30,6 +30,7 @@ class PesajeSaborController extends Controller
     public function show($id)
     {
         $sabor = PesajeSabor::findOrFail($id);
+
         return response()->json(['data' => $sabor]);
     }
 
@@ -52,6 +53,7 @@ class PesajeSaborController extends Controller
     {
         $sabor = PesajeSabor::findOrFail($id);
         $sabor->delete();
+
         return response()->json(['message' => 'Sabor eliminado']);
     }
 }

@@ -1,18 +1,20 @@
 <?php
+
 // app/Http/Controllers/Api/V1/ProfileController.php
+
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use App\Models\Empleado;
-use App\Models\AttendanceDay;
-use App\Models\Application;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Hash;
-use App\Http\Requests\Api\V1\UpdateProfileRequest;
 use App\Http\Requests\Api\V1\ChangePasswordRequest;
+use App\Http\Requests\Api\V1\UpdateProfileRequest;
 use App\Http\Requests\Api\V1\UploadAvatarRequest;
-
+use App\Models\Application;
+use App\Models\AttendanceDay;
+use App\Models\Empleado;
+use App\Services\ActivityLogger;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 
 class ProfileController extends Controller
 {
@@ -36,7 +38,7 @@ class ProfileController extends Controller
                 ->where('date', $today)
                 ->first();
 
-            if (!$day || !$day->first_check_in_at) {
+            if (! $day || ! $day->first_check_in_at) {
                 $attendanceStatus = 'absent';
             } else {
                 // Determina si fue tarde según first_check_in_at vs hora de entrada configurada
@@ -101,8 +103,8 @@ class ProfileController extends Controller
 
         $data = $request->validate([
             'notifications_enabled' => ['sometimes', 'nullable', 'boolean'],
-            'language'              => ['sometimes', 'nullable', 'string', 'max:5'],
-            'theme'                 => ['sometimes', 'nullable', 'string', 'max:10', 'in:system,light,dark'],
+            'language' => ['sometimes', 'nullable', 'string', 'max:5'],
+            'theme' => ['sometimes', 'nullable', 'string', 'max:10', 'in:system,light,dark'],
         ]);
 
         $u->fill($data);
@@ -112,8 +114,8 @@ class ProfileController extends Controller
             'message' => 'Preferencias actualizadas correctamente.',
             'data' => [
                 'notifications_enabled' => $u->notifications_enabled,
-                'language'              => $u->language,
-                'theme'                 => $u->theme,
+                'language' => $u->language,
+                'theme' => $u->theme,
             ],
         ]);
     }
@@ -122,7 +124,7 @@ class ProfileController extends Controller
     public function uploadAvatar(UploadAvatarRequest $request)
     {
         $u = $request->user();
-        
+
         $request->validated();
 
         // Borra el avatar anterior si existe
@@ -131,7 +133,7 @@ class ProfileController extends Controller
             // Si el URL es temporal o tiene query params, necesitamos solo el path
             $parsedUrl = parse_url($u->avatar_url);
             $oldPath = ltrim($parsedUrl['path'], '/');
-            
+
             if (Storage::disk('s3')->exists($oldPath)) {
                 Storage::disk('s3')->delete($oldPath);
             }
@@ -139,7 +141,7 @@ class ProfileController extends Controller
 
         $file = $request->file('avatar');
         $path = $file->store("kore/{$u->empresa_id}/avatars", 's3');
-        $url  = Storage::disk('s3')->temporaryUrl($path, now()->addYears(1));
+        $url = Storage::disk('s3')->temporaryUrl($path, now()->addYears(1));
 
         $u->avatar_url = $url;
         $u->save();
@@ -154,7 +156,6 @@ class ProfileController extends Controller
         ]);
     }
 
-
     // POST /mi-perfil/password
     public function changePassword(ChangePasswordRequest $request)
     {
@@ -163,7 +164,7 @@ class ProfileController extends Controller
         $data = $request->validated();
 
         // Verificar contraseña actual
-        if (!Hash::check($data['current_password'], $u->password)) {
+        if (! Hash::check($data['current_password'], $u->password)) {
             return response()->json([
                 'message' => 'La contraseña actual no es correcta.',
             ], 422);
@@ -172,7 +173,7 @@ class ProfileController extends Controller
         $u->password = Hash::make($data['new_password']);
         $u->save();
 
-        \App\Services\ActivityLogger::log(
+        ActivityLogger::log(
             $u->empresa_id,
             $u->id,
             null,
@@ -188,13 +189,12 @@ class ProfileController extends Controller
         ]);
     }
 
-
     private function portalMeta($u): array
     {
         return [
             'has_portal_access' => $this->hasPortalAccess($u),
-            'portal_url'        => config('app.frontend_portal_url', 'https://vacantes.decorartereposteria.mx'),
-            'application_status'=> $this->applicationStatus($u),
+            'portal_url' => config('app.frontend_portal_url', 'https://vacantes.decorartereposteria.mx'),
+            'application_status' => $this->applicationStatus($u),
         ];
     }
 
@@ -212,30 +212,31 @@ class ProfileController extends Controller
         }
 
         $latest = Application::where('user_id', $u->id)->latest()->first();
+
         return $latest?->status;
     }
 
     private function presentProfile($u, $emp, ?string $attendanceStatus): array
     {
         return [
-            'id'                => $u->id,
-            'full_name'         => $u->name,
-            'email'             => $u->email,
-            'phone'             => $u->phone ?? null,
-            'address'           => $u->address ?? null,
-            'avatar_url'        => $u->avatar_url ?? null,
-            'role'              => $u->role,
+            'id' => $u->id,
+            'full_name' => $u->name,
+            'email' => $u->email,
+            'phone' => $u->phone ?? null,
+            'address' => $u->address ?? null,
+            'avatar_url' => $u->avatar_url ?? null,
+            'role' => $u->role,
 
             // Datos del empleado
-            'employee_number'   => $emp?->employee_code ?? null,
-            'position_title'    => $emp?->position_title ?? null,
-            'department'        => null, // campo futuro
-            'hire_date'         => $emp?->hired_at?->toDateString() ?? null,
-            'curp'              => $emp?->curp ?? null,
+            'employee_number' => $emp?->employee_code ?? null,
+            'position_title' => $emp?->position_title ?? null,
+            'department' => null, // campo futuro
+            'hire_date' => $emp?->hired_at?->toDateString() ?? null,
+            'curp' => $emp?->curp ?? null,
             // Nómina
-            'pay_type'          => $emp?->payment_type ?? null,
-            'hourly_rate'       => $emp?->payment_type === 'hourly' ? ($emp?->hourly_rate ?? null) : null,
-            'daily_rate'        => $emp?->payment_type === 'daily'  ? ($emp?->daily_rate  ?? null) : null,
+            'pay_type' => $emp?->payment_type ?? null,
+            'hourly_rate' => $emp?->payment_type === 'hourly' ? ($emp?->hourly_rate ?? null) : null,
+            'daily_rate' => $emp?->payment_type === 'daily' ? ($emp?->daily_rate ?? null) : null,
             // Asistencia
             'attendance_status' => $attendanceStatus,
         ];

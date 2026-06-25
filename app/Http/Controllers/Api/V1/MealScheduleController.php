@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\Empleado;
 use App\Models\MealSchedule;
-use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -23,12 +23,12 @@ class MealScheduleController extends Controller
         $schedules = MealSchedule::where('empresa_id', $u->empresa_id)
             ->with('employee:id,full_name')
             ->get()
-            ->map(fn($s) => [
-                'id'                => $s->id,
-                'employee_id'       => $s->employee_id,
-                'employee_name'     => $s->employee?->full_name ?? '—',
-                'meal_start_time'   => substr($s->meal_start_time, 0, 5), // HH:mm
-                'duration_minutes'  => $s->duration_minutes,
+            ->map(fn ($s) => [
+                'id' => $s->id,
+                'employee_id' => $s->employee_id,
+                'employee_name' => $s->employee?->full_name ?? '—',
+                'meal_start_time' => substr($s->meal_start_time, 0, 5), // HH:mm
+                'duration_minutes' => $s->duration_minutes,
             ]);
 
         return response()->json(['data' => $schedules]);
@@ -45,10 +45,10 @@ class MealScheduleController extends Controller
         Gate::authorize('admin');
 
         $data = $request->validate([
-            'schedules'                      => ['required', 'array', 'min:1'],
-            'schedules.*.employee_id'        => ['required', 'uuid', 'exists:empleados,id'],
-            'schedules.*.meal_start_time'    => ['required', 'date_format:H:i'],
-            'schedules.*.duration_minutes'   => ['sometimes', 'integer', 'min:5', 'max:120'],
+            'schedules' => ['required', 'array', 'min:1'],
+            'schedules.*.employee_id' => ['required', 'uuid', 'exists:empleados,id'],
+            'schedules.*.meal_start_time' => ['required', 'date_format:H:i'],
+            'schedules.*.duration_minutes' => ['sometimes', 'integer', 'min:5', 'max:120'],
         ]);
 
         $empresaId = $u->empresa_id;
@@ -56,37 +56,37 @@ class MealScheduleController extends Controller
 
         foreach ($data['schedules'] as $item) {
             // Verificar que el empleado pertenece a la misma empresa
-            $employee = \App\Models\Empleado::where('id', $item['employee_id'])
+            $employee = Empleado::where('id', $item['employee_id'])
                 ->where('empresa_id', $empresaId)
                 ->first();
 
-            if (!$employee) {
+            if (! $employee) {
                 continue; // Ignorar empleados que no pertenecen a la empresa
             }
 
             $schedule = MealSchedule::updateOrCreate(
                 [
                     'employee_id' => $item['employee_id'],
-                    'empresa_id'  => $empresaId,
+                    'empresa_id' => $empresaId,
                 ],
                 [
-                    'meal_start_time'  => $item['meal_start_time'] . ':00', // Append seconds
+                    'meal_start_time' => $item['meal_start_time'].':00', // Append seconds
                     'duration_minutes' => $item['duration_minutes'] ?? 30,
                 ]
             );
 
             $results[] = [
-                'id'                => $schedule->id,
-                'employee_id'       => $schedule->employee_id,
-                'employee_name'     => $employee->full_name,
-                'meal_start_time'   => substr($schedule->meal_start_time, 0, 5),
-                'duration_minutes'  => $schedule->duration_minutes,
+                'id' => $schedule->id,
+                'employee_id' => $schedule->employee_id,
+                'employee_name' => $employee->full_name,
+                'meal_start_time' => substr($schedule->meal_start_time, 0, 5),
+                'duration_minutes' => $schedule->duration_minutes,
             ];
         }
 
         return response()->json([
-            'message' => count($results) . ' horario(s) sincronizado(s)',
-            'data'    => $results,
+            'message' => count($results).' horario(s) sincronizado(s)',
+            'data' => $results,
         ]);
     }
 }

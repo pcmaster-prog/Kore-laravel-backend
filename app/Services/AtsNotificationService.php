@@ -6,12 +6,12 @@ use App\Mail\ApplicationReceivedMail;
 use App\Mail\HiredMail;
 use App\Mail\InterviewReminderMail;
 use App\Mail\InterviewScheduledMail;
+use App\Mail\OfferSentMail;
 use App\Mail\RejectedMail;
 use App\Mail\TemplatedEmail;
 use App\Models\Application;
 use App\Models\EmailTemplate;
 use App\Models\Interview;
-use App\Services\WhatsAppNotificationService;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -65,6 +65,7 @@ class AtsNotificationService
 
         if (self::sendTemplated('interview_scheduled', $candidate->email, $variables, $interview->application?->empresa_id)) {
             self::sendWhatsApp($interview->application, "Hola {$candidate->name}, tu entrevista para {$variables['jobTitle']} esta programada el {$variables['scheduledAt']}. Metodo: {$variables['method']}.");
+
             return;
         }
 
@@ -146,7 +147,7 @@ class AtsNotificationService
         }
 
         try {
-            Mail::to($candidate->email)->queue(new \App\Mail\OfferSentMail(
+            Mail::to($candidate->email)->queue(new OfferSentMail(
                 candidateName: $candidate->name,
                 jobTitle: $application->jobOpening?->title ?? 'la vacante',
                 empresaName: $application->empresa?->name ?? 'nuestra empresa',

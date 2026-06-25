@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Model;
 
 class Empresa extends Model
 {
@@ -15,7 +15,7 @@ class Empresa extends Model
         'status',
         'palette_key',
         'plan_id',
-        'settings', 
+        'settings',
         'plan',
         'logo_url',
         'industry',
@@ -31,14 +31,14 @@ class Empresa extends Model
     ];
 
     protected $casts = [
-        'settings'   => 'array',
+        'settings' => 'array',
         'documentos' => 'array',
     ];
 
     public function modulos()
     {
         return $this->belongsToMany(Modulo::class, 'empresa_modulos')
-            ->withPivot(['enabled','settings'])
+            ->withPivot(['enabled', 'settings'])
             ->withTimestamps();
     }
 }

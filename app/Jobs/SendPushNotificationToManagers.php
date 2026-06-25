@@ -36,8 +36,8 @@ class SendPushNotificationToManagers implements ShouldQueue
         } catch (\Throwable $e) {
             Log::error('SendPushNotificationToManagers job failed', [
                 'empresa_id' => $this->empresaId,
-                'title'      => $this->title,
-                'error'      => $e->getMessage(),
+                'title' => $this->title,
+                'error' => $e->getMessage(),
             ]);
         }
     }

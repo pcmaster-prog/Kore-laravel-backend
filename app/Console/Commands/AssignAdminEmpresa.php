@@ -39,7 +39,8 @@ class AssignAdminEmpresa extends Command
             : User::where('role', 'admin')->orderBy('created_at')->first();
 
         if (! $user) {
-            $this->error('No se encontró un usuario admin' . ($email ? " con email {$email}" : '') . '.');
+            $this->error('No se encontró un usuario admin'.($email ? " con email {$email}" : '').'.');
+
             return self::FAILURE;
         }
 
@@ -49,6 +50,7 @@ class AssignAdminEmpresa extends Command
 
         if (! $empresa) {
             $this->error("No se encontró una empresa con slug '{$slug}'.");
+
             return self::FAILURE;
         }
 
@@ -56,7 +58,7 @@ class AssignAdminEmpresa extends Command
         $user->empresa_id = $empresa->id;
         $user->save();
 
-        $this->info("Usuario actualizado:");
+        $this->info('Usuario actualizado:');
         $this->info("  ID:     {$user->id}");
         $this->info("  Nombre: {$user->name}");
         $this->info("  Email:  {$user->email}");

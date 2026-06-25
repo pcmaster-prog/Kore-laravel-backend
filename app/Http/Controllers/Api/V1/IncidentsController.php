@@ -3,12 +3,13 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
-use Illuminate\Support\Facades\Gate;
 use App\Models\Incident;
 use App\Models\Task;
+use App\Models\TaskAssignee;
 use App\Services\ActivityLogger;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 
 class IncidentsController extends Controller
 {
@@ -56,16 +57,16 @@ class IncidentsController extends Controller
 
         // Validar que la tarea pertenezca a la empresa
         $task = Task::where('empresa_id', $u->empresa_id)->where('id', $data['task_id'])->first();
-        if (!$task) {
+        if (! $task) {
             return response()->json(['message' => 'Tarea no encontrada'], 404);
         }
 
         // Validar que el assignee pertenezca a la tarea
-        if (!empty($data['task_assignee_id'])) {
-            $assignee = \App\Models\TaskAssignee::where('task_id', $data['task_id'])
+        if (! empty($data['task_assignee_id'])) {
+            $assignee = TaskAssignee::where('task_id', $data['task_id'])
                 ->where('id', $data['task_assignee_id'])
                 ->first();
-            if (!$assignee) {
+            if (! $assignee) {
                 return response()->json(['message' => 'Asignación no encontrada'], 404);
             }
         }
@@ -99,7 +100,9 @@ class IncidentsController extends Controller
         Gate::authorize('supervisor');
 
         $incident = Incident::where('empresa_id', $u->empresa_id)->where('id', $id)->first();
-        if (!$incident) return response()->json(['message' => 'No encontrado'], 404);
+        if (! $incident) {
+            return response()->json(['message' => 'No encontrado'], 404);
+        }
 
         $incident->status = 'resolved';
         $incident->resolved_by = $u->id;
@@ -115,7 +118,9 @@ class IncidentsController extends Controller
         Gate::authorize('supervisor');
 
         $incident = Incident::where('empresa_id', $u->empresa_id)->where('id', $id)->first();
-        if (!$incident) return response()->json(['message' => 'No encontrado'], 404);
+        if (! $incident) {
+            return response()->json(['message' => 'No encontrado'], 404);
+        }
 
         $incident->status = 'dismissed';
         $incident->resolved_by = $u->id;

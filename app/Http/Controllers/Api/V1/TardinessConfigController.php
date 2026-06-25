@@ -20,13 +20,13 @@ class TardinessConfigController extends Controller
         $config = TardinessConfig::firstOrCreate(
             ['empresa_id' => $u->empresa_id],
             [
-                'grace_period_minutes'    => 10,
-                'late_threshold_minutes'  => 1,
-                'lates_to_absence'        => 3,
-                'accumulation_period'     => 'month',
-                'penalize_rest_day'       => true,
+                'grace_period_minutes' => 10,
+                'late_threshold_minutes' => 1,
+                'lates_to_absence' => 3,
+                'accumulation_period' => 'month',
+                'penalize_rest_day' => true,
                 'notify_employee_on_late' => true,
-                'notify_manager_on_late'  => true,
+                'notify_manager_on_late' => true,
             ]
         );
 
@@ -43,26 +43,26 @@ class TardinessConfigController extends Controller
         $u = $request->user();
 
         $data = $request->validate([
-            'grace_period_minutes'    => 'integer|min:0|max:60',
-            'late_threshold_minutes'  => 'integer|min:1|max:60',
-            'lates_to_absence'        => 'integer|min:1|max:10',
-            'accumulation_period'     => 'in:week,biweek,month',
-            'penalize_rest_day'       => 'boolean',
+            'grace_period_minutes' => 'integer|min:0|max:60',
+            'late_threshold_minutes' => 'integer|min:1|max:60',
+            'lates_to_absence' => 'integer|min:1|max:10',
+            'accumulation_period' => 'in:week,biweek,month',
+            'penalize_rest_day' => 'boolean',
             'notify_employee_on_late' => 'boolean',
-            'notify_manager_on_late'  => 'boolean',
+            'notify_manager_on_late' => 'boolean',
         ]);
 
         // Ensure config exists (lazy init)
         $config = TardinessConfig::firstOrCreate(
             ['empresa_id' => $u->empresa_id],
             [
-                'grace_period_minutes'    => 10,
-                'late_threshold_minutes'  => 1,
-                'lates_to_absence'        => 3,
-                'accumulation_period'     => 'month',
-                'penalize_rest_day'       => true,
+                'grace_period_minutes' => 10,
+                'late_threshold_minutes' => 1,
+                'lates_to_absence' => 3,
+                'accumulation_period' => 'month',
+                'penalize_rest_day' => true,
                 'notify_employee_on_late' => true,
-                'notify_manager_on_late'  => true,
+                'notify_manager_on_late' => true,
             ]
         );
 
@@ -70,7 +70,7 @@ class TardinessConfigController extends Controller
 
         return response()->json([
             'message' => 'Configuración actualizada',
-            'config'  => $config->fresh(),
+            'config' => $config->fresh(),
         ]);
     }
 }

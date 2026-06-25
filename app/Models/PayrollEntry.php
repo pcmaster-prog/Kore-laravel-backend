@@ -1,9 +1,11 @@
 <?php
+
 // app/Models/PayrollEntry.php
+
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Model;
 
 class PayrollEntry extends Model
 {
@@ -20,16 +22,16 @@ class PayrollEntry extends Model
     ];
 
     protected $casts = [
-        'rate'              => 'float',
-        'units'             => 'float',
-        'rest_days_paid'    => 'int',
-        'holidays_paid'     => 'int',
-        'tardiness_count'   => 'int',
-        'absences_count'    => 'int',
-        'subtotal'          => 'float',
+        'rate' => 'float',
+        'units' => 'float',
+        'rest_days_paid' => 'int',
+        'holidays_paid' => 'int',
+        'tardiness_count' => 'int',
+        'absences_count' => 'int',
+        'subtotal' => 'float',
         'adjustment_amount' => 'float',
-        'bonus_amount'      => 'float',
-        'total'             => 'float',
+        'bonus_amount' => 'float',
+        'total' => 'float',
     ];
 
     public function empleado()

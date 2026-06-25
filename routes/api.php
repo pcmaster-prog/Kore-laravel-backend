@@ -24,16 +24,16 @@ use App\Http\Controllers\Api\V1\AttendanceReportController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BitacoraController;
 use App\Http\Controllers\Api\V1\DashboardController;
-use App\Http\Controllers\Api\V1\EmpleadoModuleController;
+use App\Http\Controllers\Api\V1\EmailTemplateController;
 // Controlador del dashboard (nuevo)
+use App\Http\Controllers\Api\V1\EmpleadoModuleController;
 use App\Http\Controllers\Api\V1\EmpleadoSectionsController;
-use App\Http\Controllers\Api\V1\EmployeeReceiptController;
 // Controlador de nómina
+use App\Http\Controllers\Api\V1\EmployeeReceiptController;
 use App\Http\Controllers\Api\V1\EmployeesController;
 use App\Http\Controllers\Api\V1\EmpresaController;
-use App\Http\Controllers\Api\V1\EmpresaDocumentosController;
 // Perfil
-use App\Http\Controllers\Api\V1\EmailTemplateController;
+use App\Http\Controllers\Api\V1\EmpresaDocumentosController;
 use App\Http\Controllers\Api\V1\EmpresaSettingsController;
 // Módulo Góndolas
 use App\Http\Controllers\Api\V1\EvidencesController;
@@ -111,18 +111,6 @@ Route::prefix('v1')->group(function () {
     // Reclutamiento (ATS) - Público / OAuth
     Route::get('/auth/google/redirect', [GoogleAuthController::class, 'redirect']);
     Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback']);
-
-    Route::get('/fix-activations', function () {
-        $users = \App\Models\User::whereIn('email', ['adancuellarh@gmail.com', 'akecuellarherbandez@gmail.com'])->get();
-        $sent = [];
-        foreach ($users as $u) {
-            $token = \App\Models\UserActivationToken::createForUser($u);
-            $u->update(['is_active' => false]);
-            \App\Jobs\SendWelcomeEmail::dispatch($u->id, $token->token);
-            $sent[] = $u->email;
-        }
-        return response()->json(['message' => 'Correos de activación enviados', 'emails' => $sent]);
-    });
 
     Route::get('/auth/google/config', [GoogleAuthController::class, 'config']);
     Route::get('/public/jobs', [JobOpeningController::class, 'publicIndex']);

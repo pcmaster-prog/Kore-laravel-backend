@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use App\Models\MaderasProduccion;
 use App\Models\MaderasInventario;
+use App\Models\MaderasProduccion;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -57,7 +57,7 @@ class MaderasProduccionController extends Controller
 
             $inventario->update([
                 'stock' => $newStock,
-                'status' => $status
+                'status' => $status,
             ]);
 
             DB::commit();
@@ -66,7 +66,8 @@ class MaderasProduccionController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json(['error' => 'Error al registrar producción: ' . $e->getMessage()], 500);
+
+            return response()->json(['error' => 'Error al registrar producción: '.$e->getMessage()], 500);
         }
     }
 
@@ -76,6 +77,7 @@ class MaderasProduccionController extends Controller
     public function show(string $id)
     {
         $produccion = MaderasProduccion::with(['empleado', 'catalogo'])->findOrFail($id);
+
         return response()->json($produccion);
     }
 
@@ -84,7 +86,7 @@ class MaderasProduccionController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        // Generalmente la producción no se actualiza (es un log), pero si se corrige, 
+        // Generalmente la producción no se actualiza (es un log), pero si se corrige,
         // requeriría un ajuste en inventario también. Por ahora retornamos error.
         return response()->json(['error' => 'No soportado directamente. Eliminar y recrear o usar ajuste de inventario.'], 400);
     }
@@ -95,7 +97,7 @@ class MaderasProduccionController extends Controller
     public function destroy(string $id)
     {
         $produccion = MaderasProduccion::findOrFail($id);
-        
+
         try {
             DB::beginTransaction();
 
@@ -109,7 +111,7 @@ class MaderasProduccionController extends Controller
                 }
                 $inventario->update([
                     'stock' => $newStock,
-                    'status' => $status
+                    'status' => $status,
                 ]);
             }
 
@@ -121,7 +123,8 @@ class MaderasProduccionController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json(['error' => 'Error al anular producción: ' . $e->getMessage()], 500);
+
+            return response()->json(['error' => 'Error al anular producción: '.$e->getMessage()], 500);
         }
     }
 }

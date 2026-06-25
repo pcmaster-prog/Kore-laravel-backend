@@ -3,9 +3,9 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\Area;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
-use App\Models\Area;
 
 class AreasController extends Controller
 {
@@ -52,7 +52,9 @@ class AreasController extends Controller
         Gate::authorize('supervisor');
 
         $area = Area::where('empresa_id', $u->empresa_id)->where('id', $id)->first();
-        if (!$area) return response()->json(['message' => 'No encontrado'], 404);
+        if (! $area) {
+            return response()->json(['message' => 'No encontrado'], 404);
+        }
 
         return response()->json(['item' => $area]);
     }
@@ -63,7 +65,9 @@ class AreasController extends Controller
         Gate::authorize('admin');
 
         $area = Area::where('empresa_id', $u->empresa_id)->where('id', $id)->first();
-        if (!$area) return response()->json(['message' => 'No encontrado'], 404);
+        if (! $area) {
+            return response()->json(['message' => 'No encontrado'], 404);
+        }
 
         $data = $request->validate([
             'name' => ['sometimes', 'string', 'max:120'],
@@ -84,9 +88,12 @@ class AreasController extends Controller
         Gate::authorize('admin');
 
         $area = Area::where('empresa_id', $u->empresa_id)->where('id', $id)->first();
-        if (!$area) return response()->json(['message' => 'No encontrado'], 404);
+        if (! $area) {
+            return response()->json(['message' => 'No encontrado'], 404);
+        }
 
         $area->delete();
+
         return response()->json(['message' => 'Eliminado']);
     }
 

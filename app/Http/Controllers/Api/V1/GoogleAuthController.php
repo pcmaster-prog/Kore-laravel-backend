@@ -65,7 +65,7 @@ class GoogleAuthController extends Controller
 
         // Guardamos el state en cache del servidor. No depende de cookies.
         Cache::put(
-            self::STATE_CACHE_PREFIX . $state,
+            self::STATE_CACHE_PREFIX.$state,
             true,
             now()->addMinutes(self::STATE_TTL_MINUTES)
         );
@@ -76,7 +76,7 @@ class GoogleAuthController extends Controller
             config('app.frontend_portal_url', 'https://vacantes.decorartereposteria.mx')
         ), '/');
 
-        $googleUrl = 'https://accounts.google.com/o/oauth2/v2/auth?' . http_build_query([
+        $googleUrl = 'https://accounts.google.com/o/oauth2/v2/auth?'.http_build_query([
             'client_id' => config('services.google.client_id'),
             'redirect_uri' => $redirectUri,
             'response_type' => 'code',
@@ -117,7 +117,7 @@ class GoogleAuthController extends Controller
             ]);
 
             if ($request->filled('error')) {
-                throw new \Exception('Google devolvió un error: ' . $request->input('error_description', $request->input('error')));
+                throw new \Exception('Google devolvió un error: '.$request->input('error_description', $request->input('error')));
             }
 
             // ── Validación del state ──
@@ -131,23 +131,22 @@ class GoogleAuthController extends Controller
                 // seguimos adelante. El code de Google ya es de un solo uso y expira
                 // en segundos, por lo que el riesgo de CSRF es mínimo.
             } else {
-                $cacheKey = self::STATE_CACHE_PREFIX . $state;
+                $cacheKey = self::STATE_CACHE_PREFIX.$state;
                 $stateIsValid = Cache::pull($cacheKey); // pull = get + delete
 
                 if (! $stateIsValid) {
                     Log::warning('Portal OAuth callback: state no encontrado en cache', [
                         'state' => $state,
                     ]);
-                    // El state puede haber expirado (>10 min) o ya fue consumido.
-                    // No bloqueamos el flujo por esto; el code de Google ya valida
-                    // que el usuario autorizó el acceso.
+
+                    return redirect()->away($frontendUrl.'/login?error=invalid_state&message='.urlencode('La sesión de autenticación expiró o es inválida. Intenta de nuevo.'));
                 }
             }
 
             $code = $request->input('code');
             if (! $code) {
                 // Agregar info de depuración a la excepción para que el usuario pueda verla en la URL de error del portal.
-                throw new \Exception('Google no envió el parámetro code. URL recibida: ' . $request->fullUrl() . ' | Query: ' . json_encode($request->query()));
+                throw new \Exception('Google no envió el parámetro code. URL recibida: '.$request->fullUrl().' | Query: '.json_encode($request->query()));
             }
 
             // Intercambiamos el code por tokens directamente con Google.
@@ -160,7 +159,7 @@ class GoogleAuthController extends Controller
             ]);
 
             if ($tokenResponse->failed()) {
-                throw new \Exception('Google token exchange failed: ' . $tokenResponse->body());
+                throw new \Exception('Google token exchange failed: '.$tokenResponse->body());
             }
 
             $accessToken = $tokenResponse->json('access_token');
@@ -173,7 +172,7 @@ class GoogleAuthController extends Controller
             ]);
 
             if ($userInfoResponse->failed()) {
-                throw new \Exception('Google userinfo failed: ' . $userInfoResponse->body());
+                throw new \Exception('Google userinfo failed: '.$userInfoResponse->body());
             }
 
             $googleUser = $userInfoResponse->json();
@@ -192,6 +191,7 @@ class GoogleAuthController extends Controller
                 $user = User::create([
                     'name' => $name,
                     'email' => $email,
+                    'email_verified_at' => now(),
                     'password' => Hash::make(Str::random(24)),
                     'role' => 'aspirante',
                     'provider' => 'google',
@@ -206,51 +206,45 @@ class GoogleAuthController extends Controller
 
             $token = $user->createToken('portal_token')->plainTextToken;
 
-            // ── Construir URL de redirección al frontend ──
-            $redirectUrl = $frontendUrl . '/auth/google/callback';
-            $queryParts = [];
-
-            if ($state) {
-                $queryParts[] = 'state=' . urlencode($state);
-            }
-
-            // Si no podemos compartir cookie entre dominios, enviamos el token
-            // como query param para que el frontend lo use como Bearer token.
             $canShareCookie = $this->canShareCookie($frontendUrl);
+
+            // El token NUNCA se transmite por URL. Si los dominios no pueden
+            // compartir cookie, redirigimos a una página de error.
             if (! $canShareCookie) {
-                $queryParts[] = 'portal_token=' . urlencode($token);
+                Log::warning('Portal OAuth: dominios no comparten cookie', [
+                    'user_id' => $user->id,
+                    'frontend' => $frontendUrl,
+                    'backend' => config('app.url'),
+                ]);
+
+                return redirect()->away($frontendUrl.'/login?error=domain_mismatch');
             }
 
-            if (count($queryParts) > 0) {
-                $redirectUrl .= '?' . implode('&', $queryParts);
+            $redirectUrl = $frontendUrl.'/auth/google/callback';
+            if ($state) {
+                $redirectUrl .= '?state='.urlencode($state);
             }
 
             Log::info('Portal OAuth exitoso', [
                 'user_id' => $user->id,
                 'email' => $user->email,
-                'shared_cookie' => $canShareCookie,
+                'shared_cookie' => true,
             ]);
 
-            // Si podemos compartir cookie, la enviamos como HttpOnly.
-            $response = redirect()->away($redirectUrl);
+            $cookieDomain = $this->sharedCookieDomain($frontendUrl);
+            $tokenCookie = Cookie::make(
+                PortalCookieAuth::COOKIE_NAME,
+                $token,
+                60 * 24 * 7,
+                '/',
+                $cookieDomain,
+                config('session.secure', true),
+                true,
+                false,
+                config('session.same_site', 'lax')
+            );
 
-            if ($canShareCookie) {
-                $cookieDomain = $this->sharedCookieDomain($frontendUrl);
-                $tokenCookie = Cookie::make(
-                    PortalCookieAuth::COOKIE_NAME,
-                    $token,
-                    60 * 24 * 7,
-                    '/',
-                    $cookieDomain,
-                    config('session.secure', true),
-                    true,
-                    false,
-                    config('session.same_site', 'lax')
-                );
-                $response = $response->withCookie($tokenCookie);
-            }
-
-            return $response;
+            return redirect()->away($redirectUrl)->withCookie($tokenCookie);
 
         } catch (\Exception $e) {
             Log::error('Google Auth Error', [
@@ -261,7 +255,7 @@ class GoogleAuthController extends Controller
                 'frontend' => $frontendUrl,
             ]);
 
-            $errorUrl = $frontendUrl . '/login?error=auth_failed&message=' . urlencode($e->getMessage());
+            $errorUrl = $frontendUrl.'/login?error=auth_failed&message='.urlencode($e->getMessage());
 
             return redirect()->away($errorUrl);
         }
@@ -295,7 +289,7 @@ class GoogleAuthController extends Controller
             return null;
         }
 
-        return '.' . $this->rootDomain($host);
+        return '.'.$this->rootDomain($host);
     }
 
     /**

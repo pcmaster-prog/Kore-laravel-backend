@@ -1,15 +1,18 @@
 <?php
-//EmployeesController: manejo de empleados, vinculación con usuarios, configuración de calendario individual (horas diarias, día de descanso semanal, overrides)
+
+// EmployeesController: manejo de empleados, vinculación con usuarios, configuración de calendario individual (horas diarias, día de descanso semanal, overrides)
+
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\EmpleadoResource;
+use App\Http\Resources\UserResource;
+use App\Models\Empleado;
+use App\Models\EmployeeCalendarOverride;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
-
-use App\Models\Empleado;
-use App\Http\Resources\EmpleadoResource;
-use App\Http\Resources\UserResource;
 
 class EmployeesController extends Controller
 {
@@ -34,13 +37,13 @@ class EmployeesController extends Controller
             $s = $request->string('search');
             $q->where(function ($w) use ($s) {
                 $w->where('full_name', 'ilike', "%{$s}%")
-                  ->orWhere('employee_code', 'ilike', "%{$s}%")
-                  ->orWhere('position_title', 'ilike', "%{$s}%");
+                    ->orWhere('employee_code', 'ilike', "%{$s}%")
+                    ->orWhere('position_title', 'ilike', "%{$s}%");
             });
         }
 
         $items = $q->orderBy('full_name')
-                  ->paginate(20);
+            ->paginate(20);
 
         return EmpleadoResource::collection($items);
     }
@@ -56,14 +59,14 @@ class EmployeesController extends Controller
         $empresaId = $u->empresa_id;
 
         $data = $request->validate([
-            'full_name' => ['required','string','max:160'],
-            'employee_code' => ['nullable','string','max:50'],
-            'position_title' => ['nullable','string','max:120'],
-            'status' => ['nullable', Rule::in(['active','inactive'])],
-            'hired_at' => ['nullable','date'],
-            'rfc' => ['nullable','string','max:15'],
-            'nss' => ['nullable','string','max:15'],
-            'expediente' => ['nullable','file','mimes:pdf,jpg,png','max:5120'],
+            'full_name' => ['required', 'string', 'max:160'],
+            'employee_code' => ['nullable', 'string', 'max:50'],
+            'position_title' => ['nullable', 'string', 'max:120'],
+            'status' => ['nullable', Rule::in(['active', 'inactive'])],
+            'hired_at' => ['nullable', 'date'],
+            'rfc' => ['nullable', 'string', 'max:15'],
+            'nss' => ['nullable', 'string', 'max:15'],
+            'expediente' => ['nullable', 'file', 'mimes:pdf,jpg,png', 'max:5120'],
         ]);
 
         $expedienteUrl = null;
@@ -96,7 +99,9 @@ class EmployeesController extends Controller
         Gate::authorize('supervisor');
 
         $emp = Empleado::where('empresa_id', $u->empresa_id)->where('id', $id)->first();
-        if (!$emp) return response()->json(['message'=>'No encontrado'], 404);
+        if (! $emp) {
+            return response()->json(['message' => 'No encontrado'], 404);
+        }
 
         return new EmpleadoResource($emp);
     }
@@ -110,17 +115,19 @@ class EmployeesController extends Controller
         Gate::authorize('admin');
 
         $emp = Empleado::where('empresa_id', $u->empresa_id)->where('id', $id)->first();
-        if (!$emp) return response()->json(['message'=>'No encontrado'], 404);
+        if (! $emp) {
+            return response()->json(['message' => 'No encontrado'], 404);
+        }
 
         $data = $request->validate([
-            'full_name' => ['sometimes','string','max:160'],
-            'employee_code' => ['sometimes','nullable','string','max:50'],
-            'position_title' => ['sometimes','nullable','string','max:120'],
-            'status' => ['sometimes', Rule::in(['active','inactive'])],
-            'hired_at' => ['sometimes','nullable','date'],
-            'rfc' => ['sometimes','nullable','string','max:15'],
-            'nss' => ['sometimes','nullable','string','max:15'],
-            'expediente' => ['sometimes','nullable','file','mimes:pdf,jpg,png','max:5120'],
+            'full_name' => ['sometimes', 'string', 'max:160'],
+            'employee_code' => ['sometimes', 'nullable', 'string', 'max:50'],
+            'position_title' => ['sometimes', 'nullable', 'string', 'max:120'],
+            'status' => ['sometimes', Rule::in(['active', 'inactive'])],
+            'hired_at' => ['sometimes', 'nullable', 'date'],
+            'rfc' => ['sometimes', 'nullable', 'string', 'max:15'],
+            'nss' => ['sometimes', 'nullable', 'string', 'max:15'],
+            'expediente' => ['sometimes', 'nullable', 'file', 'mimes:pdf,jpg,png', 'max:5120'],
         ]);
 
         if ($request->hasFile('expediente')) {
@@ -133,38 +140,40 @@ class EmployeesController extends Controller
         return new EmpleadoResource($emp);
     }
 
-    //vincular usuario-empleado
+    // vincular usuario-empleado
     public function linkUser(Request $request, string $id)
     {
         $u = $request->user();
         Gate::authorize('admin');
 
         $data = $request->validate([
-            'user_id' => ['required','uuid'],
+            'user_id' => ['required', 'uuid'],
         ]);
 
         // 1) El empleado debe existir y ser de la misma empresa
-        $emp = \App\Models\Empleado::where('empresa_id', $u->empresa_id)
+        $emp = Empleado::where('empresa_id', $u->empresa_id)
             ->where('id', $id)
             ->first();
-        if (!$emp) return response()->json(['message'=>'Empleado no encontrado'], 404);
+        if (! $emp) {
+            return response()->json(['message' => 'Empleado no encontrado'], 404);
+        }
 
         // 2) El usuario debe existir y pertenecer a la misma empresa
-        $targetUser = \App\Models\User::where('empresa_id', $u->empresa_id)
+        $targetUser = User::where('empresa_id', $u->empresa_id)
             ->where('id', $data['user_id'])
             ->first();
-        if (!$targetUser) {
-            return response()->json(['message'=>'Usuario no encontrado en esta empresa'], 404);
+        if (! $targetUser) {
+            return response()->json(['message' => 'Usuario no encontrado en esta empresa'], 404);
         }
 
         // 3) Evitar que un user tenga 2 empleados
-        $already = \App\Models\Empleado::where('empresa_id', $u->empresa_id)
+        $already = Empleado::where('empresa_id', $u->empresa_id)
             ->where('user_id', $targetUser->id)
             ->first();
         if ($already && $already->id !== $emp->id) {
             return response()->json([
                 'message' => 'Este usuario ya está vinculado a otro empleado',
-                'linked_employee_id' => $already->id
+                'linked_employee_id' => $already->id,
             ], 409);
         }
 
@@ -192,14 +201,14 @@ class EmployeesController extends Controller
             ->where('user_id', $u->id)
             ->first();
 
-        if (!$emp) {
+        if (! $emp) {
             return response()->json([
-                'message'=>'Empleado no vinculado aún',
-                'hint'=>'El admin debe vincular este usuario a un registro de empleado'
+                'message' => 'Empleado no vinculado aún',
+                'hint' => 'El admin debe vincular este usuario a un registro de empleado',
             ], 404);
         }
 
-        return response()->json(['item'=>new EmpleadoResource($emp)]);
+        return response()->json(['item' => new EmpleadoResource($emp)]);
     }
 
     public function updateCalendar(Request $request, string $id)
@@ -207,20 +216,22 @@ class EmployeesController extends Controller
         $u = $request->user();
         Gate::authorize('admin');
 
-        $emp = \App\Models\Empleado::where('empresa_id', $u->empresa_id)->where('id', $id)->first();
-        if (!$emp) return response()->json(['message'=>'Empleado no encontrado'], 404);
+        $emp = Empleado::where('empresa_id', $u->empresa_id)->where('id', $id)->first();
+        if (! $emp) {
+            return response()->json(['message' => 'Empleado no encontrado'], 404);
+        }
 
         $data = $request->validate([
-            'daily_hours' => ['sometimes','numeric','min:0','max:24'],
-            'rest_weekday' => ['sometimes','nullable','integer','min:0','max:6'],
+            'daily_hours' => ['sometimes', 'numeric', 'min:0', 'max:24'],
+            'rest_weekday' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:6'],
         ]);
 
         $emp->fill($data);
         $emp->save();
 
         return response()->json([
-            'message'=>'Empleado calendar updated',
-            'item'=>new EmpleadoResource($emp),
+            'message' => 'Empleado calendar updated',
+            'item' => new EmpleadoResource($emp),
         ]);
     }
 
@@ -229,15 +240,17 @@ class EmployeesController extends Controller
         $u = $request->user();
         Gate::authorize('supervisor');
 
-        $emp = \App\Models\Empleado::where('empresa_id', $u->empresa_id)->where('id', $id)->first();
-        if (!$emp) return response()->json(['message'=>'Empleado no encontrado'], 404);
+        $emp = Empleado::where('empresa_id', $u->empresa_id)->where('id', $id)->first();
+        if (! $emp) {
+            return response()->json(['message' => 'Empleado no encontrado'], 404);
+        }
 
         $data = $request->validate([
-            'date' => ['required','date'],
-            'type' => ['required', \Illuminate\Validation\Rule::in(['workday','rest'])],
-            'is_paid' => ['nullable','boolean'],
-            'paid_minutes' => ['nullable','integer','min:0','max:1440'],
-            'note' => ['nullable','string','max:2000'],
+            'date' => ['required', 'date'],
+            'type' => ['required', Rule::in(['workday', 'rest'])],
+            'is_paid' => ['nullable', 'boolean'],
+            'paid_minutes' => ['nullable', 'integer', 'min:0', 'max:1440'],
+            'note' => ['nullable', 'string', 'max:2000'],
         ]);
 
         // Si es workday, is_paid/paid_minutes no aplican
@@ -245,11 +258,11 @@ class EmployeesController extends Controller
             $data['is_paid'] = false;
             $data['paid_minutes'] = null;
         } else {
-            $data['is_paid'] = (bool)($data['is_paid'] ?? false);
+            $data['is_paid'] = (bool) ($data['is_paid'] ?? false);
             // paid_minutes puede ser null => usar daily_hours*60 en cálculos
         }
 
-        $ov = \App\Models\EmployeeCalendarOverride::updateOrCreate(
+        $ov = EmployeeCalendarOverride::updateOrCreate(
             [
                 'empresa_id' => $u->empresa_id,
                 'empleado_id' => $emp->id,
@@ -264,15 +277,15 @@ class EmployeesController extends Controller
         );
 
         return response()->json([
-            'message'=>'Override saved',
+            'message' => 'Override saved',
             'override' => [
-                'id'=>$ov->id,
-                'date'=>$ov->date?->toDateString(),
-                'type'=>$ov->type,
-                'is_paid'=>$ov->is_paid,
-                'paid_minutes'=>$ov->paid_minutes,
-                'note'=>$ov->note,
-            ]
+                'id' => $ov->id,
+                'date' => $ov->date?->toDateString(),
+                'type' => $ov->type,
+                'is_paid' => $ov->is_paid,
+                'paid_minutes' => $ov->paid_minutes,
+                'note' => $ov->note,
+            ],
         ]);
     }
 }

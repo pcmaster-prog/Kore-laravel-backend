@@ -3,21 +3,20 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\SendWelcomeEmail;
 use App\Models\Application;
 use App\Models\ApplicationDocument;
 use App\Models\ApplicationStatusLog;
 use App\Models\Empleado;
-use App\Models\EmpleadoModulo;
 use App\Models\Interview;
 use App\Models\JobOpening;
+use App\Models\UserActivationToken;
 use App\Services\AtsNotificationService;
 use App\Services\EmployeeOnboardingService;
 use App\Services\SecureFileStorage;
 use App\Services\WhatsAppNotificationService;
-use App\Models\UserActivationToken;
-use App\Jobs\SendWelcomeEmail;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 
@@ -106,14 +105,41 @@ class ApplicationController extends Controller
             return response()->json(['message' => 'Ya te has postulado a esta vacante.'], 409);
         }
 
+        $contactInfo = $validated['contact_info'] ?? [];
+        $isRehire = false;
+        $blacklistAlert = false;
+
+        $email = $request->user()->email;
+        $rfc = $contactInfo['rfc'] ?? null;
+        $curp = $contactInfo['curp'] ?? null;
+
+        $previousEmpleado = Empleado::withTrashed()
+            ->where('empresa_id', $job->empresa_id)
+            ->where(function ($q) use ($email, $rfc, $curp) {
+                $q->whereHas('user', fn ($u) => $u->where('email', $email));
+                if ($rfc) {
+                    $q->orWhere('rfc', $rfc);
+                }
+                if ($curp) {
+                    $q->orWhere('curp', $curp);
+                }
+            })->latest()->first();
+
+        if ($previousEmpleado) {
+            $isRehire = true;
+            $blacklistAlert = true; // El usuario solicitó alerta para cualquier ex-empleado
+        }
+
         $app = Application::create([
             'empresa_id' => $job->empresa_id,
             'job_opening_id' => $job->id,
             'user_id' => $request->user()->id,
             'status' => 'new',
-            'contact_info' => $validated['contact_info'] ?? [],
+            'contact_info' => $contactInfo,
             'education' => $validated['education'] ?? [],
             'experience' => $validated['experience'] ?? [],
+            'is_rehire' => $isRehire,
+            'blacklist_alert' => $blacklistAlert,
         ]);
 
         Log::info('Application created', [
@@ -159,7 +185,7 @@ class ApplicationController extends Controller
         try {
             $app->load('offer');
         } catch (\Exception $e) {
-            Log::warning('Could not load offer relationship: ' . $e->getMessage());
+            Log::warning('Could not load offer relationship: '.$e->getMessage());
         }
 
         return response()->json(['data' => $app]);
@@ -180,9 +206,9 @@ class ApplicationController extends Controller
         ]);
 
         $app->update([
-            'contact_info' => array_merge($app->contact_info ?? [], \Illuminate\Support\Arr::except($validated, ['education', 'experience'])),
-            'education' => !empty($validated['education']) ? [$validated['education']] : [],
-            'experience' => !empty($validated['experience']) ? [$validated['experience']] : [],
+            'contact_info' => array_merge($app->contact_info ?? [], Arr::except($validated, ['education', 'experience'])),
+            'education' => ! empty($validated['education']) ? [$validated['education']] : [],
+            'experience' => ! empty($validated['experience']) ? [$validated['experience']] : [],
         ]);
 
         return response()->json(['data' => $app]);
@@ -311,6 +337,7 @@ class ApplicationController extends Controller
             // If no correctIndex is set, the question is informational – always counts as correct.
             if (! array_key_exists('correctIndex', $question) || $question['correctIndex'] === null || $question['correctIndex'] === '') {
                 $correct++;
+
                 continue;
             }
 
@@ -641,7 +668,7 @@ class ApplicationController extends Controller
         }
 
         try {
-            $service = new EmployeeOnboardingService();
+            $service = new EmployeeOnboardingService;
             $service->create($app, $request->user(), [
                 'salary' => $validated['salary'],
                 'trial_months' => $validated['trial_period_months'],
@@ -664,7 +691,7 @@ class ApplicationController extends Controller
 
             return response()->json([
                 'message' => 'Candidato contratado a prueba exitosamente.',
-                'data' => ['activation_token' => $token->token]
+                'data' => ['activation_token' => $token->token],
             ]);
         } catch (\Exception $e) {
             Log::error('Error en hireTrial: '.$e->getMessage());
@@ -775,7 +802,7 @@ class ApplicationController extends Controller
         }
 
         try {
-            $service = new EmployeeOnboardingService();
+            $service = new EmployeeOnboardingService;
             $service->rehire($app, $request->user(), $previousEmpleado, [
                 'salary' => $validated['salary'],
                 'modules' => $validated['modules'] ?? [],
@@ -791,7 +818,7 @@ class ApplicationController extends Controller
 
             return response()->json([
                 'message' => 'Ex-empleado recontratado exitosamente.',
-                'data' => ['activation_token' => $token->token]
+                'data' => ['activation_token' => $token->token],
             ]);
         } catch (\Exception $e) {
             Log::error('Error en rehire: '.$e->getMessage());

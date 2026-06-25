@@ -12,19 +12,19 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('empresas', function (Blueprint $table) {
-            if (!Schema::hasColumn('empresas', 'plan')) {
+            if (! Schema::hasColumn('empresas', 'plan')) {
                 $table->string('plan', 20)->default('starter');
             }
-            if (!Schema::hasColumn('empresas', 'logo_url')) {
+            if (! Schema::hasColumn('empresas', 'logo_url')) {
                 $table->string('logo_url', 500)->nullable();
             }
-            if (!Schema::hasColumn('empresas', 'industry')) {
+            if (! Schema::hasColumn('empresas', 'industry')) {
                 $table->string('industry', 100)->nullable();
             }
-            if (!Schema::hasColumn('empresas', 'employee_count_range')) {
+            if (! Schema::hasColumn('empresas', 'employee_count_range')) {
                 $table->string('employee_count_range', 20)->nullable();
             }
-            if (!Schema::hasColumn('empresas', 'allowed_ip')) {
+            if (! Schema::hasColumn('empresas', 'allowed_ip')) {
                 $table->string('allowed_ip', 45)->nullable();
             }
         });
@@ -41,7 +41,7 @@ return new class extends Migration
                 'logo_url',
                 'industry',
                 'employee_count_range',
-                'allowed_ip'
+                'allowed_ip',
             ]);
         });
     }

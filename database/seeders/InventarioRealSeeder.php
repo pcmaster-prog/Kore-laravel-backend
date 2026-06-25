@@ -11,7 +11,7 @@ class InventarioRealSeeder extends Seeder
     /**
      * Carga el inventario REAL de DecorArte a partir de la foto del 17/06/2026
      * y los datos del Excel de Pino Gordo.
-     * 
+     *
      * Ejecutar: php artisan db:seed --class=InventarioRealSeeder
      */
     public function run(): void
@@ -83,7 +83,7 @@ class InventarioRealSeeder extends Seeder
                 ->where('categoria', $p['categoria'])
                 ->exists();
 
-            if (!$exists) {
+            if (! $exists) {
                 $p['empresa_id'] = $empresaId;
                 $p['stock_armadas'] = 0;
                 $p['stock_bolsas'] = 0;
@@ -163,13 +163,12 @@ class InventarioRealSeeder extends Seeder
             ->where('tipo', 'palo')
             ->update(['stock_actual' => 0]);
 
-
         // 8. CREACIÓN DE PEDIDO MANUAL PARA PINO GORDO
         $this->command->info('Generando pedido manual para Pino Gordo...');
 
         $pedidoId = DB::table('pedidos_madera')->insertGetId([
             'empresa_id' => $empresaId,
-            'codigo' => 'PED-MANUAL-' . strtoupper(Str::random(5)),
+            'codigo' => 'PED-MANUAL-'.strtoupper(Str::random(5)),
             'status' => 'pendiente',
             'total' => 0, // Se actualizará si hay precios
             'fecha_pedido' => now(),

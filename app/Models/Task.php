@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Task extends Model
@@ -11,8 +11,8 @@ class Task extends Model
     use HasUuids, SoftDeletes;
 
     protected $fillable = [
-        'empresa_id','created_by','title','description','priority','status','due_at','meta',
-        'area_id','section_id','gondola_orden_id','task_source','actual_minutes','started_at','incident_count'
+        'empresa_id', 'created_by', 'title', 'description', 'priority', 'status', 'due_at', 'meta',
+        'area_id', 'section_id', 'gondola_orden_id', 'task_source', 'actual_minutes', 'started_at', 'incident_count',
     ];
 
     protected $casts = [
@@ -24,7 +24,7 @@ class Task extends Model
 
     public function getAssigneeNameAttribute()
     {
-        if (!$this->relationLoaded('assignees')) {
+        if (! $this->relationLoaded('assignees')) {
             $a = $this->assignees()->with('empleado')->get();
         } else {
             $a = $this->assignees;
@@ -34,9 +34,9 @@ class Task extends Model
             return null;
         }
 
-        $names = $a->map(fn($item) => $item->empleado?->full_name)
-                  ->filter()
-                  ->implode(', ');
+        $names = $a->map(fn ($item) => $item->empleado?->full_name)
+            ->filter()
+            ->implode(', ');
 
         return $names ?: null;
     }
@@ -46,6 +46,7 @@ class Task extends Model
         if (array_key_exists('has_evidence', $this->attributes)) {
             return (bool) $this->attributes['has_evidence'];
         }
+
         return $this->evidences()->exists();
     }
 

@@ -11,6 +11,7 @@ use App\Models\LateArrivalRequest;
 use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 
 class LateArrivalRequestController extends Controller
@@ -108,7 +109,7 @@ class LateArrivalRequestController extends Controller
             SendPushNotificationToManagers::dispatch(
                 $empresaId,
                 '🚨 Solicitud de oportunidad',
-                ($emp->full_name ?? $u->name) . ' solicitó oportunidad de entrada para hoy.',
+                ($emp->full_name ?? $u->name).' solicitó oportunidad de entrada para hoy.',
                 [
                     'type' => 'late_arrival_request.pending',
                     'empleado_id' => $emp->id,
@@ -116,7 +117,7 @@ class LateArrivalRequestController extends Controller
                 ]
             );
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error('Error notificando solicitud de oportunidad: ' . $e->getMessage());
+            Log::error('Error notificando solicitud de oportunidad: '.$e->getMessage());
         }
 
         return response()->json([
@@ -211,7 +212,7 @@ class LateArrivalRequestController extends Controller
             $u->empresa_id,
             $u->id,
             $emp?->id,
-            'late_arrival_request.' . $req->status,
+            'late_arrival_request.'.$req->status,
             'late_arrival_request',
             $req->id,
             [
@@ -238,12 +239,12 @@ class LateArrivalRequestController extends Controller
                     $title,
                     $body,
                     [
-                        'type' => 'late_arrival_request.' . $req->status,
+                        'type' => 'late_arrival_request.'.$req->status,
                         'request_id' => $req->id,
                     ]
                 );
             } catch (\Throwable $e) {
-                \Illuminate\Support\Facades\Log::error('Error notificando resolución de oportunidad: ' . $e->getMessage());
+                Log::error('Error notificando resolución de oportunidad: '.$e->getMessage());
             }
         }
 

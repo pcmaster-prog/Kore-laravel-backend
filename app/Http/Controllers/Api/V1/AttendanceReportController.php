@@ -3,22 +3,21 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\DB;
+use App\Models\AttendanceAbsenceRequest;
+use App\Models\AttendanceDay;
+use App\Models\Empleado;
+use App\Models\EmployeeCalendarOverride;
+use App\Models\Holiday;
+use App\Models\MealSchedule;
+use App\Services\ActivityLogger;
+use App\Services\AttendanceService;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
-
-use App\Models\AttendanceDay;
-use App\Models\AttendanceEvent;
-use App\Models\Empleado;
-use App\Models\User;
-use App\Models\MealSchedule;
-use App\Models\Holiday;
-use App\Models\EmployeeCalendarOverride;
-use App\Models\AttendanceAbsenceRequest;
-use App\Services\AttendanceService;
-use App\Services\ActivityLogger;
+use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 class AttendanceReportController extends Controller
 {
@@ -30,8 +29,8 @@ class AttendanceReportController extends Controller
         Gate::authorize('supervisor');
 
         $data = $request->validate([
-            'date'   => ['required', 'date_format:Y-m-d'],
-            'time'   => ['nullable', 'date_format:H:i'],
+            'date' => ['required', 'date_format:Y-m-d'],
+            'time' => ['nullable', 'date_format:H:i'],
             'motivo' => ['required', 'string', 'max:500'],
         ]);
 
@@ -57,7 +56,7 @@ class AttendanceReportController extends Controller
         $closedCount = 0;
         $employeeNames = [];
         $closeTime = isset($data['time'])
-            ? Carbon::parse($date . ' ' . $data['time'])
+            ? Carbon::parse($date.' '.$data['time'])
             : now();
 
         foreach ($days as $day) {
@@ -80,20 +79,20 @@ class AttendanceReportController extends Controller
             'attendance_day',
             null,
             [
-                'date'          => $date,
-                'time'          => $closeTime->format('H:i'),
-                'motivo'        => $motivo,
-                'closed_count'  => $closedCount,
-                'employee_names'=> $employeeNames,
-                'closed_by'     => $u->name,
+                'date' => $date,
+                'time' => $closeTime->format('H:i'),
+                'motivo' => $motivo,
+                'closed_count' => $closedCount,
+                'employee_names' => $employeeNames,
+                'closed_by' => $u->name,
             ],
             $request
         );
 
         return response()->json([
-            'message'      => "Se cerraron {$closedCount} jornadas correctamente",
+            'message' => "Se cerraron {$closedCount} jornadas correctamente",
             'closed_count' => $closedCount,
-            'employees'    => $employeeNames,
+            'employees' => $employeeNames,
         ]);
     }
 
@@ -106,9 +105,9 @@ class AttendanceReportController extends Controller
             Gate::authorize('supervisor');
 
             $data = $request->validate([
-                'from'                => ['required', 'date_format:Y-m-d'],
-                'to'                  => ['required', 'date_format:Y-m-d', 'after_or_equal:from'],
-                'empleado_ids'        => ['nullable', 'string'],
+                'from' => ['required', 'date_format:Y-m-d'],
+                'to' => ['required', 'date_format:Y-m-d', 'after_or_equal:from'],
+                'empleado_ids' => ['nullable', 'string'],
             ]);
 
             $u = $request->user();
@@ -119,19 +118,19 @@ class AttendanceReportController extends Controller
             $incluirRetardos = in_array(strtolower($request->input('incluir_retardos', '')), ['true', '1', 'yes'], true);
             $incluirComida = in_array(strtolower($request->input('incluir_tiempos_comida', '')), ['true', '1', 'yes'], true);
             $incluirAdmins = in_array(strtolower($request->input('incluir_admins', '')), ['true', '1', 'yes'], true);
-            $tieneFiltroIds = !empty($data['empleado_ids']);
+            $tieneFiltroIds = ! empty($data['empleado_ids']);
 
             // Empleados a consultar
             $empleadoQuery = Empleado::where('empresa_id', $empresaId)
                 ->whereHas('user', function ($q) use ($incluirAdmins, $tieneFiltroIds) {
                     $q->where('is_active', true);
                     // Si no se filtra por IDs específicos y no se piden admins, excluir roles admin/supervisor
-                    if (!$tieneFiltroIds && !$incluirAdmins) {
+                    if (! $tieneFiltroIds && ! $incluirAdmins) {
                         $q->whereNotIn('role', ['admin', 'supervisor']);
                     }
                 });
 
-            if (!empty($data['empleado_ids'])) {
+            if (! empty($data['empleado_ids'])) {
                 $ids = array_filter(explode(',', $data['empleado_ids']));
                 $empleadoQuery->whereIn('id', $ids);
             }
@@ -139,7 +138,7 @@ class AttendanceReportController extends Controller
             $empleados = $empleadoQuery->with('user')->get();
 
             // Validar que los empleado_ids pertenezcan a la empresa
-            if (!empty($data['empleado_ids'])) {
+            if (! empty($data['empleado_ids'])) {
                 $ids = array_filter(explode(',', $data['empleado_ids']));
                 $countValid = Empleado::where('empresa_id', $empresaId)->whereIn('id', $ids)->count();
                 if ($countValid !== count($ids)) {
@@ -188,23 +187,24 @@ class AttendanceReportController extends Controller
 
             return response()->json([
                 'semana' => (int) $mondayReference->format('W'),
-                'anio'   => (int) $mondayReference->format('o'),
-                'rango'  => [
+                'anio' => (int) $mondayReference->format('o'),
+                'rango' => [
                     'desde' => $from->toDateString(),
                     'hasta' => $to->toDateString(),
                 ],
-                'filas'  => $filas,
+                'filas' => $filas,
             ]);
-        } catch (\Illuminate\Validation\ValidationException $e) {
+        } catch (ValidationException $e) {
             throw $e;
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error('ERROR asistenciaSemanal: ' . $e->getMessage(), [
+            Log::error('ERROR asistenciaSemanal: '.$e->getMessage(), [
                 'trace' => $e->getTraceAsString(),
             ]);
+
             return response()->json([
-                'message' => 'Error interno: ' . $e->getMessage(),
-                'file'    => $e->getFile(),
-                'line'    => $e->getLine(),
+                'message' => 'Error interno: '.$e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
             ], 500);
         }
     }
@@ -217,8 +217,8 @@ class AttendanceReportController extends Controller
         Gate::authorize('supervisor');
 
         $data = $request->validate([
-            'from'                => ['required', 'date_format:Y-m-d'],
-            'to'                  => ['required', 'date_format:Y-m-d', 'after_or_equal:from'],
+            'from' => ['required', 'date_format:Y-m-d'],
+            'to' => ['required', 'date_format:Y-m-d', 'after_or_equal:from'],
         ]);
 
         $u = $request->user();
@@ -230,7 +230,7 @@ class AttendanceReportController extends Controller
         $incluirComida = in_array(strtolower($request->input('incluir_tiempos_comida', '')), ['true', '1', 'yes'], true);
 
         $emp = Empleado::where('empresa_id', $empresaId)->where('id', $empleadoId)->first();
-        if (!$emp) {
+        if (! $emp) {
             return response()->json(['message' => 'Empleado no encontrado'], 404);
         }
 
@@ -244,7 +244,7 @@ class AttendanceReportController extends Controller
             ->whereDate('date', '>=', $from->toDateString())
             ->whereDate('date', '<=', $to->toDateString())
             ->get()
-            ->keyBy(fn($d) => $d->date->toDateString());
+            ->keyBy(fn ($d) => $d->date->toDateString());
 
         $holidays = Holiday::where('empresa_id', $empresaId)
             ->whereBetween('date', [$from->toDateString(), $to->toDateString()])
@@ -263,7 +263,7 @@ class AttendanceReportController extends Controller
             ->whereBetween('date', [$from->toDateString(), $to->toDateString()])
             ->where('status', 'approved')
             ->get()
-            ->keyBy(fn($ar) => $ar->date->toDateString());
+            ->keyBy(fn ($ar) => $ar->date->toDateString());
 
         $mealSchedule = MealSchedule::where('empresa_id', $empresaId)
             ->where('employee_id', $emp->id)
@@ -271,11 +271,11 @@ class AttendanceReportController extends Controller
 
         $detalle = [];
         $resumen = [
-            'dias_trabajados'         => 0,
-            'dias_faltas'             => 0,
-            'dias_descanso'           => 0,
-            'total_horas'             => 0,
-            'total_retardos'          => 0,
+            'dias_trabajados' => 0,
+            'dias_faltas' => 0,
+            'dias_descanso' => 0,
+            'total_horas' => 0,
+            'total_retardos' => 0,
             'promedio_comida_minutos' => 0,
         ];
         $comidaMinutosList = [];
@@ -332,13 +332,13 @@ class AttendanceReportController extends Controller
             }
 
             $detalle[] = [
-                'fecha'               => $dateStr,
-                'entrada'             => $day?->first_check_in_at?->toISOString(),
-                'salida'              => $day?->last_check_out_at?->toISOString(),
-                'estado'              => $estado,
-                'horas_trabajadas'    => $horasTrabajadas,
+                'fecha' => $dateStr,
+                'entrada' => $day?->first_check_in_at?->toISOString(),
+                'salida' => $day?->last_check_out_at?->toISOString(),
+                'estado' => $estado,
+                'horas_trabajadas' => $horasTrabajadas,
                 'tiempo_comida_minutos' => $tiempoComida,
-                'retardos_minutos'    => $retardosMinutos,
+                'retardos_minutos' => $retardosMinutos,
             ];
         }
 
@@ -348,10 +348,10 @@ class AttendanceReportController extends Controller
 
         return response()->json([
             'empleado' => [
-                'id'             => $emp->id,
-                'nombre'         => $emp->full_name,
+                'id' => $emp->id,
+                'nombre' => $emp->full_name,
                 'position_title' => $emp->position_title,
-                'hired_at'       => $emp->hired_at?->toDateString(),
+                'hired_at' => $emp->hired_at?->toDateString(),
             ],
             'periodo' => [
                 'desde' => $from->toDateString(),
@@ -382,21 +382,21 @@ class AttendanceReportController extends Controller
             ->where('empleado_id', $emp->id)
             ->whereBetween('date', [$from->toDateString(), $to->toDateString()])
             ->get()
-            ->keyBy(fn($d) => $d->date->toDateString());
+            ->keyBy(fn ($d) => $d->date->toDateString());
 
         $empOverrides = EmployeeCalendarOverride::where('empresa_id', $empresaId)
             ->where('empleado_id', $emp->id)
             ->whereBetween('date', [$from->toDateString(), $to->toDateString()])
             ->where('type', 'rest')
             ->get()
-            ->groupBy(fn($ov) => $ov->date->toDateString());
+            ->groupBy(fn ($ov) => $ov->date->toDateString());
 
         $empAbsences = AttendanceAbsenceRequest::where('empresa_id', $empresaId)
             ->where('empleado_id', $emp->id)
             ->whereBetween('date', [$from->toDateString(), $to->toDateString()])
             ->where('status', 'approved')
             ->get()
-            ->groupBy(fn($ar) => $ar->date->toDateString());
+            ->groupBy(fn ($ar) => $ar->date->toDateString());
 
         $mealSchedule = $mealSchedules->get($emp->id);
 
@@ -419,6 +419,7 @@ class AttendanceReportController extends Controller
             // Si está fuera del rango solicitado → null
             if ($currentDate->lt($from) || $currentDate->gt($to)) {
                 $dias[$nombreDia] = null;
+
                 continue;
             }
 
@@ -453,26 +454,26 @@ class AttendanceReportController extends Controller
             $totalHoras += $horasTrabajadas;
 
             $dias[$nombreDia] = [
-                'dia'                   => $nombreDia,
-                'fecha'                 => $currentDateStr,
-                'entrada'               => $day?->first_check_in_at?->toISOString(),
-                'salida'                => $day?->last_check_out_at?->toISOString(),
-                'estado'                => $estado,
-                'horas_trabajadas'      => $horasTrabajadas,
+                'dia' => $nombreDia,
+                'fecha' => $currentDateStr,
+                'entrada' => $day?->first_check_in_at?->toISOString(),
+                'salida' => $day?->last_check_out_at?->toISOString(),
+                'estado' => $estado,
+                'horas_trabajadas' => $horasTrabajadas,
                 'tiempo_comida_minutos' => $tiempoComida,
             ];
         }
 
         return [
             'empleado' => [
-                'id'             => $emp->id,
-                'nombre'         => $emp->full_name,
-                'comida_hora'    => $mealSchedule?->meal_start_time,
+                'id' => $emp->id,
+                'nombre' => $emp->full_name,
+                'comida_hora' => $mealSchedule?->meal_start_time,
                 'position_title' => $emp->position_title,
             ],
-            'dias'          => $dias,
-            'total_horas'   => $totalHoras,
-            'total_retardos'=> $totalRetardos,
+            'dias' => $dias,
+            'total_horas' => $totalHoras,
+            'total_retardos' => $totalRetardos,
         ];
     }
 
@@ -486,14 +487,14 @@ class AttendanceReportController extends Controller
         $absenceRequests
     ): string {
         // 1. Ausencias aprobadas (vacaciones / incapacidad)
-        $absences = $absenceRequests instanceof \Illuminate\Support\Collection
+        $absences = $absenceRequests instanceof Collection
             ? $absenceRequests->get($date, collect())
             : ($absenceRequests[$date] ?? collect());
 
         $firstAbsence = null;
-        if ($absences instanceof \Illuminate\Support\Collection && $absences->isNotEmpty()) {
+        if ($absences instanceof Collection && $absences->isNotEmpty()) {
             $firstAbsence = $absences->first();
-        } elseif (is_array($absences) && !empty($absences)) {
+        } elseif (is_array($absences) && ! empty($absences)) {
             $firstAbsence = reset($absences);
         }
 
@@ -513,7 +514,7 @@ class AttendanceReportController extends Controller
         }
 
         // 3. Descanso (override o day_off)
-        $ov = $overrides instanceof \Illuminate\Support\Collection
+        $ov = $overrides instanceof Collection
             ? $overrides->get($date)
             : ($overrides[$date] ?? null);
 
@@ -522,7 +523,7 @@ class AttendanceReportController extends Controller
         }
 
         // 4. Si no hay registro de asistencia → falta
-        if (!$day) {
+        if (! $day) {
             return 'falta';
         }
 
@@ -541,6 +542,7 @@ class AttendanceReportController extends Controller
             if ($day->late_minutes > 0) {
                 return 'retardo';
             }
+
             return 'presente';
         }
 
@@ -548,6 +550,7 @@ class AttendanceReportController extends Controller
         if ($day->late_minutes > 0) {
             return 'retardo';
         }
+
         return 'en_turno';
     }
 
@@ -557,7 +560,7 @@ class AttendanceReportController extends Controller
             return (int) round($day->lunch_start_at->diffInMinutes($day->lunch_end_at));
         }
 
-        if ($day && $day->lunch_start_at && !$day->lunch_end_at) {
+        if ($day && $day->lunch_start_at && ! $day->lunch_end_at) {
             return (int) round($day->lunch_start_at->diffInMinutes(now()));
         }
 

@@ -1,16 +1,18 @@
 <?php
-//TaskReviewsController: revisión de tareas por parte de supervisores y admins, cola de revisión, aprobación/rechazo, visualización de evidencias
+
+// TaskReviewsController: revisión de tareas por parte de supervisores y admins, cola de revisión, aprobación/rechazo, visualización de evidencias
+
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
+use App\Http\Resources\EvidenceResource;
+use App\Http\Resources\TaskAssigneeResource;
+use App\Models\Evidence;
 use App\Models\Task;
 use App\Models\TaskAssignee;
-use App\Models\Evidence;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
-use App\Http\Resources\TaskAssigneeResource;
-use App\Http\Resources\EvidenceResource;
+use Illuminate\Validation\Rule;
 
 class TaskReviewsController extends Controller
 {
@@ -31,15 +33,13 @@ class TaskReviewsController extends Controller
 
         if ($request->filled('date')) {
             $date = $request->string('date');
-            $query->whereHas('task', fn($t) =>
-                $t->whereRaw("meta->>'catalog_date' = ?", [$date])
+            $query->whereHas('task', fn ($t) => $t->whereRaw("meta->>'catalog_date' = ?", [$date])
             );
         }
 
         if ($request->filled('search')) {
             $s = $request->string('search');
-            $query->whereHas('task', fn($t) =>
-                $t->where('title', 'ilike', "%{$s}%")
+            $query->whereHas('task', fn ($t) => $t->where('title', 'ilike', "%{$s}%")
             );
         }
 
@@ -61,7 +61,7 @@ class TaskReviewsController extends Controller
             ->with(['task', 'empleado'])
             ->first();
 
-        if (!$a) {
+        if (! $a) {
             return response()->json(['message' => 'Asignación no encontrada'], 404);
         }
 
@@ -73,7 +73,7 @@ class TaskReviewsController extends Controller
             ->where('task_assignee_id', $a->id)
             ->exists();
 
-        if (!$hasEvidence) {
+        if (! $hasEvidence) {
             return response()->json(['message' => 'No puedes aprobar sin evidencia ligada.'], 422);
         }
 
@@ -95,7 +95,7 @@ class TaskReviewsController extends Controller
         return response()->json([
             'message' => $data['action'] === 'approve' ? 'Aprobada ✅' : 'Rechazada ❌',
             'assignment_id' => $a->id,
-            'review_status' => $a->review_status
+            'review_status' => $a->review_status,
         ]);
     }
 
@@ -105,7 +105,7 @@ class TaskReviewsController extends Controller
 
         $u = $request->user();
         $task = Task::where('empresa_id', $u->empresa_id)->where('id', $id)->first();
-        if (!$task) {
+        if (! $task) {
             return response()->json(['message' => 'Tarea no encontrada'], 404);
         }
 
@@ -119,7 +119,9 @@ class TaskReviewsController extends Controller
 
     private function evidenceFileUrl(Evidence $evidence): ?string
     {
-        if (!$evidence->path) return null;
+        if (! $evidence->path) {
+            return null;
+        }
 
         if ($evidence->disk === 's3') {
             try {
@@ -129,7 +131,8 @@ class TaskReviewsController extends Controller
                     ['ResponseContentDisposition' => 'inline']
                 );
             } catch (\Exception $ex) {
-                \Log::warning("Error URL temporal evidence {$evidence->id}: " . $ex->getMessage());
+                \Log::warning("Error URL temporal evidence {$evidence->id}: ".$ex->getMessage());
+
                 return null;
             }
         }
@@ -137,7 +140,8 @@ class TaskReviewsController extends Controller
         try {
             return \Storage::url($evidence->path);
         } catch (\Exception $ex) {
-            \Log::warning("Error URL evidence {$evidence->id}: " . $ex->getMessage());
+            \Log::warning("Error URL evidence {$evidence->id}: ".$ex->getMessage());
+
             return null;
         }
     }

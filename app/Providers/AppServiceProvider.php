@@ -4,8 +4,12 @@ namespace App\Providers;
 
 use App\Events\AttendanceCheckedIn;
 use App\Events\TaskAssigned;
-use App\Listeners\SendTaskAssignedNotification;
 use App\Listeners\AssignTasksOnCheckIn;
+use App\Listeners\SendTaskAssignedNotification;
+use App\Models\Empleado;
+use App\Models\PayrollEntry;
+use App\Models\PayrollPeriod;
+use App\Models\User;
 use App\Observers\AuditObserver;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -29,10 +33,10 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         // ── Section 2.3: Audit logging via observers ─────────────────────
-        \App\Models\User::observe(AuditObserver::class);
-        \App\Models\Empleado::observe(AuditObserver::class);
-        \App\Models\PayrollPeriod::observe(AuditObserver::class);
-        \App\Models\PayrollEntry::observe(AuditObserver::class);
+        User::observe(AuditObserver::class);
+        Empleado::observe(AuditObserver::class);
+        PayrollPeriod::observe(AuditObserver::class);
+        PayrollEntry::observe(AuditObserver::class);
 
         // ── Event listeners ──────────────────────────────────────────────
         Event::listen(TaskAssigned::class, SendTaskAssignedNotification::class);

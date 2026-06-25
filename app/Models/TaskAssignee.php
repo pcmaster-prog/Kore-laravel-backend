@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class TaskAssignee extends Model
@@ -11,6 +11,7 @@ class TaskAssignee extends Model
     use HasUuids;
 
     public $incrementing = false;
+
     protected $keyType = 'string';
 
     protected $fillable = [
@@ -50,7 +51,7 @@ class TaskAssignee extends Model
 
     public function reviewer(): BelongsTo
     {
-        return $this->belongsTo(\App\Models\User::class, 'reviewed_by', 'id');
+        return $this->belongsTo(User::class, 'reviewed_by', 'id');
     }
 
     public function evidences()

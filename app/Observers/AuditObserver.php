@@ -4,6 +4,7 @@ namespace App\Observers;
 
 use App\Models\AuditLog;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Generic audit observer for sensitive models.
@@ -30,10 +31,10 @@ class AuditObserver
 
         $this->logAction($model, 'updated', [
             'changed_fields' => array_keys($model->getChanges()),
-            'old_values'     => collect($model->getOriginal())
+            'old_values' => collect($model->getOriginal())
                 ->only(array_keys($model->getChanges()))
                 ->toArray(),
-            'new_values'     => $model->getChanges(),
+            'new_values' => $model->getChanges(),
         ]);
     }
 
@@ -44,22 +45,22 @@ class AuditObserver
 
     private function logAction(Model $model, string $action, array $extraMeta = []): void
     {
-        $userId   = auth()->id();
+        $userId = auth()->id();
         $empresaId = $model->empresa_id ?? $model->getAttribute('empresa_id') ?? null;
 
         // No registrar si no hay usuario autenticado (ej. seeders, commands)
-        if (!$userId) {
+        if (! $userId) {
             return;
         }
 
         try {
             AuditLog::create([
-                'empresa_id'    => $empresaId,
+                'empresa_id' => $empresaId,
                 'actor_user_id' => $userId,
-                'action'        => class_basename($model) . '.' . $action,
-                'entity_type'   => get_class($model),
-                'entity_id'     => $model->getKey(),
-                'meta'          => array_merge([
+                'action' => class_basename($model).'.'.$action,
+                'entity_type' => get_class($model),
+                'entity_id' => $model->getKey(),
+                'meta' => array_merge([
                     'model_data' => $action === 'deleted'
                         ? $model->toArray()
                         : null,
@@ -67,7 +68,7 @@ class AuditObserver
             ]);
         } catch (\Throwable $e) {
             // Nunca dejar que un fallo de auditoría rompa la operación principal
-            \Illuminate\Support\Facades\Log::error('AuditObserver error: ' . $e->getMessage());
+            Log::error('AuditObserver error: '.$e->getMessage());
         }
     }
 }

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Application;
 use App\Models\ApplicationDocument;
 use App\Models\ApplicationOffer;
+use App\Models\ApplicationStatusLog;
 use App\Models\UserActivationToken;
 use App\Services\AtsNotificationService;
 use App\Services\EmployeeOnboardingService;
@@ -62,7 +63,7 @@ class ApplicationOfferController extends Controller
 
         $app->update(['status' => 'offer-sent']);
 
-        \App\Models\ApplicationStatusLog::create([
+        ApplicationStatusLog::create([
             'application_id' => $app->id,
             'from_status' => $oldStatus,
             'to_status' => 'offer-sent',
@@ -81,8 +82,7 @@ class ApplicationOfferController extends Controller
     {
         Gate::authorize('manage-users');
 
-        $offer = ApplicationOffer::whereHas('application', fn ($q) =>
-            $q->where('empresa_id', $request->user()->empresa_id)
+        $offer = ApplicationOffer::whereHas('application', fn ($q) => $q->where('empresa_id', $request->user()->empresa_id)
         )->where('application_id', $id)->first();
 
         if (! $offer) {
@@ -145,7 +145,7 @@ class ApplicationOfferController extends Controller
                 'accepted_at' => now(),
             ]);
 
-            $service = new EmployeeOnboardingService();
+            $service = new EmployeeOnboardingService;
             $service->create($app, $offer->creator ?? $request->user(), [
                 'salary' => $offer->salary,
                 'trial_months' => $offer->trial_months,
@@ -226,7 +226,7 @@ class ApplicationOfferController extends Controller
         $oldStatus = $app->status;
         $app->update(['status' => 'rejected']);
 
-        \App\Models\ApplicationStatusLog::create([
+        ApplicationStatusLog::create([
             'application_id' => $app->id,
             'from_status' => $oldStatus,
             'to_status' => 'rejected',

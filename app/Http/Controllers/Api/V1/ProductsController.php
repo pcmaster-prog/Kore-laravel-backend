@@ -3,11 +3,11 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Gate;
+use App\Models\GondolaOrden;
 use App\Models\Product;
-use App\Models\Gondola;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Storage;
 
 class ProductsController extends Controller
 {
@@ -20,7 +20,7 @@ class ProductsController extends Controller
     {
         $user = $request->user();
 
-        if (!in_array($user->role, ['admin', 'supervisor'])) {
+        if (! in_array($user->role, ['admin', 'supervisor'])) {
             return response()->json(['message' => 'Acceso denegado.'], 403);
         }
 
@@ -37,7 +37,7 @@ class ProductsController extends Controller
             $search = $request->input('search');
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'ilike', "%{$search}%")
-                  ->orWhere('sku', 'ilike', "%{$search}%");
+                    ->orWhere('sku', 'ilike', "%{$search}%");
             });
         }
 
@@ -59,25 +59,25 @@ class ProductsController extends Controller
     {
         $user = $request->user();
 
-        if (!in_array($user->role, ['admin', 'supervisor'])) {
+        if (! in_array($user->role, ['admin', 'supervisor'])) {
             return response()->json(['message' => 'Acceso denegado.'], 403);
         }
 
         $data = $request->validate([
-            'sku'          => ['nullable', 'string', 'max:50'],
-            'name'         => ['required', 'string', 'max:150'],
-            'description'  => ['nullable', 'string'],
+            'sku' => ['nullable', 'string', 'max:50'],
+            'name' => ['required', 'string', 'max:150'],
+            'description' => ['nullable', 'string'],
             'default_unit' => ['required', 'string', 'in:pz,kg,caja,media_caja'],
-            'photo'        => ['nullable', 'file', 'image', 'max:2048'],
+            'photo' => ['nullable', 'file', 'image', 'max:2048'],
         ]);
 
         $product = Product::create([
-            'empresa_id'   => $user->empresa_id,
-            'sku'          => $data['sku'] ?? null,
-            'name'         => $data['name'],
-            'description'  => $data['description'] ?? null,
+            'empresa_id' => $user->empresa_id,
+            'sku' => $data['sku'] ?? null,
+            'name' => $data['name'],
+            'description' => $data['description'] ?? null,
             'default_unit' => $data['default_unit'],
-            'is_active'    => true,
+            'is_active' => true,
         ]);
 
         if ($request->hasFile('photo')) {
@@ -115,22 +115,22 @@ class ProductsController extends Controller
     {
         $user = $request->user();
 
-        if (!in_array($user->role, ['admin', 'supervisor'])) {
+        if (! in_array($user->role, ['admin', 'supervisor'])) {
             return response()->json(['message' => 'Acceso denegado.'], 403);
         }
 
         $product = Product::where('empresa_id', $user->empresa_id)->findOrFail($id);
 
         $data = $request->validate([
-            'sku'          => ['sometimes', 'nullable', 'string', 'max:50'],
-            'name'         => ['sometimes', 'string', 'max:150'],
-            'description'  => ['sometimes', 'nullable', 'string'],
+            'sku' => ['sometimes', 'nullable', 'string', 'max:50'],
+            'name' => ['sometimes', 'string', 'max:150'],
+            'description' => ['sometimes', 'nullable', 'string'],
             'default_unit' => ['sometimes', 'string', 'in:pz,kg,caja,media_caja'],
-            'photo'        => ['sometimes', 'nullable', 'file', 'image', 'max:2048'],
+            'photo' => ['sometimes', 'nullable', 'file', 'image', 'max:2048'],
         ]);
 
         $updateData = array_diff_key($data, array_flip(['photo']));
-        if (!empty($updateData)) {
+        if (! empty($updateData)) {
             $product->update($updateData);
         }
 
@@ -162,7 +162,7 @@ class ProductsController extends Controller
             ->where('activo', true)
             ->pluck('gondola_id');
 
-        $pendientes = \App\Models\GondolaOrden::whereIn('gondola_id', $gondolaIds)
+        $pendientes = GondolaOrden::whereIn('gondola_id', $gondolaIds)
             ->whereIn('status', ['pendiente', 'en_proceso'])
             ->count();
 

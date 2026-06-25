@@ -1,8 +1,6 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -26,12 +24,12 @@ return new class extends Migration
 
             foreach ($missing as $mod) {
                 DB::table('empresa_modules')->insert([
-                    'id'          => (string) Str::uuid(),
-                    'empresa_id'  => $empresaId,
+                    'id' => (string) Str::uuid(),
+                    'empresa_id' => $empresaId,
                     'module_slug' => $mod,
-                    'enabled'     => true,
-                    'created_at'  => now(),
-                    'updated_at'  => now(),
+                    'enabled' => true,
+                    'created_at' => now(),
+                    'updated_at' => now(),
                 ]);
             }
         }

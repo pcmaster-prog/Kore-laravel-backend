@@ -16,8 +16,7 @@ class RejectedMail extends Mailable
         public string $candidateName,
         public string $jobTitle,
         public string $reason,
-    ) {
-    }
+    ) {}
 
     public function envelope(): Envelope
     {

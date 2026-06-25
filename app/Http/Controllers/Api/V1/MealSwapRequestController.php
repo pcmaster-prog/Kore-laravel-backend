@@ -3,13 +3,12 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\Empleado;
+use App\Models\MealSchedule;
+use App\Models\MealSwapRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
-
-use App\Models\MealSwapRequest;
-use App\Models\MealSchedule;
-use App\Models\Empleado;
 
 class MealSwapRequestController extends Controller
 {
@@ -20,16 +19,16 @@ class MealSwapRequestController extends Controller
 
         $data = $request->validate([
             'receptor_id' => ['required', 'uuid'],
-            'fecha'       => ['required', 'date_format:Y-m-d'],
+            'fecha' => ['required', 'date_format:Y-m-d'],
         ]);
 
         $solicitante = Empleado::where('empresa_id', $empresaId)->where('user_id', $u->id)->first();
-        if (!$solicitante) {
+        if (! $solicitante) {
             return response()->json(['message' => 'Empleado no vinculado'], 404);
         }
 
         $receptor = Empleado::where('empresa_id', $empresaId)->where('id', $data['receptor_id'])->first();
-        if (!$receptor) {
+        if (! $receptor) {
             return response()->json(['message' => 'Receptor no encontrado'], 404);
         }
 
@@ -43,9 +42,9 @@ class MealSwapRequestController extends Controller
             ->whereIn('status', ['pending', 'accepted'])
             ->where(function ($q) use ($solicitante, $receptor) {
                 $q->where('solicitante_id', $solicitante->id)
-                  ->orWhere('solicitante_id', $receptor->id)
-                  ->orWhere('receptor_id', $solicitante->id)
-                  ->orWhere('receptor_id', $receptor->id);
+                    ->orWhere('solicitante_id', $receptor->id)
+                    ->orWhere('receptor_id', $solicitante->id)
+                    ->orWhere('receptor_id', $receptor->id);
             })
             ->exists();
 
@@ -54,17 +53,17 @@ class MealSwapRequestController extends Controller
         }
 
         $swap = MealSwapRequest::create([
-            'id'             => Str::uuid(),
-            'empresa_id'     => $empresaId,
+            'id' => Str::uuid(),
+            'empresa_id' => $empresaId,
             'solicitante_id' => $solicitante->id,
-            'receptor_id'    => $receptor->id,
-            'fecha'          => $data['fecha'],
-            'status'         => 'pending',
+            'receptor_id' => $receptor->id,
+            'fecha' => $data['fecha'],
+            'status' => 'pending',
         ]);
 
         return response()->json([
             'message' => 'Solicitud de cambio enviada',
-            'swap'    => $swap->load(['solicitante.user', 'receptor.user']),
+            'swap' => $swap->load(['solicitante.user', 'receptor.user']),
         ], 201);
     }
 
@@ -74,14 +73,14 @@ class MealSwapRequestController extends Controller
         $empresaId = $u->empresa_id;
 
         $emp = Empleado::where('empresa_id', $empresaId)->where('user_id', $u->id)->first();
-        if (!$emp) {
+        if (! $emp) {
             return response()->json(['message' => 'Empleado no vinculado'], 404);
         }
 
         $swaps = MealSwapRequest::where('empresa_id', $empresaId)
             ->where(function ($q) use ($emp) {
                 $q->where('solicitante_id', $emp->id)
-                  ->orWhere('receptor_id', $emp->id);
+                    ->orWhere('receptor_id', $emp->id);
             })
             ->orderByDesc('created_at')
             ->with(['solicitante.user', 'receptor.user', 'reviewedBy'])
@@ -96,7 +95,7 @@ class MealSwapRequestController extends Controller
         $empresaId = $u->empresa_id;
 
         $emp = Empleado::where('empresa_id', $empresaId)->where('user_id', $u->id)->first();
-        if (!$emp) {
+        if (! $emp) {
             return response()->json(['message' => 'Empleado no vinculado'], 404);
         }
 
@@ -106,7 +105,7 @@ class MealSwapRequestController extends Controller
             ->where('status', 'pending')
             ->first();
 
-        if (!$swap) {
+        if (! $swap) {
             return response()->json(['message' => 'Solicitud no encontrada o no puedes aceptarla'], 404);
         }
 
@@ -115,7 +114,7 @@ class MealSwapRequestController extends Controller
 
         return response()->json([
             'message' => 'Solicitud aceptada. Esperando aprobación del supervisor.',
-            'swap'    => $swap->load(['solicitante.user', 'receptor.user']),
+            'swap' => $swap->load(['solicitante.user', 'receptor.user']),
         ]);
     }
 
@@ -148,7 +147,7 @@ class MealSwapRequestController extends Controller
             ->where('status', 'accepted')
             ->first();
 
-        if (!$swap) {
+        if (! $swap) {
             return response()->json(['message' => 'Solicitud no encontrada o no está lista para revisión'], 404);
         }
 
@@ -173,7 +172,7 @@ class MealSwapRequestController extends Controller
 
         return response()->json([
             'message' => $data['status'] === 'approved' ? 'Cambio aprobado y horarios intercambiados' : 'Cambio rechazado',
-            'swap'    => $swap->load(['solicitante.user', 'receptor.user', 'reviewedBy']),
+            'swap' => $swap->load(['solicitante.user', 'receptor.user', 'reviewedBy']),
         ]);
     }
 }

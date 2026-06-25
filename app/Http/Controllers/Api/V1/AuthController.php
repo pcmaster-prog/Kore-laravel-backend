@@ -7,12 +7,15 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\Empresa;
 use App\Models\User;
+use App\Traits\HandlesLoginLockout;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
 {
+    use HandlesLoginLockout;
+
     public function login(Request $request)
     {
         $data = $request->validate([
@@ -29,6 +32,10 @@ class AuthController extends Controller
             return response()->json(['message' => 'Credenciales inválidas'], 401);
         }
 
+        if ($message = $this->accountIsLocked($user)) {
+            return response()->json(['message' => $message], 423);
+        }
+
         if (! $user->is_active) {
             return response()->json([
                 'message' => 'Tu cuenta aún no ha sido activada. Revisa tu correo electrónico y usa el enlace de activación.',
@@ -37,8 +44,12 @@ class AuthController extends Controller
         }
 
         if (! Hash::check($data['password'], $user->password)) {
+            $this->recordFailedLogin($user);
+
             return response()->json(['message' => 'Credenciales inválidas'], 401);
         }
+
+        $this->resetFailedLoginAttempts($user);
 
         $token = $user->createToken('kore-api')->plainTextToken;
 

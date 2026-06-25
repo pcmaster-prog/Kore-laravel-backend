@@ -9,21 +9,21 @@ return new class extends Migration
     /**
      * Run the migrations.
      */
-    public function up(): void {
-  Schema::create('audit_logs', function (Blueprint $table) {
-    $table->uuid('id')->primary();
-    $table->foreignUuid('empresa_id')->constrained('empresas')->cascadeOnDelete();
-    $table->foreignUuid('actor_user_id')->nullable()->constrained('users')->nullOnDelete();
-    $table->string('action');
-    $table->string('entity_type')->nullable();
-    $table->string('entity_id')->nullable();
-    $table->jsonb('meta')->nullable();
-    $table->timestamps();
+    public function up(): void
+    {
+        Schema::create('audit_logs', function (Blueprint $table) {
+            $table->uuid('id')->primary();
+            $table->foreignUuid('empresa_id')->constrained('empresas')->cascadeOnDelete();
+            $table->foreignUuid('actor_user_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->string('action');
+            $table->string('entity_type')->nullable();
+            $table->string('entity_id')->nullable();
+            $table->jsonb('meta')->nullable();
+            $table->timestamps();
 
-    $table->index(['empresa_id','action']);
-  });
+            $table->index(['empresa_id', 'action']);
+        });
     }
-
 
     /**
      * Reverse the migrations.

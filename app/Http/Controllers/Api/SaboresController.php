@@ -3,16 +3,15 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-
 use App\Models\PesajeSabor;
+use Illuminate\Http\Request;
 
 class SaboresController extends Controller
 {
     public function index()
     {
         return response()->json([
-            'data' => PesajeSabor::orderBy('nombre')->get()
+            'data' => PesajeSabor::orderBy('nombre')->get(),
         ]);
     }
 

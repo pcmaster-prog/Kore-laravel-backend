@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::table('meal_schedules', function (Blueprint $table) {
             // Drop the old foreign key constraint pointing to users
             $table->dropForeign(['employee_id']);
-            
+
             // Add the new foreign key constraint pointing to empleados
             $table->foreign('employee_id')->references('id')->on('empleados')->onDelete('cascade');
         });

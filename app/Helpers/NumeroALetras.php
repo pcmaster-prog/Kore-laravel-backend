@@ -7,17 +7,17 @@ class NumeroALetras
     private static array $unidades = [
         '', 'Uno', 'Dos', 'Tres', 'Cuatro', 'Cinco', 'Seis', 'Siete', 'Ocho', 'Nueve',
         'Diez', 'Once', 'Doce', 'Trece', 'Catorce', 'Quince', 'Dieciséis', 'Diecisiete',
-        'Dieciocho', 'Diecinueve', 'Veinte'
+        'Dieciocho', 'Diecinueve', 'Veinte',
     ];
 
     private static array $decenas = [
         '', '', 'Veinti', 'Treinta', 'Cuarenta', 'Cincuenta', 'Sesenta', 'Setenta',
-        'Ochenta', 'Noventa'
+        'Ochenta', 'Noventa',
     ];
 
     private static array $centenas = [
         '', 'Ciento', 'Doscientos', 'Trescientos', 'Cuatrocientos', 'Quinientos',
-        'Seiscientos', 'Setecientos', 'Ochocientos', 'Novecientos'
+        'Seiscientos', 'Setecientos', 'Ochocientos', 'Novecientos',
     ];
 
     public static function convertir(float $numero, string $moneda = 'pesos', string $fraccion = 'centavos'): string
@@ -44,7 +44,7 @@ class NumeroALetras
         }
 
         if ($numero < 0) {
-            return 'Menos ' . self::enteroALetras(abs($numero));
+            return 'Menos '.self::enteroALetras(abs($numero));
         }
 
         $letras = '';
@@ -55,11 +55,12 @@ class NumeroALetras
             if ($millones === 1) {
                 $letras .= 'Un Millón';
             } else {
-                $letras .= self::enteroALetras($millones) . ' Millones';
+                $letras .= self::enteroALetras($millones).' Millones';
             }
             if ($resto > 0) {
-                $letras .= ' ' . self::enteroALetras($resto);
+                $letras .= ' '.self::enteroALetras($resto);
             }
+
             return $letras;
         }
 
@@ -69,11 +70,12 @@ class NumeroALetras
             if ($miles === 1) {
                 $letras .= 'Mil';
             } else {
-                $letras .= self::enteroALetras($miles) . ' Mil';
+                $letras .= self::enteroALetras($miles).' Mil';
             }
             if ($resto > 0) {
-                $letras .= ' ' . self::enteroALetras($resto);
+                $letras .= ' '.self::enteroALetras($resto);
             }
+
             return $letras;
         }
 
@@ -85,8 +87,9 @@ class NumeroALetras
             }
             $letras .= self::$centenas[$centena];
             if ($resto > 0) {
-                $letras .= ' ' . self::enteroALetras($resto);
+                $letras .= ' '.self::enteroALetras($resto);
             }
+
             return $letras;
         }
 
@@ -98,12 +101,12 @@ class NumeroALetras
         $unidad = $numero % 10;
 
         if ($decena === 2 && $unidad > 0) {
-            return self::$decenas[$decena] . self::unidadMinuscula($unidad);
+            return self::$decenas[$decena].self::unidadMinuscula($unidad);
         }
 
         $letras .= self::$decenas[$decena];
         if ($unidad > 0) {
-            $letras .= ' y ' . self::$unidades[$unidad];
+            $letras .= ' y '.self::$unidades[$unidad];
         }
 
         return $letras;
@@ -113,8 +116,9 @@ class NumeroALetras
     {
         $map = [
             1 => 'uno', 2 => 'dos', 3 => 'tres', 4 => 'cuatro', 5 => 'cinco',
-            6 => 'seis', 7 => 'siete', 8 => 'ocho', 9 => 'nueve'
+            6 => 'seis', 7 => 'siete', 8 => 'ocho', 9 => 'nueve',
         ];
+
         return $map[$unidad] ?? '';
     }
 }

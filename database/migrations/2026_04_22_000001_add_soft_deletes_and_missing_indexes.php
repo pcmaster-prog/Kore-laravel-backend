@@ -16,7 +16,7 @@ return new class extends Migration
         $tablesWithSoftDeletes = ['users', 'empleados', 'tasks', 'payroll_periods', 'gondola_ordenes'];
 
         foreach ($tablesWithSoftDeletes as $tableName) {
-            if (Schema::hasTable($tableName) && !Schema::hasColumn($tableName, 'deleted_at')) {
+            if (Schema::hasTable($tableName) && ! Schema::hasColumn($tableName, 'deleted_at')) {
                 Schema::table($tableName, function (Blueprint $table) {
                     $table->softDeletes();
                 });
@@ -24,7 +24,7 @@ return new class extends Migration
         }
 
         // ── Missing Indexes (Section 4.1) ────────────────────────────────
-        
+
         // users.empresa_id
         Schema::table('users', function (Blueprint $table) {
             // En Postgres es mejor no repetir índices si ya existen

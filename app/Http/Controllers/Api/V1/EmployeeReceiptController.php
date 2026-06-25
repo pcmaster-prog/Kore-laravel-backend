@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Api\V1;
 
-use App\Helpers\NumeroALetras;
 use App\Http\Controllers\Controller;
 use App\Models\Empleado;
 use App\Models\GratificationReceipt;
@@ -21,7 +20,7 @@ class EmployeeReceiptController extends Controller
     public function indexNomina(Request $request)
     {
         $emp = $this->getEmpleado($request);
-        if (!$emp) {
+        if (! $emp) {
             return response()->json(['data' => [], 'pending_count' => 0, 'signed_count' => 0]);
         }
 
@@ -61,7 +60,7 @@ class EmployeeReceiptController extends Controller
     public function showNomina(Request $request, int $id)
     {
         $emp = $this->getEmpleado($request);
-        if (!$emp) {
+        if (! $emp) {
             return response()->json(['message' => 'No tienes recibos disponibles'], 403);
         }
 
@@ -111,7 +110,7 @@ class EmployeeReceiptController extends Controller
     public function firmarNomina(Request $request, int $id)
     {
         $emp = $this->getEmpleado($request);
-        if (!$emp) {
+        if (! $emp) {
             return response()->json(['message' => 'El recibo no pertenece a este empleado'], 403);
         }
 
@@ -124,7 +123,7 @@ class EmployeeReceiptController extends Controller
             ->where('empleado_id', $emp->id)
             ->first();
 
-        if (!$receipt) {
+        if (! $receipt) {
             return response()->json(['message' => 'El recibo no pertenece a este empleado'], 403);
         }
 
@@ -132,13 +131,13 @@ class EmployeeReceiptController extends Controller
             return response()->json(['message' => 'Este recibo ya fue firmado'], 409);
         }
 
-        if (!Hash::check($data['password'], $request->user()->password)) {
+        if (! Hash::check($data['password'], $request->user()->password)) {
             throw ValidationException::withMessages(['password' => 'Contraseña incorrecta']);
         }
 
         $signaturePath = $this->storeSignatureImage($data['signature_image']);
 
-        $hashData = $receipt->folio . $receipt->net_pay . $receipt->total_perceptions . $receipt->total_deductions . $receipt->empleado_id . $receipt->period_start->toDateString();
+        $hashData = $receipt->folio.$receipt->net_pay.$receipt->total_perceptions.$receipt->total_deductions.$receipt->empleado_id.$receipt->period_start->toDateString();
         $documentHash = hash('sha256', $hashData);
 
         $signature = ReceiptSignature::create([
@@ -172,7 +171,7 @@ class EmployeeReceiptController extends Controller
     public function indexGratificaciones(Request $request)
     {
         $emp = $this->getEmpleado($request);
-        if (!$emp) {
+        if (! $emp) {
             return response()->json(['data' => []]);
         }
 
@@ -209,7 +208,7 @@ class EmployeeReceiptController extends Controller
     public function showGratificacion(Request $request, int $id)
     {
         $emp = $this->getEmpleado($request);
-        if (!$emp) {
+        if (! $emp) {
             return response()->json(['message' => 'No tienes recibos disponibles'], 403);
         }
 
@@ -257,7 +256,7 @@ class EmployeeReceiptController extends Controller
     public function firmarGratificacion(Request $request, int $id)
     {
         $emp = $this->getEmpleado($request);
-        if (!$emp) {
+        if (! $emp) {
             return response()->json(['message' => 'El recibo no pertenece a este empleado'], 403);
         }
 
@@ -270,7 +269,7 @@ class EmployeeReceiptController extends Controller
             ->where('empleado_id', $emp->id)
             ->first();
 
-        if (!$receipt) {
+        if (! $receipt) {
             return response()->json(['message' => 'El recibo no pertenece a este empleado'], 403);
         }
 
@@ -278,13 +277,13 @@ class EmployeeReceiptController extends Controller
             return response()->json(['message' => 'Este recibo ya fue firmado'], 409);
         }
 
-        if (!Hash::check($data['password'], $request->user()->password)) {
+        if (! Hash::check($data['password'], $request->user()->password)) {
             throw ValidationException::withMessages(['password' => 'Contraseña incorrecta']);
         }
 
         $signaturePath = $this->storeSignatureImage($data['signature_image']);
 
-        $hashData = $receipt->folio . $receipt->net_amount . $receipt->total_gratification . $receipt->total_retentions . $receipt->empleado_id . $receipt->issue_date->toDateString();
+        $hashData = $receipt->folio.$receipt->net_amount.$receipt->total_gratification.$receipt->total_retentions.$receipt->empleado_id.$receipt->issue_date->toDateString();
         $documentHash = hash('sha256', $hashData);
 
         $signature = ReceiptSignature::create([
@@ -325,12 +324,12 @@ class EmployeeReceiptController extends Controller
         $base64 = preg_replace('#^data:image/\w+;base64,#i', '', $base64Image);
         $imageData = base64_decode($base64);
 
-        if (!$imageData) {
+        if (! $imageData) {
             throw ValidationException::withMessages(['signature_image' => 'La imagen de firma no es válida']);
         }
 
-        $filename = 'sig_' . uniqid() . '.png';
-        $path = 'signatures/' . now()->format('Y/m') . '/' . $filename;
+        $filename = 'sig_'.uniqid().'.png';
+        $path = 'signatures/'.now()->format('Y/m').'/'.$filename;
         Storage::disk('local')->put($path, $imageData);
 
         return $path;

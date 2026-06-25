@@ -2,18 +2,19 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
 use App\Models\Area;
-use App\Models\Section;
 use App\Models\Empresa;
+use App\Models\Section;
+use Illuminate\Database\Seeder;
 
 class AreasSectionsSeeder extends Seeder
 {
     public function run(): void
     {
         $empresa = Empresa::first();
-        if (!$empresa) {
+        if (! $empresa) {
             $this->command->warn('No hay empresas creadas. Saltando seeder de áreas/secciones.');
+
             return;
         }
 

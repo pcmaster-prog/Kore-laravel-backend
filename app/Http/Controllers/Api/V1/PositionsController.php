@@ -3,10 +3,11 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\Position;
+use App\Models\PositionTask;
+use App\Models\TaskTemplate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
-use App\Models\Position;
-use App\Models\TaskTemplate;
 
 class PositionsController extends Controller
 {
@@ -26,7 +27,7 @@ class PositionsController extends Controller
             $q->where('name', 'ilike', "%{$s}%");
         }
 
-        $positions = $q->orderBy('name')->withCount('empleados')->with('modules')->get()->map(function($p) {
+        $positions = $q->orderBy('name')->withCount('empleados')->with('modules')->get()->map(function ($p) {
             return [
                 'id' => $p->id,
                 'nombre' => $p->name,
@@ -73,7 +74,9 @@ class PositionsController extends Controller
         Gate::authorize('supervisor');
 
         $position = Position::where('empresa_id', $u->empresa_id)->where('id', $id)->first();
-        if (!$position) return response()->json(['message' => 'No encontrado'], 404);
+        if (! $position) {
+            return response()->json(['message' => 'No encontrado'], 404);
+        }
 
         $position->loadCount('empleados');
         $position->load('modules');
@@ -94,7 +97,9 @@ class PositionsController extends Controller
         Gate::authorize('admin');
 
         $position = Position::where('empresa_id', $u->empresa_id)->where('id', $id)->first();
-        if (!$position) return response()->json(['message' => 'No encontrado'], 404);
+        if (! $position) {
+            return response()->json(['message' => 'No encontrado'], 404);
+        }
 
         $data = $request->validate([
             'name' => ['sometimes', 'string', 'max:120'],
@@ -124,9 +129,12 @@ class PositionsController extends Controller
         Gate::authorize('admin');
 
         $position = Position::where('empresa_id', $u->empresa_id)->where('id', $id)->first();
-        if (!$position) return response()->json(['message' => 'No encontrado'], 404);
+        if (! $position) {
+            return response()->json(['message' => 'No encontrado'], 404);
+        }
 
         $position->delete();
+
         return response()->json(['message' => 'Eliminado']);
     }
 
@@ -136,9 +144,12 @@ class PositionsController extends Controller
         Gate::authorize('supervisor');
 
         $position = Position::where('empresa_id', $u->empresa_id)->where('id', $id)->first();
-        if (!$position) return response()->json(['message' => 'No encontrado'], 404);
+        if (! $position) {
+            return response()->json(['message' => 'No encontrado'], 404);
+        }
 
         $tasks = $position->baseTasks()->get();
+
         return response()->json(['data' => $tasks]);
     }
 
@@ -148,7 +159,9 @@ class PositionsController extends Controller
         Gate::authorize('admin');
 
         $position = Position::where('empresa_id', $u->empresa_id)->where('id', $id)->first();
-        if (!$position) return response()->json(['message' => 'No encontrado'], 404);
+        if (! $position) {
+            return response()->json(['message' => 'No encontrado'], 404);
+        }
 
         $data = $request->validate([
             'tasks' => ['required', 'array'],
@@ -165,10 +178,10 @@ class PositionsController extends Controller
         }
 
         // Eliminar relaciones actuales y recrear
-        \App\Models\PositionTask::where('empresa_id', $u->empresa_id)->where('position_id', $id)->delete();
+        PositionTask::where('empresa_id', $u->empresa_id)->where('position_id', $id)->delete();
 
         foreach ($data['tasks'] as $task) {
-            \App\Models\PositionTask::create([
+            PositionTask::create([
                 'empresa_id' => $u->empresa_id,
                 'position_id' => $id,
                 'task_template_id' => $task['template_id'],

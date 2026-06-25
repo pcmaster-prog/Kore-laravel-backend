@@ -10,25 +10,24 @@ return new class extends Migration
      * Run the migrations.
      */
     public function up(): void
-{
-    Schema::create('attendance_events', function (Blueprint $table) {
-        $table->uuid('id')->primary();
+    {
+        Schema::create('attendance_events', function (Blueprint $table) {
+            $table->uuid('id')->primary();
 
-        $table->foreignUuid('empresa_id')->constrained('empresas')->cascadeOnDelete();
-        $table->foreignUuid('attendance_day_id')->constrained('attendance_days')->cascadeOnDelete();
+            $table->foreignUuid('empresa_id')->constrained('empresas')->cascadeOnDelete();
+            $table->foreignUuid('attendance_day_id')->constrained('attendance_days')->cascadeOnDelete();
 
-        $table->string('type'); // check_in|break_start|break_end|check_out
-        $table->timestamp('occurred_at');
+            $table->string('type'); // check_in|break_start|break_end|check_out
+            $table->timestamp('occurred_at');
 
-        $table->jsonb('meta')->nullable();
+            $table->jsonb('meta')->nullable();
 
-        $table->timestamps();
+            $table->timestamps();
 
-        $table->index(['empresa_id','attendance_day_id']);
-        $table->index(['empresa_id','type']);
-    });
-}
-
+            $table->index(['empresa_id', 'attendance_day_id']);
+            $table->index(['empresa_id', 'type']);
+        });
+    }
 
     /**
      * Reverse the migrations.

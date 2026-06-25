@@ -32,7 +32,7 @@ class NotificationService
     {
         $this->projectId = trim(config('services.firebase.project_id', ''));
         $this->clientEmail = trim(config('services.firebase.client_email', ''));
-        
+
         $rawKey = config('services.firebase.private_key', '');
         $rawKey = trim($rawKey);
         $rawKey = trim($rawKey, "\"'");

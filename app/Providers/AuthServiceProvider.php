@@ -2,12 +2,12 @@
 
 namespace App\Providers;
 
+use App\Models\GratificationReceipt;
+use App\Models\PayrollReceipt;
+use App\Policies\GratificationReceiptPolicy;
+use App\Policies\PayrollReceiptPolicy;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
 use Illuminate\Support\Facades\Gate;
-use App\Models\PayrollReceipt;
-use App\Models\GratificationReceipt;
-use App\Policies\PayrollReceiptPolicy;
-use App\Policies\GratificationReceiptPolicy;
 
 class AuthServiceProvider extends ServiceProvider
 {

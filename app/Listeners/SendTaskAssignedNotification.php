@@ -37,7 +37,7 @@ class SendTaskAssignedNotification
                     'Nueva tarea asignada',
                     $task->title,
                     [
-                        'type'    => 'task_assigned',
+                        'type' => 'task_assigned',
                         'task_id' => $task->id,
                     ]
                 );
@@ -45,7 +45,7 @@ class SendTaskAssignedNotification
                 Log::error('SendTaskAssignedNotification listener failed', [
                     'task_id' => $task->id,
                     'user_id' => $user->id,
-                    'error'   => $e->getMessage(),
+                    'error' => $e->getMessage(),
                 ]);
             }
         }

@@ -1,29 +1,32 @@
 <?php
-//TaskController: manejo de tareas, asignaciones, checklist y evidencias
+
+// TaskController: manejo de tareas, asignaciones, checklist y evidencias
+
 namespace App\Http\Controllers\Api\V1;
 
+use App\Events\TaskAssigned;
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Arr;
-use Illuminate\Validation\Rule;
-use Illuminate\Support\Facades\Gate;
-
-use App\Models\Task;
-use App\Models\TaskAssignee;
-use App\Models\Empleado;
-use App\Models\Evidence;
-use App\Models\Area;
-use App\Models\Section;
-use App\Models\AttendanceEvent;
-
 use App\Http\Requests\Api\V1\StoreTaskRequest;
-use App\Http\Resources\TaskResource;
 use App\Http\Resources\TaskAssigneeResource;
-use App\Services\TaskService;
+use App\Http\Resources\TaskResource;
 use App\Jobs\SendPushNotification;
 use App\Jobs\SendPushNotificationToManagers;
-use App\Events\TaskAssigned;
+use App\Models\Area;
+use App\Models\AttendanceEvent;
+use App\Models\Empleado;
+use App\Models\Evidence;
+use App\Models\GondolaOrden;
+use App\Models\Section;
+use App\Models\SupervisorSection;
+use App\Models\Task;
+use App\Models\TaskAssignee;
+use App\Models\TaskTemplate;
+use App\Services\ActivityLogger;
+use App\Services\TaskService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 
 class TasksController extends Controller
 {
@@ -44,8 +47,7 @@ class TasksController extends Controller
 
         if ($request->filled('empleado_id')) {
             $empId = $request->string('empleado_id');
-            $q->whereHas('assignees', fn ($a) =>
-                $a->where('empleado_id', $empId)
+            $q->whereHas('assignees', fn ($a) => $a->where('empleado_id', $empId)
             );
         }
 
@@ -55,22 +57,22 @@ class TasksController extends Controller
 
         if ($request->filled('search')) {
             $s = $request->string('search');
-            $q->where('title','ilike',"%{$s}%");
+            $q->where('title', 'ilike', "%{$s}%");
         }
 
         if ($request->boolean('overdue')) {
-            $q->whereNot('status','completed')
-              ->whereNotNull('due_at')
-              ->where('due_at','<', now());
+            $q->whereNot('status', 'completed')
+                ->whereNotNull('due_at')
+                ->where('due_at', '<', now());
         }
 
         return TaskResource::collection(
             $q->with(['assignees' => function ($query) {
-                  $query->withExists('evidences as has_evidence');
-              }, 'assignees.empleado.user'])
-              ->withExists('evidences as has_evidence')
-              ->orderByDesc('created_at')
-              ->paginate(20)
+                $query->withExists('evidences as has_evidence');
+            }, 'assignees.empleado.user'])
+                ->withExists('evidences as has_evidence')
+                ->orderByDesc('created_at')
+                ->paginate(20)
         );
     }
 
@@ -83,10 +85,10 @@ class TasksController extends Controller
 
         $meta = [];
 
-        if (!empty($data['catalog_date'])) {
+        if (! empty($data['catalog_date'])) {
             $meta['catalog_date'] = $data['catalog_date'];
         }
-        if (!empty($data['estimated_minutes'])) {
+        if (! empty($data['estimated_minutes'])) {
             $meta['estimated_minutes'] = $data['estimated_minutes'];
         }
         $meta['source'] = 'adhoc';
@@ -97,15 +99,15 @@ class TasksController extends Controller
         // Si se proporciona section_id, validar que pertenezca a la empresa
         if ($sectionId) {
             $section = Section::where('empresa_id', $u->empresa_id)->where('id', $sectionId)->first();
-            if (!$section) {
+            if (! $section) {
                 return response()->json(['message' => 'Sección no encontrada'], 404);
             }
             // Si el usuario es supervisor, validar que la sección esté asignada
             if ($u->role === 'supervisor') {
-                $hasSection = \App\Models\SupervisorSection::where('supervisor_user_id', $u->id)
+                $hasSection = SupervisorSection::where('supervisor_user_id', $u->id)
                     ->where('section_id', $sectionId)
                     ->exists();
-                if (!$hasSection) {
+                if (! $hasSection) {
                     return response()->json(['message' => 'No tienes asignada esta sección'], 403);
                 }
             }
@@ -134,10 +136,12 @@ class TasksController extends Controller
         Gate::authorize('supervisor');
 
         $task = Task::where('empresa_id', $u->empresa_id)->where('id', $id)->first();
-        if (!$task) return response()->json(['message'=>'No encontrado'], 404);
+        if (! $task) {
+            return response()->json(['message' => 'No encontrado'], 404);
+        }
 
-        $assignees = TaskAssignee::where('empresa_id',$u->empresa_id)
-            ->where('task_id',$task->id)
+        $assignees = TaskAssignee::where('empresa_id', $u->empresa_id)
+            ->where('task_id', $task->id)
             ->get();
 
         return response()->json([
@@ -152,14 +156,16 @@ class TasksController extends Controller
         Gate::authorize('supervisor');
 
         $task = Task::where('empresa_id', $u->empresa_id)->where('id', $id)->first();
-        if (!$task) return response()->json(['message'=>'No encontrado'], 404);
+        if (! $task) {
+            return response()->json(['message' => 'No encontrado'], 404);
+        }
 
         // Delete any assignees first to avoid constraint errors if not handled dynamically by cascade
         TaskAssignee::where('empresa_id', $u->empresa_id)->where('task_id', $task->id)->delete();
-        
+
         $task->delete();
 
-        return response()->json(['message'=>'Tarea eliminada exitosamente']);
+        return response()->json(['message' => 'Tarea eliminada exitosamente']);
     }
 
     public function assign(Request $request, string $id)
@@ -168,28 +174,30 @@ class TasksController extends Controller
         Gate::authorize('supervisor');
 
         $data = $request->validate([
-            'empleado_ids' => ['required','array','min:1'],
+            'empleado_ids' => ['required', 'array', 'min:1'],
             'empleado_ids.*' => ['uuid'],
         ]);
 
         $task = Task::where('empresa_id', $u->empresa_id)->where('id', $id)->first();
-        if (!$task) return response()->json(['message'=>'Tarea no encontrada'], 404);
+        if (! $task) {
+            return response()->json(['message' => 'Tarea no encontrada'], 404);
+        }
 
         // Validar sección del template asociado (si existe) para supervisores
         if ($u->role === 'supervisor') {
             $sectionId = $task->section_id;
-            if (!$sectionId) {
+            if (! $sectionId) {
                 $tplId = data_get($task->meta, 'template_id');
                 if ($tplId) {
-                    $tpl = \App\Models\TaskTemplate::where('empresa_id', $u->empresa_id)->where('id', $tplId)->first();
+                    $tpl = TaskTemplate::where('empresa_id', $u->empresa_id)->where('id', $tplId)->first();
                     $sectionId = $tpl?->section_id;
                 }
             }
             if ($sectionId) {
-                $hasSection = \App\Models\SupervisorSection::where('supervisor_user_id', $u->id)
+                $hasSection = SupervisorSection::where('supervisor_user_id', $u->id)
                     ->where('section_id', $sectionId)
                     ->exists();
-                if (!$hasSection) {
+                if (! $hasSection) {
                     return response()->json(['message' => 'No tienes asignada esta sección'], 403);
                 }
             }
@@ -197,7 +205,7 @@ class TasksController extends Controller
 
         $result = TaskService::assignTask($task, $data['empleado_ids'], $u);
 
-        if (!$result['success']) {
+        if (! $result['success']) {
             return response()->json(['message' => $result['message']], $result['code']);
         }
 
@@ -221,7 +229,7 @@ class TasksController extends Controller
             $task->save();
         }
 
-        return response()->json(['message'=>'Asignación OK']);
+        return response()->json(['message' => 'Asignación OK']);
     }
 
     // GET /tareas/empleados-asignables
@@ -237,21 +245,20 @@ class TasksController extends Controller
 
         if ($u->role === 'supervisor') {
             // Supervisor solo ve empleados
-            $query->whereHas('user', fn($q) => $q->where('role', 'empleado'));
+            $query->whereHas('user', fn ($q) => $q->where('role', 'empleado'));
         } else {
             // Admin ve empleados y supervisores, NO otros admins NI a sí mismo
-            $query->whereHas('user', fn($q) =>
-                $q->whereIn('role', ['empleado', 'supervisor'])
-                  ->where('id', '!=', $u->id)
+            $query->whereHas('user', fn ($q) => $q->whereIn('role', ['empleado', 'supervisor'])
+                ->where('id', '!=', $u->id)
             );
         }
 
-        $empleados = $query->get()->map(fn($emp) => [
-            'id'             => $emp->id,
-            'full_name'      => $emp->full_name,
+        $empleados = $query->get()->map(fn ($emp) => [
+            'id' => $emp->id,
+            'full_name' => $emp->full_name,
             'position_title' => $emp->position_title,
-            'role'           => $emp->user?->role,
-            'avatar_url'     => $emp->user?->avatar_url,
+            'role' => $emp->user?->role,
+            'avatar_url' => $emp->user?->avatar_url,
         ]);
 
         return response()->json(['data' => $empleados]);
@@ -270,29 +277,29 @@ class TasksController extends Controller
             ->orderByDesc('created_at')
             ->limit(10)
             ->get()
-            ->map(fn($a) => [
-                'type'       => 'tarea',
-                'id'         => $a->id,
-                'title'      => $a->task?->title,
-                'status'     => $a->status,
-                'priority'   => $a->task?->priority,
+            ->map(fn ($a) => [
+                'type' => 'tarea',
+                'id' => $a->id,
+                'title' => $a->task?->title,
+                'status' => $a->status,
+                'priority' => $a->task?->priority,
                 'created_at' => $a->created_at?->toISOString(),
             ]);
 
         // Órdenes de góndola activas
-        $gondolas = \App\Models\GondolaOrden::where('empresa_id', $empresaId)
+        $gondolas = GondolaOrden::where('empresa_id', $empresaId)
             ->where('empleado_id', $emp->id)
             ->whereIn('status', ['pendiente', 'en_proceso', 'rechazado'])
             ->with('gondola')
             ->orderByDesc('created_at')
             ->limit(10)
             ->get()
-            ->map(fn($o) => [
-                'type'       => 'gondola',
-                'id'         => $o->id,
-                'title'      => 'Rellenar: ' . ($o->gondola?->nombre ?? ''),
-                'status'     => $o->status,
-                'priority'   => 'medium',
+            ->map(fn ($o) => [
+                'type' => 'gondola',
+                'id' => $o->id,
+                'title' => 'Rellenar: '.($o->gondola?->nombre ?? ''),
+                'status' => $o->status,
+                'priority' => 'medium',
                 'created_at' => $o->created_at?->toISOString(),
             ]);
 
@@ -308,8 +315,7 @@ class TasksController extends Controller
         [$u, $empresaId, $emp] = $this->authEmployee($request);
 
         $q = Task::where('empresa_id', $empresaId)
-            ->whereHas('assignees', fn ($a) =>
-                $a->where('empleado_id', $emp->id)
+            ->whereHas('assignees', fn ($a) => $a->where('empleado_id', $emp->id)
             );
 
         if ($request->filled('status')) {
@@ -322,14 +328,14 @@ class TasksController extends Controller
 
         if ($request->filled('search')) {
             $s = $request->string('search');
-            $q->where('title','ilike',"%{$s}%");
+            $q->where('title', 'ilike', "%{$s}%");
         }
 
         return TaskResource::collection(
             $q->with('assignees.empleado.user')
-              ->withExists('evidences as has_evidence')
-              ->orderByDesc('created_at')
-              ->paginate(20)
+                ->withExists('evidences as has_evidence')
+                ->orderByDesc('created_at')
+                ->paginate(20)
         );
     }
 
@@ -341,8 +347,8 @@ class TasksController extends Controller
             ->where('empleado_id', $emp->id)
             ->with(['task' => function ($t) use ($empresaId) {
                 $t->where('empresa_id', $empresaId)
-                  ->with('assignees.empleado.user')
-                  ->withExists('evidences as has_evidence');
+                    ->with('assignees.empleado.user')
+                    ->withExists('evidences as has_evidence');
             }]);
 
         if ($request->filled('status')) {
@@ -351,15 +357,13 @@ class TasksController extends Controller
 
         if ($request->filled('date')) {
             $date = $request->string('date');
-            $q->whereHas('task', fn($t) =>
-                $t->whereRaw("meta->>'catalog_date' = ?", [$date])
+            $q->whereHas('task', fn ($t) => $t->whereRaw("meta->>'catalog_date' = ?", [$date])
             );
         }
 
         if ($request->filled('search')) {
             $s = $request->string('search');
-            $q->whereHas('task', fn($t) =>
-                $t->where('title','ilike',"%{$s}%")
+            $q->whereHas('task', fn ($t) => $t->where('title', 'ilike', "%{$s}%")
             );
         }
 
@@ -369,7 +373,7 @@ class TasksController extends Controller
         $today = now()->toDateString();
         $hasCheckIn = AttendanceEvent::whereHas('attendanceDay', function ($q) use ($emp, $today) {
             $q->where('empleado_id', $emp->id)
-              ->whereDate('date', $today);
+                ->whereDate('date', $today);
         })->where('type', 'checkin')->exists();
 
         // --- EVIDENCIAS RESUMEN POR ASIGNACIÓN (para UI) ---
@@ -378,7 +382,7 @@ class TasksController extends Controller
         $evidenceAgg = [];
         $latestEvidenceByAssignee = [];
 
-        if (!empty($assignmentIds)) {
+        if (! empty($assignmentIds)) {
             // Conteo de evidencias por asignación
             $counts = Evidence::where('empresa_id', $empresaId)
                 ->whereIn('task_assignee_id', $assignmentIds)
@@ -407,7 +411,7 @@ class TasksController extends Controller
             }
         }
 
-        $pag->getCollection()->transform(function($a) use ($evidenceAgg, $latestEvidenceByAssignee, $empresaId, $hasCheckIn) {
+        $pag->getCollection()->transform(function ($a) use ($evidenceAgg, $latestEvidenceByAssignee, $empresaId, $hasCheckIn) {
             $assId = $a->id;
             $count = $evidenceAgg[$assId] ?? 0;
             $hasEvidence = $count > 0;
@@ -422,7 +426,7 @@ class TasksController extends Controller
             $task = $a->task;
             $tplId = data_get($task?->meta, 'template_id');
 
-            if ($tplId && $tpl = \App\Models\TaskTemplate::where('empresa_id', $empresaId)
+            if ($tplId && $tpl = TaskTemplate::where('empresa_id', $empresaId)
                 ->where('id', $tplId)
                 ->first()
             ) {
@@ -430,13 +434,14 @@ class TasksController extends Controller
                 if (is_array($ins) && ($ins['type'] ?? null) === 'checklist') {
                     $checklistDef = $ins['items'] ?? [];
                     $checklistState = data_get($a->meta, 'checklist', []);
-                    
-                    $required = array_filter($checklistDef, fn($i) => ($i['required'] ?? false) === true);
-                    $doneCount = array_reduce($required, function($carry, $item) use ($checklistState) {
+
+                    $required = array_filter($checklistDef, fn ($i) => ($i['required'] ?? false) === true);
+                    $doneCount = array_reduce($required, function ($carry, $item) use ($checklistState) {
                         $itemId = $item['id'] ?? null;
+
                         return $carry + ($itemId && data_get($checklistState, "{$itemId}.done", false) ? 1 : 0);
                     }, 0);
-                    
+
                     $checklistProgress = [
                         'required_done' => $doneCount,
                         'required_total' => count($required),
@@ -447,7 +452,7 @@ class TasksController extends Controller
             // Determinar si la tarea está bloqueada (requiere check-in pero no lo tiene)
             $isBlocked = false;
             $triggerEvent = data_get($task?->meta, 'trigger_event', 'time');
-            if ($triggerEvent === 'attendance_checkin' && !$hasCheckIn) {
+            if ($triggerEvent === 'attendance_checkin' && ! $hasCheckIn) {
                 $isBlocked = true;
             }
 
@@ -487,7 +492,7 @@ class TasksController extends Controller
             'last_page' => $pag->lastPage(),
         ]);
     }
-    
+
     // 🔥 NUEVO: Actualiza un item del checklist
     public function updateMyChecklistItem(Request $request, string $assignmentId)
     {
@@ -499,14 +504,18 @@ class TasksController extends Controller
         $emp = Empleado::where('empresa_id', $u->empresa_id)
             ->where('user_id', $u->id)
             ->first();
-        if (!$emp) return response()->json(['message' => 'Empleado no vinculado'], 404);
+        if (! $emp) {
+            return response()->json(['message' => 'Empleado no vinculado'], 404);
+        }
 
         $a = TaskAssignee::where('empresa_id', $u->empresa_id)
             ->where('id', $assignmentId)
             ->where('empleado_id', $emp->id)
             ->with('task')
             ->first();
-        if (!$a) return response()->json(['message' => 'Asignación no encontrada'], 404);
+        if (! $a) {
+            return response()->json(['message' => 'Asignación no encontrada'], 404);
+        }
 
         $data = $request->validate([
             'item_id' => ['required', 'string', 'max:80'],
@@ -515,22 +524,22 @@ class TasksController extends Controller
 
         // Fetch checklist definition ONLY from template (Task has no instructions column)
         $tplId = data_get($a->task?->meta, 'template_id');
-        if (!$tplId) {
+        if (! $tplId) {
             return response()->json(['message' => 'Esta tarea no tiene checklist'], 422);
         }
 
-        $tpl = \App\Models\TaskTemplate::where('empresa_id', $u->empresa_id)
+        $tpl = TaskTemplate::where('empresa_id', $u->empresa_id)
             ->where('id', $tplId)
             ->first();
         $instructions = $tpl?->instructions ?? [];
 
-        if (!is_array($instructions) || ($instructions['type'] ?? null) !== 'checklist') {
+        if (! is_array($instructions) || ($instructions['type'] ?? null) !== 'checklist') {
             return response()->json(['message' => 'Esta tarea no tiene checklist'], 422);
         }
 
         $items = $instructions['items'] ?? [];
         $validIds = array_column($items, 'id');
-        if (!in_array($data['item_id'], $validIds, true)) {
+        if (! in_array($data['item_id'], $validIds, true)) {
             return response()->json(['message' => 'Item inválido'], 422);
         }
 
@@ -543,7 +552,7 @@ class TasksController extends Controller
         $a->meta = $meta;
 
         // Auto-mark assignment as in_progress on first interaction
-        if (!$a->started_at) {
+        if (! $a->started_at) {
             $a->started_at = now();
         }
         $a->save();
@@ -562,13 +571,15 @@ class TasksController extends Controller
     {
         $u = $request->user();
         if ($u->role !== 'empleado') {
-            return response()->json(['message'=>'No autorizado'], 403);
+            return response()->json(['message' => 'No autorizado'], 403);
         }
 
         $emp = Empleado::where('empresa_id', $u->empresa_id)
             ->where('user_id', $u->id)
             ->first();
-        if (!$emp) return response()->json(['message'=>'Empleado no vinculado'], 404);
+        if (! $emp) {
+            return response()->json(['message' => 'Empleado no vinculado'], 404);
+        }
 
         $a = TaskAssignee::where('empresa_id', $u->empresa_id)
             ->where('id', $assignmentId)
@@ -576,19 +587,21 @@ class TasksController extends Controller
             ->with('task')
             ->first();
 
-        if (!$a) return response()->json(['message'=>'Asignación no encontrada'], 404);
+        if (! $a) {
+            return response()->json(['message' => 'Asignación no encontrada'], 404);
+        }
 
         $data = $request->validate([
-            'status' => ['required', Rule::in(['assigned','in_progress','done_pending'])],
-            'note' => ['nullable','string','max:2000'],
+            'status' => ['required', Rule::in(['assigned', 'in_progress', 'done_pending'])],
+            'note' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        if ($data['status'] === 'in_progress' && !$a->started_at) {
+        if ($data['status'] === 'in_progress' && ! $a->started_at) {
             $a->started_at = now();
         }
 
         if ($data['status'] === 'done_pending') {
-            if (!$a->started_at) {
+            if (! $a->started_at) {
                 $a->started_at = now();
             }
 
@@ -596,7 +609,7 @@ class TasksController extends Controller
                 ->where('task_assignee_id', $a->id)
                 ->exists();
 
-            if (!$hasEvidence) {
+            if (! $hasEvidence) {
                 return response()->json(['message' => 'Debes subir evidencia antes de entregar la tarea.'], 422);
             }
 
@@ -604,7 +617,7 @@ class TasksController extends Controller
             $task = $a->task;
             $tplId = data_get($task?->meta, 'template_id');
             if ($tplId) {
-                $tpl = \App\Models\TaskTemplate::where('empresa_id', $u->empresa_id)
+                $tpl = TaskTemplate::where('empresa_id', $u->empresa_id)
                     ->where('id', $tplId)
                     ->first();
                 $instructions = $tpl?->instructions ?? [];
@@ -612,19 +625,20 @@ class TasksController extends Controller
                 if (is_array($instructions) && ($instructions['type'] ?? null) === 'checklist') {
                     $requiredItems = array_filter(
                         $instructions['items'] ?? [],
-                        fn($it) => ($it['required'] ?? false) === true
+                        fn ($it) => ($it['required'] ?? false) === true
                     );
-                    
+
                     $checklistState = data_get($a->meta, 'checklist', []);
-                    $missing = array_filter($requiredItems, function($item) use ($checklistState) {
+                    $missing = array_filter($requiredItems, function ($item) use ($checklistState) {
                         $itemId = $item['id'] ?? null;
-                        return $itemId && !data_get($checklistState, "{$itemId}.done", false);
+
+                        return $itemId && ! data_get($checklistState, "{$itemId}.done", false);
                     });
 
                     if (count($missing) > 0) {
                         return response()->json([
                             'message' => 'Debes completar todos los items requeridos del checklist antes de entregar.',
-                            'missing_items' => array_column($missing, 'id')
+                            'missing_items' => array_column($missing, 'id'),
                         ], 422);
                     }
                 }
@@ -636,10 +650,10 @@ class TasksController extends Controller
             SendPushNotificationToManagers::dispatch(
                 $u->empresa_id,
                 '✅ Tarea lista para revisar',
-                ($emp->full_name ?? $u->name) . ' completó: ' . ($task?->title ?? 'una tarea'),
+                ($emp->full_name ?? $u->name).' completó: '.($task?->title ?? 'una tarea'),
                 [
-                    'type'          => 'task.done_pending',
-                    'task_id'       => $a->task_id,
+                    'type' => 'task.done_pending',
+                    'task_id' => $a->task_id,
                     'assignment_id' => $a->id,
                 ]
             );
@@ -653,7 +667,7 @@ class TasksController extends Controller
 
         $this->recomputeTaskStatus($u->empresa_id, $a->task_id, $u, $request);
 
-        return response()->json(['message'=>'OK', 'assignment'=>new TaskAssigneeResource($a)]);
+        return response()->json(['message' => 'OK', 'assignment' => new TaskAssigneeResource($a)]);
     }
 
     public function updateStatus(Request $request, string $id)
@@ -670,7 +684,7 @@ class TasksController extends Controller
             ->where('id', $id)
             ->first();
 
-        if (!$task) {
+        if (! $task) {
             return response()->json(['message' => 'Tarea no encontrada'], 404);
         }
 
@@ -681,7 +695,7 @@ class TasksController extends Controller
             $task->save();
 
             // 🔔 PARCHE 3: Logging con task_title
-            \App\Services\ActivityLogger::log(
+            ActivityLogger::log(
                 $u->empresa_id,
                 $u->id,
                 null,
@@ -689,8 +703,8 @@ class TasksController extends Controller
                 'task',
                 $task->id,
                 [
-                    'from'       => $old,
-                    'to'         => $task->status,
+                    'from' => $old,
+                    'to' => $task->status,
                     'task_title' => $task->title,   // <-- AGREGADO: título de la tarea
                 ],
                 $request
@@ -708,7 +722,7 @@ class TasksController extends Controller
 
         $q = TaskAssignee::where('empresa_id', $u->empresa_id)
             ->where('status', 'done_pending')
-            ->with(['task','empleado'])
+            ->with(['task', 'empleado'])
             ->orderByDesc('done_at');
 
         $pag = $q->paginate(20);
@@ -726,11 +740,13 @@ class TasksController extends Controller
         $u = $request->user();
         Gate::authorize('supervisor');
 
-        $a = TaskAssignee::where('empresa_id',$u->empresa_id)->where('id',$assignmentId)->first();
-        if (!$a) return response()->json(['message'=>'Asignación no encontrada'], 404);
+        $a = TaskAssignee::where('empresa_id', $u->empresa_id)->where('id', $assignmentId)->first();
+        if (! $a) {
+            return response()->json(['message' => 'Asignación no encontrada'], 404);
+        }
 
         if ($a->status !== 'done_pending') {
-            return response()->json(['message'=>'Solo puedes aprobar asignaciones en done_pending'], 422);
+            return response()->json(['message' => 'Solo puedes aprobar asignaciones en done_pending'], 422);
         }
 
         $a->status = 'approved';
@@ -741,7 +757,7 @@ class TasksController extends Controller
 
         $this->recomputeTaskStatus($u->empresa_id, $a->task_id, $u, $request);
 
-        return response()->json(['message'=>'Aprobada ✅']);
+        return response()->json(['message' => 'Aprobada ✅']);
     }
 
     // 🔥 RECHAZAR: cambia status a "rejected" + nota
@@ -751,14 +767,16 @@ class TasksController extends Controller
         Gate::authorize('supervisor');
 
         $data = $request->validate([
-            'note' => ['required','string','max:2000']
+            'note' => ['required', 'string', 'max:2000'],
         ]);
 
-        $a = TaskAssignee::where('empresa_id',$u->empresa_id)->where('id',$assignmentId)->first();
-        if (!$a) return response()->json(['message'=>'Asignación no encontrada'], 404);
+        $a = TaskAssignee::where('empresa_id', $u->empresa_id)->where('id', $assignmentId)->first();
+        if (! $a) {
+            return response()->json(['message' => 'Asignación no encontrada'], 404);
+        }
 
         if ($a->status !== 'done_pending') {
-            return response()->json(['message'=>'Solo puedes rechazar asignaciones en done_pending'], 422);
+            return response()->json(['message' => 'Solo puedes rechazar asignaciones en done_pending'], 422);
         }
 
         $a->status = 'rejected';
@@ -769,7 +787,7 @@ class TasksController extends Controller
 
         $this->recomputeTaskStatus($u->empresa_id, $a->task_id, $u, $request);
 
-        return response()->json(['message'=>'Rechazada ❌']);
+        return response()->json(['message' => 'Rechazada ❌']);
     }
 
     // 🔥 EVIDENCIAS: sigue aquí (no lo movimos)
@@ -778,24 +796,26 @@ class TasksController extends Controller
         $u = $request->user();
         Gate::authorize('supervisor');
 
-        $task = Task::where('empresa_id',$u->empresa_id)->where('id',$id)->first();
-        if (!$task) return response()->json(['message'=>'Tarea no encontrada'], 404);
+        $task = Task::where('empresa_id', $u->empresa_id)->where('id', $id)->first();
+        if (! $task) {
+            return response()->json(['message' => 'Tarea no encontrada'], 404);
+        }
 
-        $evs = Evidence::where('empresa_id',$u->empresa_id)
-            ->where('task_id',$task->id)
+        $evs = Evidence::where('empresa_id', $u->empresa_id)
+            ->where('task_id', $task->id)
             ->orderByDesc('created_at')
             ->paginate(50);
 
-        $evs->getCollection()->transform(fn($e)=>[
-            'id'=>$e->id,
-            'task_id'=>$e->task_id,
-            'task_assignee_id'=>$e->task_assignee_id,
-            'empleado_id'=>$e->empleado_id,
-            'original_name'=>$e->original_name,
-            'mime'=>$e->mime,
-            'size'=>$e->size,
-            'created_at'=>$e->created_at?->toISOString(),
-            'url'=>$this->evidenceFileUrl($e),
+        $evs->getCollection()->transform(fn ($e) => [
+            'id' => $e->id,
+            'task_id' => $e->task_id,
+            'task_assignee_id' => $e->task_assignee_id,
+            'empleado_id' => $e->empleado_id,
+            'original_name' => $e->original_name,
+            'mime' => $e->mime,
+            'size' => $e->size,
+            'created_at' => $e->created_at?->toISOString(),
+            'url' => $this->evidenceFileUrl($e),
         ]);
 
         return response()->json($evs);
@@ -804,17 +824,19 @@ class TasksController extends Controller
     // 🔥 ACTUALIZADO: completada solo si todas están "approved"
     private function recomputeTaskStatus(string $empresaId, string $taskId, $user = null, $request = null): void
     {
-        $task = Task::where('empresa_id',$empresaId)->where('id',$taskId)->first();
-        if (!$task) return;
+        $task = Task::where('empresa_id', $empresaId)->where('id', $taskId)->first();
+        if (! $task) {
+            return;
+        }
 
         $oldStatus = $task->status;
 
-        $ass = TaskAssignee::where('empresa_id',$empresaId)->where('task_id',$taskId)->get();
+        $ass = TaskAssignee::where('empresa_id', $empresaId)->where('task_id', $taskId)->get();
 
         if ($ass->isEmpty()) {
             $task->status = 'open';
         } else {
-            $approvedCount = $ass->where('status','approved')->count();
+            $approvedCount = $ass->where('status', 'approved')->count();
             $task->status = ($approvedCount === $ass->count()) ? 'completed' : 'in_progress';
         }
 
@@ -822,7 +844,7 @@ class TasksController extends Controller
 
         if ($user && $request && $oldStatus !== $task->status) {
             // 🔔 PARCHE 4: Logging con task_title
-            \App\Services\ActivityLogger::log(
+            ActivityLogger::log(
                 $empresaId,
                 $user->id,
                 $user->role === 'empleado' ? ($user->empleado_id ?? null) : null,
@@ -830,8 +852,8 @@ class TasksController extends Controller
                 'task',
                 $task->id,
                 [
-                    'from'       => $oldStatus,
-                    'to'         => $task->status,
+                    'from' => $oldStatus,
+                    'to' => $task->status,
                     'task_title' => $task->title,   // <-- AGREGADO: título de la tarea
                 ],
                 $request
@@ -851,7 +873,7 @@ class TasksController extends Controller
             ->where('user_id', $u->id)
             ->first();
 
-        if (!$emp) {
+        if (! $emp) {
             abort(404, 'Empleado no vinculado aún. El admin debe vincular este usuario a un empleado.');
         }
 
@@ -868,49 +890,49 @@ class TasksController extends Controller
         if ($firstAssignee && $firstAssignee->relationLoaded('empleado') && $firstAssignee->empleado) {
             $emp = $firstAssignee->empleado;
             $empleado = [
-                'id'         => $emp->id,
-                'full_name'  => $emp->full_name,
-                'name'       => $emp->name ?? $emp->full_name,
+                'id' => $emp->id,
+                'full_name' => $emp->full_name,
+                'name' => $emp->name ?? $emp->full_name,
                 'avatar_url' => $emp->user?->avatar_url ?? null,
             ];
         }
 
         return [
-            'id'           => $t->id,
-            'title'        => $t->title,
-            'description'  => $t->description,
-            'priority'     => $t->priority,
-            'status'       => $t->status,
-            'due_at'       => $t->due_at?->toISOString(),
-            'meta'         => $t->meta,
-            'assignee_name'=> $t->assignee_name,
+            'id' => $t->id,
+            'title' => $t->title,
+            'description' => $t->description,
+            'priority' => $t->priority,
+            'status' => $t->status,
+            'due_at' => $t->due_at?->toISOString(),
+            'meta' => $t->meta,
+            'assignee_name' => $t->assignee_name,
             'has_evidence' => $t->has_evidence,
-            'empleado'     => $empleado,
-            'created_by'   => $t->created_by,
-            'area_id'      => $t->area_id,
-            'section_id'   => $t->section_id,
+            'empleado' => $empleado,
+            'created_by' => $t->created_by,
+            'area_id' => $t->area_id,
+            'section_id' => $t->section_id,
             'actual_minutes' => $t->actual_minutes,
-            'started_at'   => $t->started_at?->toISOString(),
+            'started_at' => $t->started_at?->toISOString(),
             'incident_count' => $t->incident_count,
-            'created_at'   => $t->created_at?->toISOString(),
-            'updated_at'   => $t->updated_at?->toISOString(),
+            'created_at' => $t->created_at?->toISOString(),
+            'updated_at' => $t->updated_at?->toISOString(),
         ];
     }
 
     private function presentAssignee(TaskAssignee $a): array
     {
         return [
-            'id'=>$a->id,
-            'task_id'=>$a->task_id,
-            'empleado_id'=>$a->empleado_id,
-            'status'=>$a->status,
-            'started_at'=>$a->started_at?->toISOString(),
-            'done_at'=>$a->done_at?->toISOString(),
-            'reviewed_at'=>$a->reviewed_at?->toISOString(),
-            'review_note'=>$a->review_note,
-            'note'=>$a->note,
-            'created_at'=>$a->created_at?->toISOString(),
-            'updated_at'=>$a->updated_at?->toISOString(),
+            'id' => $a->id,
+            'task_id' => $a->task_id,
+            'empleado_id' => $a->empleado_id,
+            'status' => $a->status,
+            'started_at' => $a->started_at?->toISOString(),
+            'done_at' => $a->done_at?->toISOString(),
+            'reviewed_at' => $a->reviewed_at?->toISOString(),
+            'review_note' => $a->review_note,
+            'note' => $a->note,
+            'created_at' => $a->created_at?->toISOString(),
+            'updated_at' => $a->updated_at?->toISOString(),
         ];
     }
 
@@ -924,11 +946,11 @@ class TasksController extends Controller
             ->where('is_active', true)
             ->with(['sections' => function ($q) use ($u) {
                 $q->where('is_active', true)
-                  ->with(['tasks' => function ($q2) use ($u) {
-                      $q2->where('empresa_id', $u->empresa_id)
-                         ->whereIn('status', ['open', 'in_progress'])
-                         ->orderByDesc('created_at');
-                  }]);
+                    ->with(['tasks' => function ($q2) use ($u) {
+                        $q2->where('empresa_id', $u->empresa_id)
+                            ->whereIn('status', ['open', 'in_progress'])
+                            ->orderByDesc('created_at');
+                    }]);
             }])
             ->orderBy('sort_order')
             ->get();
@@ -951,8 +973,8 @@ class TasksController extends Controller
 
         return TaskResource::collection(
             $q->with(['assignees.empleado.user'])
-              ->orderByDesc('created_at')
-              ->paginate(20)
+                ->orderByDesc('created_at')
+                ->paginate(20)
         );
     }
 
@@ -966,13 +988,15 @@ class TasksController extends Controller
             ->where('empleado_id', $emp->id)
             ->first();
 
-        if (!$a) return response()->json(['message' => 'Asignación no encontrada'], 404);
+        if (! $a) {
+            return response()->json(['message' => 'Asignación no encontrada'], 404);
+        }
 
         $a->started_at = now();
         $a->save();
 
         $task = Task::where('empresa_id', $empresaId)->where('id', $id)->first();
-        if ($task && !$task->started_at) {
+        if ($task && ! $task->started_at) {
             $task->started_at = now();
             $task->save();
         }
@@ -990,9 +1014,11 @@ class TasksController extends Controller
             ->where('empleado_id', $emp->id)
             ->first();
 
-        if (!$a) return response()->json(['message' => 'Asignación no encontrada'], 404);
+        if (! $a) {
+            return response()->json(['message' => 'Asignación no encontrada'], 404);
+        }
 
-        if (!$a->started_at) {
+        if (! $a->started_at) {
             return response()->json(['message' => 'Debes iniciar la tarea antes de finalizarla'], 422);
         }
 
@@ -1019,25 +1045,25 @@ class TasksController extends Controller
         $q = Task::where('empresa_id', $u->empresa_id)
             ->where(function ($query) {
                 $query->whereRaw("meta->>'unassigned_reason' IS NOT NULL")
-                      ->orWhereDoesntHave('assignees');
+                    ->orWhereDoesntHave('assignees');
             })
             ->whereIn('status', ['open', 'in_progress'])
             ->with(['area', 'section']);
 
         // Si es supervisor, filtrar por sus secciones asignadas
         if ($u->role === 'supervisor') {
-            $sectionIds = \App\Models\SupervisorSection::where('supervisor_user_id', $u->id)
+            $sectionIds = SupervisorSection::where('supervisor_user_id', $u->id)
                 ->pluck('section_id')->all();
             $q->where(function ($sq) use ($sectionIds) {
                 $sq->whereIn('section_id', $sectionIds)
-                   ->orWhereNull('section_id');
+                    ->orWhereNull('section_id');
             });
         }
 
         $tasks = $q->orderByDesc('created_at')->paginate(20);
 
         return response()->json([
-            'data' => $tasks->map(fn($t) => [
+            'data' => $tasks->map(fn ($t) => [
                 'id' => $t->id,
                 'title' => $t->title,
                 'description' => $t->description,
@@ -1063,14 +1089,16 @@ class TasksController extends Controller
         ]);
 
         $task = Task::where('empresa_id', $u->empresa_id)->where('id', $id)->first();
-        if (!$task) return response()->json(['message' => 'No encontrado'], 404);
+        if (! $task) {
+            return response()->json(['message' => 'No encontrado'], 404);
+        }
 
         // Validar sección para supervisores
         if ($u->role === 'supervisor' && $task->section_id) {
-            $hasSection = \App\Models\SupervisorSection::where('supervisor_user_id', $u->id)
+            $hasSection = SupervisorSection::where('supervisor_user_id', $u->id)
                 ->where('section_id', $task->section_id)
                 ->exists();
-            if (!$hasSection) {
+            if (! $hasSection) {
                 return response()->json(['message' => 'No tienes asignada esta sección'], 403);
             }
         }
@@ -1119,11 +1147,13 @@ class TasksController extends Controller
 
     private function evidenceFileUrl(Evidence $evidence): ?string
     {
-        if (!$evidence->path) return null;
+        if (! $evidence->path) {
+            return null;
+        }
 
         if ($evidence->disk === 's3') {
             return \Storage::temporaryUrl($evidence->path, now()->addMinutes(30), [
-                'ResponseContentDisposition' => 'inline'
+                'ResponseContentDisposition' => 'inline',
             ]);
         }
 
@@ -1132,6 +1162,6 @@ class TasksController extends Controller
 
         $base = config('app.url'); // ej: http://127.0.0.1:8000
 
-        return rtrim($base, '/') . $relative;
+        return rtrim($base, '/').$relative;
     }
 }

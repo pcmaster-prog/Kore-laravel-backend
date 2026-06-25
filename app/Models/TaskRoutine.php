@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Model;
 
 class TaskRoutine extends Model
 {
@@ -19,7 +19,7 @@ class TaskRoutine extends Model
         'start_date',
         'end_date',
         'is_active',
-        'show_in_dashboard'
+        'show_in_dashboard',
     ];
 
     protected $casts = [

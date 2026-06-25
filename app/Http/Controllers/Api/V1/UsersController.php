@@ -92,6 +92,7 @@ class UsersController extends Controller
                 'empresa_id' => $empresaId,
                 'name' => $data['name'],
                 'email' => $data['email'],
+                'email_verified_at' => now(),
                 'password' => Hash::make($initialPassword),
                 'role' => $data['role'],
                 'section' => $data['section'] ?? null,

@@ -7,9 +7,10 @@ use App\Mail\HiredMail;
 use App\Mail\InterviewScheduledMail;
 use App\Mail\RejectedMail;
 use App\Models\Application;
-use App\Models\Empresa;
 use App\Models\Empleado;
+use App\Models\Empresa;
 use App\Models\JobOpening;
+use App\Models\JobOpeningTemplate;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -98,7 +99,7 @@ class AtsFase2Test extends TestCase
     {
         [$empresa, $admin] = $this->setupEmpresaAndUsers();
 
-        $template = \App\Models\JobOpeningTemplate::create([
+        $template = JobOpeningTemplate::create([
             'id' => Str::uuid(),
             'empresa_id' => $empresa->id,
             'title' => 'Almacenista',

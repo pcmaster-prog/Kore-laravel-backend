@@ -79,7 +79,7 @@ class GratificationReceipt extends Model
                 $prefix = strtoupper(substr(optional($receipt->gratificationType)->code ?? 'GRAT', 0, 3));
                 $year = now()->format('Y');
                 $last = static::whereYear('issue_date', $year)->count();
-                $receipt->folio = sprintf("G-%s-%s-%03d", $prefix, $year, $last + 1);
+                $receipt->folio = sprintf('G-%s-%s-%03d', $prefix, $year, $last + 1);
             }
         });
     }

@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Model;
 
 class TardinessConfig extends Model
 {
@@ -23,12 +23,12 @@ class TardinessConfig extends Model
     ];
 
     protected $casts = [
-        'grace_period_minutes'    => 'integer',
-        'late_threshold_minutes'  => 'integer',
-        'lates_to_absence'        => 'integer',
-        'penalize_rest_day'       => 'boolean',
+        'grace_period_minutes' => 'integer',
+        'late_threshold_minutes' => 'integer',
+        'lates_to_absence' => 'integer',
+        'penalize_rest_day' => 'boolean',
         'notify_employee_on_late' => 'boolean',
-        'notify_manager_on_late'  => 'boolean',
+        'notify_manager_on_late' => 'boolean',
     ];
 
     public function empresa()

@@ -3,14 +3,13 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
-use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\DB;
+use App\Models\Section;
 use App\Models\TaskAssignmentRule;
 use App\Models\TaskAssignmentRuleItem;
 use App\Models\TaskTemplate;
-use App\Models\Section;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 
 class TaskAssignmentRulesController extends Controller
 {
@@ -28,7 +27,7 @@ class TaskAssignmentRulesController extends Controller
 
         if ($request->filled('empleado_id')) {
             $q->where('assignee_type', 'empleado')
-              ->where('assignee_id', $request->string('empleado_id'));
+                ->where('assignee_id', $request->string('empleado_id'));
         }
 
         if ($request->filled('active')) {
@@ -67,7 +66,7 @@ class TaskAssignmentRulesController extends Controller
         $created = [];
         foreach ($data['rules'] as $ruleData) {
             $ruleRequest = new Request($ruleData);
-            $ruleRequest->setUserResolver(fn() => $u);
+            $ruleRequest->setUserResolver(fn () => $u);
             $result = $this->createRule($ruleRequest, $u);
             if ($result->getStatusCode() === 201) {
                 $created[] = json_decode($result->getContent(), true)['item'];
@@ -102,9 +101,9 @@ class TaskAssignmentRulesController extends Controller
         }
 
         // Validar sección si se proporciona
-        if (!empty($data['section_id'])) {
+        if (! empty($data['section_id'])) {
             $section = Section::where('empresa_id', $user->empresa_id)->where('id', $data['section_id'])->first();
-            if (!$section) {
+            if (! $section) {
                 return response()->json(['message' => 'Sección no encontrada'], 404);
             }
         }
@@ -155,7 +154,9 @@ class TaskAssignmentRulesController extends Controller
             ->where('id', $id)
             ->with(['items.template', 'section'])
             ->first();
-        if (!$rule) return response()->json(['message' => 'No encontrado'], 404);
+        if (! $rule) {
+            return response()->json(['message' => 'No encontrado'], 404);
+        }
 
         return response()->json(['item' => $rule]);
     }
@@ -166,7 +167,9 @@ class TaskAssignmentRulesController extends Controller
         Gate::authorize('admin');
 
         $rule = TaskAssignmentRule::where('empresa_id', $u->empresa_id)->where('id', $id)->first();
-        if (!$rule) return response()->json(['message' => 'No encontrado'], 404);
+        if (! $rule) {
+            return response()->json(['message' => 'No encontrado'], 404);
+        }
 
         $data = $request->validate([
             'assignee_type' => ['sometimes', Rule::in(['empleado', 'position', 'section_supervisor'])],
@@ -183,14 +186,14 @@ class TaskAssignmentRulesController extends Controller
 
         if (isset($data['section_id'])) {
             $section = Section::where('empresa_id', $u->empresa_id)->where('id', $data['section_id'])->first();
-            if (!$section) {
+            if (! $section) {
                 return response()->json(['message' => 'Sección no encontrada'], 404);
             }
         }
 
         $rule->fill($data);
 
-        if (!empty($data['template_ids'])) {
+        if (! empty($data['template_ids'])) {
             // Validar templates
             $validTemplates = TaskTemplate::where('empresa_id', $u->empresa_id)
                 ->whereIn('id', $data['template_ids'])
@@ -232,7 +235,9 @@ class TaskAssignmentRulesController extends Controller
         Gate::authorize('admin');
 
         $rule = TaskAssignmentRule::where('empresa_id', $u->empresa_id)->where('id', $id)->first();
-        if (!$rule) return response()->json(['message' => 'No encontrado'], 404);
+        if (! $rule) {
+            return response()->json(['message' => 'No encontrado'], 404);
+        }
 
         // Eliminar items primero
         TaskAssignmentRuleItem::where('rule_id', $rule->id)->delete();

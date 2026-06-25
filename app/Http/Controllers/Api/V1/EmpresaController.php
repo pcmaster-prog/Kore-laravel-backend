@@ -1,28 +1,30 @@
 <?php
-//EmpresaController: manejo de registro de empresa y usuario admin inicial, asignación de módulos base
+
+// EmpresaController: manejo de registro de empresa y usuario admin inicial, asignación de módulos base
+
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\EmpresaResource;
+use App\Models\Empresa;
+use App\Models\User;
+use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
-use App\Models\Empresa;
-use App\Models\User;
-use App\Http\Resources\EmpresaResource;
-
 class EmpresaController extends Controller
 {
     public function register(Request $request)
     {
         $data = $request->validate([
-            'company_name' => ['required','string','max:120'],
-            'admin_name'   => ['required','string','max:120'],
-            'admin_email'  => ['required','email','max:150','unique:users,email'],
-            'password'     => ['required','string','min:8'],
-            'palette_key'  => ['nullable','string','max:50'],
+            'company_name' => ['required', 'string', 'max:120'],
+            'admin_name' => ['required', 'string', 'max:120'],
+            'admin_email' => ['required', 'email', 'max:150', 'unique:users,email'],
+            'password' => ['required', 'string', 'min:8'],
+            'palette_key' => ['nullable', 'string', 'max:50'],
         ]);
 
         $result = DB::transaction(function () use ($data) {
@@ -30,14 +32,14 @@ class EmpresaController extends Controller
             $slug = Str::slug($data['company_name']).'-'.Str::lower(Str::random(6));
 
             $empresa = Empresa::create([
-            'name' => $data['company_name'],
-            'slug' => $slug,
-            'palette_key' => $data['palette_key'] ?? null,
-            'status' => 'active',
-            'settings' => [
-            'calendar' => [
-            'week_start' => 0, // domingo por defecto
-            ],
+                'name' => $data['company_name'],
+                'slug' => $slug,
+                'palette_key' => $data['palette_key'] ?? null,
+                'status' => 'active',
+                'settings' => [
+                    'calendar' => [
+                        'week_start' => 0, // domingo por defecto
+                    ],
                 ],
             ]);
 
@@ -45,6 +47,7 @@ class EmpresaController extends Controller
                 'empresa_id' => $empresa->id,
                 'name' => $data['admin_name'],
                 'email' => $data['admin_email'],
+                'email_verified_at' => now(),
                 'password' => Hash::make($data['password']),
                 'role' => 'admin',
                 'is_active' => true,
@@ -55,35 +58,35 @@ class EmpresaController extends Controller
             $modulesToInsert = [];
             foreach ($baseModules as $slug) {
                 $modulesToInsert[] = [
-                    'id'          => (string) Str::uuid(),
-                    'empresa_id'  => $empresa->id,
+                    'id' => (string) Str::uuid(),
+                    'empresa_id' => $empresa->id,
                     'module_slug' => $slug,
-                    'enabled'     => true,
-                    'created_at'  => now(),
-                    'updated_at'  => now(),
+                    'enabled' => true,
+                    'created_at' => now(),
+                    'updated_at' => now(),
                 ];
             }
             DB::table('empresa_modules')->insert($modulesToInsert);
 
             $token = $user->createToken('kore-api')->plainTextToken;
 
-            return compact('empresa','user','token');
+            return compact('empresa', 'user', 'token');
         });
 
         return response()->json([
             'token' => $result['token'],
             'empresa' => [
-                'id'=>$result['empresa']->id,
-                'name'=>$result['empresa']->name,
-                'slug'=>$result['empresa']->slug,
-                'palette_key'=>$result['empresa']->palette_key,
-                'status'=>$result['empresa']->status,
+                'id' => $result['empresa']->id,
+                'name' => $result['empresa']->name,
+                'slug' => $result['empresa']->slug,
+                'palette_key' => $result['empresa']->palette_key,
+                'status' => $result['empresa']->status,
             ],
             'user' => [
-                'id'=>$result['user']->id,
-                'name'=>$result['user']->name,
-                'email'=>$result['user']->email,
-                'role'=>$result['user']->role,
+                'id' => $result['user']->id,
+                'name' => $result['user']->name,
+                'email' => $result['user']->email,
+                'role' => $result['user']->role,
             ],
         ], 201);
     }
@@ -92,14 +95,14 @@ class EmpresaController extends Controller
     {
         $u = $request->user();
         Gate::authorize('admin');
-        
+
         $modulos = DB::table('empresa_modules')
             ->where('empresa_id', $u->empresa_id)
             ->get(['module_slug as slug', 'enabled'])
             ->map(function ($item) {
                 return [
                     'slug' => $item->slug,
-                    'enabled' => (bool) $item->enabled
+                    'enabled' => (bool) $item->enabled,
                 ];
             })
             ->values()
@@ -115,7 +118,7 @@ class EmpresaController extends Controller
 
         $data = $request->validate([
             'module_slug' => ['required', 'string'],
-            'enabled'     => ['required', 'boolean'],
+            'enabled' => ['required', 'boolean'],
         ]);
 
         $empresaId = $u->empresa_id;
@@ -140,7 +143,7 @@ class EmpresaController extends Controller
             ]);
         }
 
-        \App\Services\ActivityLogger::log(
+        ActivityLogger::log(
             $empresaId,
             $u->id,
             null,
@@ -160,7 +163,7 @@ class EmpresaController extends Controller
         Gate::authorize('admin');
 
         $data = $request->validate([
-            'allowed_ip' => ['nullable', 'string', 'max:45']
+            'allowed_ip' => ['nullable', 'string', 'max:45'],
         ]);
 
         $empresa = Empresa::find($u->empresa_id);
@@ -178,7 +181,7 @@ class EmpresaController extends Controller
         $empresa = Empresa::find($u->empresa_id);
 
         return response()->json([
-            'allowed_ip' => $empresa ? $empresa->allowed_ip : null
+            'allowed_ip' => $empresa ? $empresa->allowed_ip : null,
         ]);
     }
 
@@ -188,7 +191,7 @@ class EmpresaController extends Controller
         Gate::authorize('admin');
 
         $data = $request->validate([
-            'allowed_ip' => ['nullable', 'string', 'max:45']
+            'allowed_ip' => ['nullable', 'string', 'max:45'],
         ]);
 
         $empresa = Empresa::find($u->empresa_id);
@@ -199,7 +202,7 @@ class EmpresaController extends Controller
 
         return response()->json([
             'message' => 'Configuración de red actualizada',
-            'allowed_ip' => $empresa->allowed_ip
+            'allowed_ip' => $empresa->allowed_ip,
         ]);
     }
 }

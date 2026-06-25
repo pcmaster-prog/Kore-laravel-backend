@@ -1,11 +1,13 @@
 <?php
-//ActivityLogsController: manejo de logs de actividad para auditoría, con filtros por acción, entidad y rango de fechas
+
+// ActivityLogsController: manejo de logs de actividad para auditoría, con filtros por acción, entidad y rango de fechas
+
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\ActivityLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
-use App\Models\ActivityLog;
 
 class ActivityLogsController extends Controller
 {
@@ -14,7 +16,7 @@ class ActivityLogsController extends Controller
         $u = $request->user();
         Gate::authorize('supervisor');
 
-        $q = ActivityLog::where('empresa_id',$u->empresa_id);
+        $q = ActivityLog::where('empresa_id', $u->empresa_id);
 
         if ($request->filled('action')) {
             $q->where('action', $request->string('action'));

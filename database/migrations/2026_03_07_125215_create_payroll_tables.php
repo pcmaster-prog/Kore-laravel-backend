@@ -1,4 +1,5 @@
 <?php
+
 // database/migrations/xxxx_create_payroll_tables.php
 
 use Illuminate\Database\Migrations\Migration;

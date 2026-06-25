@@ -16,8 +16,7 @@ class HiredMail extends Mailable
         public string $candidateName,
         public string $jobTitle,
         public string $empresaName,
-    ) {
-    }
+    ) {}
 
     public function envelope(): Envelope
     {

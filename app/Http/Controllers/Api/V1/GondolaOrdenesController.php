@@ -3,17 +3,17 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
+use App\Http\Resources\GondolaOrdenResource;
+use App\Models\Empleado;
 use App\Models\Gondola;
 use App\Models\GondolaOrden;
 use App\Models\GondolaOrdenItem;
 use App\Models\Task;
-use App\Models\Empleado;
-use App\Services\TaskService;
 use App\Services\NotificationService;
-use App\Http\Resources\GondolaOrdenResource;
+use App\Services\TaskService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class GondolaOrdenesController extends Controller
 {
@@ -30,7 +30,7 @@ class GondolaOrdenesController extends Controller
     {
         $user = $request->user();
 
-        if (!in_array($user->role, ['admin', 'supervisor'])) {
+        if (! in_array($user->role, ['admin', 'supervisor'])) {
             return response()->json(['message' => 'Acceso denegado.'], 403);
         }
 
@@ -68,14 +68,14 @@ class GondolaOrdenesController extends Controller
     {
         $user = $request->user();
 
-        if (!in_array($user->role, ['admin', 'supervisor'])) {
+        if (! in_array($user->role, ['admin', 'supervisor'])) {
             return response()->json(['message' => 'Acceso denegado.'], 403);
         }
 
         $data = $request->validate([
-            'gondola_id'  => ['required', 'uuid'],
+            'gondola_id' => ['required', 'uuid'],
             'empleado_id' => ['required', 'uuid'],
-            'notas'       => ['nullable', 'string', 'max:500'],
+            'notas' => ['nullable', 'string', 'max:500'],
         ]);
 
         $gondola = Gondola::where('empresa_id', $user->empresa_id)
@@ -87,24 +87,24 @@ class GondolaOrdenesController extends Controller
         // Section 2.4: operación atómica (orden + snapshot de items)
         $orden = DB::transaction(function () use ($empresaId, $gondola, $data) {
             $orden = GondolaOrden::create([
-                'empresa_id'     => $empresaId,
-                'gondola_id'     => $gondola->id,
-                'empleado_id'    => $data['empleado_id'],
-                'status'         => 'pendiente',
+                'empresa_id' => $empresaId,
+                'gondola_id' => $gondola->id,
+                'empleado_id' => $data['empleado_id'],
+                'status' => 'pendiente',
                 'notas_empleado' => $data['notas'] ?? null,
             ]);
 
             // Crear snapshot de todos los productos activos de la góndola
             foreach ($gondola->productos as $producto) {
                 GondolaOrdenItem::create([
-                    'empresa_id'          => $empresaId,
-                    'orden_id'            => $orden->id,
+                    'empresa_id' => $empresaId,
+                    'orden_id' => $orden->id,
                     'gondola_producto_id' => $producto->id,
-                    'product_id'          => $producto->product_id,
-                    'clave'               => $producto->clave,
-                    'nombre'              => $producto->nombre,
-                    'unidad'              => $producto->unidad,
-                    'cantidad'            => null, // el empleado lo llenará
+                    'product_id' => $producto->product_id,
+                    'clave' => $producto->clave,
+                    'nombre' => $producto->nombre,
+                    'unidad' => $producto->unidad,
+                    'cantidad' => null, // el empleado lo llenará
                 ]);
             }
 
@@ -135,7 +135,7 @@ class GondolaOrdenesController extends Controller
     {
         $user = $request->user();
 
-        if (!in_array($user->role, ['admin', 'supervisor'])) {
+        if (! in_array($user->role, ['admin', 'supervisor'])) {
             return response()->json(['message' => 'Acceso denegado.'], 403);
         }
 
@@ -146,7 +146,7 @@ class GondolaOrdenesController extends Controller
         }
 
         $orden->update([
-            'status'      => 'aprobado',
+            'status' => 'aprobado',
             'approved_by' => $user->id,
             'approved_at' => now(),
         ]);
@@ -167,7 +167,7 @@ class GondolaOrdenesController extends Controller
     {
         $user = $request->user();
 
-        if (!in_array($user->role, ['admin', 'supervisor'])) {
+        if (! in_array($user->role, ['admin', 'supervisor'])) {
             return response()->json(['message' => 'Acceso denegado.'], 403);
         }
 
@@ -183,9 +183,9 @@ class GondolaOrdenesController extends Controller
 
         $orden->update([
             // Regresa a en_proceso para que el empleado pueda volver a completar
-            'status'        => 'en_proceso',
+            'status' => 'en_proceso',
             'notas_rechazo' => $data['notas_rechazo'],
-            'completed_at'  => null,
+            'completed_at' => null,
         ]);
 
         if ($orden->task) {
@@ -250,24 +250,24 @@ class GondolaOrdenesController extends Controller
             return response()->json(['message' => 'Solo el empleado asignado puede completar esta orden.'], 403);
         }
 
-        if (!in_array($orden->status, ['pendiente', 'en_proceso'])) {
+        if (! in_array($orden->status, ['pendiente', 'en_proceso'])) {
             return response()->json(['message' => 'La orden no está en un estado completable.'], 422);
         }
 
         if (is_string($request->input('items'))) {
             $request->merge([
-                'items' => json_decode($request->input('items'), true)
+                'items' => json_decode($request->input('items'), true),
             ]);
         }
 
         $data = $request->validate([
-            'items'                => ['required', 'array', 'min:1'],
-            'items.*.id'           => ['required', 'uuid'],
-            'items.*.cantidad'     => ['required', 'numeric', 'min:0'],
-            'items.*.unit'         => ['nullable', 'string', 'max:40'],
-            'notas_empleado'       => ['nullable', 'string', 'max:500'],
-            'evidencia_url'        => ['nullable', 'string', 'max:500'],
-            'evidencia'            => ['nullable', 'file', 'image', 'max:5120'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.id' => ['required', 'uuid'],
+            'items.*.cantidad' => ['required', 'numeric', 'min:0'],
+            'items.*.unit' => ['nullable', 'string', 'max:40'],
+            'notas_empleado' => ['nullable', 'string', 'max:500'],
+            'evidencia_url' => ['nullable', 'string', 'max:500'],
+            'evidencia' => ['nullable', 'file', 'image', 'max:5120'],
         ]);
 
         // Indexar items actuales por id para obtener el snapshot de unidad
@@ -284,7 +284,7 @@ class GondolaOrdenesController extends Controller
                     ->where('id', $itemData['id'])
                     ->update([
                         'cantidad' => $itemData['cantidad'],
-                        'unit'     => $unit,
+                        'unit' => $unit,
                     ]);
             }
 
@@ -302,10 +302,10 @@ class GondolaOrdenesController extends Controller
             }
 
             $orden->update([
-                'status'         => 'completado',
+                'status' => 'completado',
                 'notas_empleado' => $data['notas_empleado'] ?? $orden->notas_empleado,
-                'evidencia_url'  => $evidenciaUrl,
-                'completed_at'   => now(),
+                'evidencia_url' => $evidenciaUrl,
+                'completed_at' => now(),
             ]);
 
             if ($orden->task) {
@@ -319,13 +319,13 @@ class GondolaOrdenesController extends Controller
                         title: '✅ Orden de góndola lista para revisar',
                         body: "La orden de {$orden->gondola?->nombre} ha sido completada",
                         data: [
-                            'type'     => 'gondola.done_pending',
+                            'type' => 'gondola.done_pending',
                             'orden_id' => $orden->id,
-                            'task_id'  => $orden->task->id,
+                            'task_id' => $orden->task->id,
                         ]
                     );
                 } catch (\Exception $e) {
-                    \Illuminate\Support\Facades\Log::error('Error notifying gondola done_pending: ' . $e->getMessage());
+                    Log::error('Error notifying gondola done_pending: '.$e->getMessage());
                 }
             }
         });
@@ -344,7 +344,7 @@ class GondolaOrdenesController extends Controller
 
         $empleadoId = $user->empleado?->id;
 
-        if (!$empleadoId) {
+        if (! $empleadoId) {
             return response()->json(['message' => 'No se encontró el empleado asociado a este usuario.'], 404);
         }
 
@@ -374,7 +374,7 @@ class GondolaOrdenesController extends Controller
             ->where('user_id', $u->id)
             ->first();
 
-        if (!$emp) {
+        if (! $emp) {
             return response()->json(['message' => 'Empleado no vinculado'], 404);
         }
 
@@ -392,31 +392,31 @@ class GondolaOrdenesController extends Controller
 
         if ($existing) {
             return response()->json([
-                'message'  => 'Ya tienes una orden activa para esta góndola',
+                'message' => 'Ya tienes una orden activa para esta góndola',
                 'orden_id' => $existing->id,
             ], 409);
         }
 
         $orden = DB::transaction(function () use ($u, $gondolaId, $emp, $gondola) {
             $orden = GondolaOrden::create([
-                'empresa_id'     => $u->empresa_id,
-                'gondola_id'     => $gondolaId,
-                'empleado_id'    => $emp->id,
-                'status'         => 'en_proceso',
+                'empresa_id' => $u->empresa_id,
+                'gondola_id' => $gondolaId,
+                'empleado_id' => $emp->id,
+                'status' => 'en_proceso',
                 'notas_empleado' => 'Iniciado por iniciativa propia',
             ]);
 
             // Copiar snapshot de productos
             foreach ($gondola->productos as $producto) {
                 GondolaOrdenItem::create([
-                    'empresa_id'          => $u->empresa_id,
-                    'orden_id'            => $orden->id,
+                    'empresa_id' => $u->empresa_id,
+                    'orden_id' => $orden->id,
                     'gondola_producto_id' => $producto->id,
-                    'product_id'          => $producto->product_id,
-                    'clave'               => $producto->clave,
-                    'nombre'              => $producto->nombre,
-                    'unidad'              => $producto->unidad,
-                    'cantidad'            => null,
+                    'product_id' => $producto->product_id,
+                    'clave' => $producto->clave,
+                    'nombre' => $producto->nombre,
+                    'unidad' => $producto->unidad,
+                    'cantidad' => null,
                 ]);
             }
 
@@ -430,18 +430,18 @@ class GondolaOrdenesController extends Controller
                 title: '🛒 Relleno iniciado por iniciativa',
                 body: "{$emp->full_name} inició el relleno de {$gondola->nombre}",
                 data: [
-                    'type'     => 'gondola.auto_started',
+                    'type' => 'gondola.auto_started',
                     'orden_id' => $orden->id,
-                    'gondola'  => $gondola->nombre,
+                    'gondola' => $gondola->nombre,
                     'empleado' => $emp->full_name,
                 ]
             );
         } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('Error notifying gondola auto-start: ' . $e->getMessage());
+            Log::error('Error notifying gondola auto-start: '.$e->getMessage());
         }
 
         return response()->json([
-            'message'  => 'Relleno iniciado',
+            'message' => 'Relleno iniciado',
             'orden_id' => $orden->id,
         ], 201);
     }
@@ -458,15 +458,15 @@ class GondolaOrdenesController extends Controller
     {
         $user = $request->user();
 
-        if (!in_array($user->role, ['admin', 'supervisor'])) {
+        if (! in_array($user->role, ['admin', 'supervisor'])) {
             return response()->json(['message' => 'Acceso denegado.'], 403);
         }
 
         $data = $request->validate([
             'empleado_ids' => ['required', 'array', 'min:1'],
             'empleado_ids.*' => ['required', 'uuid'],
-            'due_at'       => ['nullable', 'date'],
-            'notas'        => ['nullable', 'string', 'max:500'],
+            'due_at' => ['nullable', 'date'],
+            'notas' => ['nullable', 'string', 'max:500'],
         ]);
 
         $gondola = Gondola::where('empresa_id', $user->empresa_id)
@@ -480,42 +480,42 @@ class GondolaOrdenesController extends Controller
         $result = DB::transaction(function () use ($empresaId, $user, $gondola, $primerEmpleadoId, $data) {
             // 1. Crear orden pendiente para el primer empleado
             $orden = GondolaOrden::create([
-                'empresa_id'     => $empresaId,
-                'gondola_id'     => $gondola->id,
-                'empleado_id'    => $primerEmpleadoId,
-                'status'         => 'pendiente',
+                'empresa_id' => $empresaId,
+                'gondola_id' => $gondola->id,
+                'empleado_id' => $primerEmpleadoId,
+                'status' => 'pendiente',
                 'notas_empleado' => $data['notas'] ?? null,
             ]);
 
             // 2. Crear items copiando productos activos de la góndola
             foreach ($gondola->productos as $producto) {
                 GondolaOrdenItem::create([
-                    'empresa_id'          => $empresaId,
-                    'orden_id'            => $orden->id,
+                    'empresa_id' => $empresaId,
+                    'orden_id' => $orden->id,
                     'gondola_producto_id' => $producto->id,
-                    'product_id'          => $producto->product_id,
-                    'clave'               => $producto->clave,
-                    'nombre'              => $producto->nombre,
-                    'unidad'              => $producto->unidad,
-                    'cantidad'            => null,
+                    'product_id' => $producto->product_id,
+                    'clave' => $producto->clave,
+                    'nombre' => $producto->nombre,
+                    'unidad' => $producto->unidad,
+                    'cantidad' => null,
                 ]);
             }
 
             // 3. Crear Task vinculada a la orden
             $task = Task::create([
-                'empresa_id'       => $empresaId,
-                'created_by'       => $user->id,
-                'title'            => "Rellenar: {$gondola->nombre}",
-                'description'      => $data['notas'] ?? "Orden de relleno para {$gondola->nombre}",
-                'priority'         => 'medium',
-                'status'           => 'open',
-                'due_at'           => $data['due_at'] ?? null,
+                'empresa_id' => $empresaId,
+                'created_by' => $user->id,
+                'title' => "Rellenar: {$gondola->nombre}",
+                'description' => $data['notas'] ?? "Orden de relleno para {$gondola->nombre}",
+                'priority' => 'medium',
+                'status' => 'open',
+                'due_at' => $data['due_at'] ?? null,
                 'gondola_orden_id' => $orden->id,
-                'task_source'      => 'gondola_refill',
-                'meta'             => [
-                    'gondola_id'   => $gondola->id,
+                'task_source' => 'gondola_refill',
+                'meta' => [
+                    'gondola_id' => $gondola->id,
                     'gondola_name' => $gondola->nombre,
-                    'template_id'  => null,
+                    'template_id' => null,
                     'catalog_date' => now()->toDateString(),
                 ],
             ]);
@@ -523,7 +523,7 @@ class GondolaOrdenesController extends Controller
             // 4. Asignar tarea a empleados
             $assignResult = TaskService::assignTask($task, $data['empleado_ids'], $user);
 
-            if (!$assignResult['success']) {
+            if (! $assignResult['success']) {
                 // Rollback implícito por excepción
                 abort($assignResult['code'] ?? 422, $assignResult['message']);
             }
@@ -545,19 +545,19 @@ class GondolaOrdenesController extends Controller
                         title: '📦 Nueva tarea de relleno',
                         body: "Se te asignó el relleno de {$gondola->nombre}",
                         data: [
-                            'type'     => 'gondola.task_assigned',
-                            'task_id'  => $result['task']->id,
+                            'type' => 'gondola.task_assigned',
+                            'task_id' => $result['task']->id,
                             'orden_id' => $result['orden']->id,
                         ]
                     );
                 }
             }
         } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('Error notifying gondola task assignees: ' . $e->getMessage());
+            Log::error('Error notifying gondola task assignees: '.$e->getMessage());
         }
 
         return response()->json([
-            'task'  => $result['task']->fresh(['assignees.empleado']),
+            'task' => $result['task']->fresh(['assignees.empleado']),
             'orden' => new GondolaOrdenResource($result['orden']->fresh(['items.product', 'items.producto'])),
         ], 201);
     }

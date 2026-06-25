@@ -12,6 +12,7 @@ class MealScheduleChangeRequest extends Model
     use HasFactory, HasUuids;
 
     protected $keyType = 'string';
+
     public $incrementing = false;
 
     protected $fillable = [

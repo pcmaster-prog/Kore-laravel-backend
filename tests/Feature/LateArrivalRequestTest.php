@@ -2,13 +2,13 @@
 
 namespace Tests\Feature;
 
-use App\Models\AttendanceDay;
 use App\Models\Empleado;
 use App\Models\Empresa;
 use App\Models\LateArrivalRequest;
 use App\Models\TardinessConfig;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -20,7 +20,7 @@ class LateArrivalRequestTest extends TestCase
     private function setupEmpresaYAdmin(): array
     {
         $empresa = Empresa::create([
-            'id'   => Str::uuid(),
+            'id' => Str::uuid(),
             'name' => 'Test Corp',
             'slug' => 'test-corp',
             'settings' => [
@@ -35,22 +35,22 @@ class LateArrivalRequestTest extends TestCase
             ],
         ]);
 
-        \Illuminate\Support\Facades\DB::table('empresa_modules')->insert([
-            'id'          => Str::uuid(),
-            'empresa_id'  => $empresa->id,
+        DB::table('empresa_modules')->insert([
+            'id' => Str::uuid(),
+            'empresa_id' => $empresa->id,
             'module_slug' => 'asistencia',
-            'enabled'     => true,
-            'created_at'  => now(),
-            'updated_at'  => now(),
+            'enabled' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
         ]);
 
         $admin = User::create([
-            'id'        => Str::uuid(),
-            'empresa_id'=> $empresa->id,
-            'name'      => 'Admin Test',
-            'email'     => 'admin@test.com',
-            'password'  => Hash::make('password123'),
-            'role'      => 'admin',
+            'id' => Str::uuid(),
+            'empresa_id' => $empresa->id,
+            'name' => 'Admin Test',
+            'email' => 'admin@test.com',
+            'password' => Hash::make('password123'),
+            'role' => 'admin',
             'is_active' => true,
         ]);
 
@@ -60,21 +60,21 @@ class LateArrivalRequestTest extends TestCase
     private function crearEmpleado($empresa, string $nombre, string $email, ?string $checkInTime = null): array
     {
         $user = User::create([
-            'id'        => Str::uuid(),
-            'empresa_id'=> $empresa->id,
-            'name'      => $nombre,
-            'email'     => $email,
-            'password'  => Hash::make('password123'),
-            'role'      => 'empleado',
+            'id' => Str::uuid(),
+            'empresa_id' => $empresa->id,
+            'name' => $nombre,
+            'email' => $email,
+            'password' => Hash::make('password123'),
+            'role' => 'empleado',
             'is_active' => true,
         ]);
 
         $emp = Empleado::create([
-            'id'        => Str::uuid(),
-            'empresa_id'=> $empresa->id,
-            'user_id'   => $user->id,
+            'id' => Str::uuid(),
+            'empresa_id' => $empresa->id,
+            'user_id' => $user->id,
             'full_name' => $nombre,
-            'status'    => 'active',
+            'status' => 'active',
             'check_in_time' => $checkInTime,
         ]);
 

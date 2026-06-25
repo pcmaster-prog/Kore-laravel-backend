@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
 use App\Models\Empleado;
+use Illuminate\Http\Request;
 
 class EmpleadoModuleController extends Controller
 {
@@ -37,11 +37,11 @@ class EmpleadoModuleController extends Controller
         ]);
 
         $empleado = Empleado::findOrFail($id);
-        
+
         $exists = $empleado->modulosIndividuales()->where('module_slug', $request->modulo_slug)->exists();
-        if (!$exists) {
+        if (! $exists) {
             $empleado->modulosIndividuales()->create([
-                'module_slug' => $request->modulo_slug
+                'module_slug' => $request->modulo_slug,
             ]);
         }
 
@@ -54,7 +54,7 @@ class EmpleadoModuleController extends Controller
     public function destroy($id, $modulo_slug)
     {
         $empleado = Empleado::findOrFail($id);
-        
+
         $empleado->modulosIndividuales()->where('module_slug', $modulo_slug)->delete();
 
         return response()->json(['message' => 'Módulo eliminado correctamente']);

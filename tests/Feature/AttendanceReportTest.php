@@ -6,10 +6,11 @@ use App\Models\AttendanceDay;
 use App\Models\Empleado;
 use App\Models\Empresa;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
-use Carbon\Carbon;
 use Tests\TestCase;
 
 class AttendanceReportTest extends TestCase
@@ -19,27 +20,27 @@ class AttendanceReportTest extends TestCase
     private function setupEmpresaYAdmin(): array
     {
         $empresa = Empresa::create([
-            'id'   => Str::uuid(),
+            'id' => Str::uuid(),
             'name' => 'Test Corp',
             'slug' => 'test-corp',
         ]);
 
-        \Illuminate\Support\Facades\DB::table('empresa_modules')->insert([
-            'id'          => Str::uuid(),
-            'empresa_id'  => $empresa->id,
+        DB::table('empresa_modules')->insert([
+            'id' => Str::uuid(),
+            'empresa_id' => $empresa->id,
             'module_slug' => 'asistencia',
-            'enabled'     => true,
-            'created_at'  => now(),
-            'updated_at'  => now(),
+            'enabled' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
         ]);
 
         $admin = User::create([
-            'id'        => Str::uuid(),
-            'empresa_id'=> $empresa->id,
-            'name'      => 'Admin Test',
-            'email'     => 'admin@test.com',
-            'password'  => Hash::make('password123'),
-            'role'      => 'admin',
+            'id' => Str::uuid(),
+            'empresa_id' => $empresa->id,
+            'name' => 'Admin Test',
+            'email' => 'admin@test.com',
+            'password' => Hash::make('password123'),
+            'role' => 'admin',
             'is_active' => true,
         ]);
 
@@ -49,21 +50,21 @@ class AttendanceReportTest extends TestCase
     private function crearEmpleado($empresa, string $nombre, string $email): array
     {
         $user = User::create([
-            'id'        => Str::uuid(),
-            'empresa_id'=> $empresa->id,
-            'name'      => $nombre,
-            'email'     => $email,
-            'password'  => Hash::make('password123'),
-            'role'      => 'empleado',
+            'id' => Str::uuid(),
+            'empresa_id' => $empresa->id,
+            'name' => $nombre,
+            'email' => $email,
+            'password' => Hash::make('password123'),
+            'role' => 'empleado',
             'is_active' => true,
         ]);
 
         $emp = Empleado::create([
-            'id'        => Str::uuid(),
-            'empresa_id'=> $empresa->id,
-            'user_id'   => $user->id,
+            'id' => Str::uuid(),
+            'empresa_id' => $empresa->id,
+            'user_id' => $user->id,
             'full_name' => $nombre,
-            'status'    => 'active',
+            'status' => 'active',
         ]);
 
         return [$user, $emp];
@@ -79,7 +80,7 @@ class AttendanceReportTest extends TestCase
 
         $response = $this->actingAs($admin, 'sanctum')
             ->postJson('/api/v1/asistencia/cerrar-masivo', [
-                'date'   => now()->toDateString(),
+                'date' => now()->toDateString(),
                 'motivo' => 'Cierre de turno por fin de jornada laboral',
             ]);
 
@@ -97,27 +98,27 @@ class AttendanceReportTest extends TestCase
 
         // Empleado 1: en turno (entrada sin salida)
         AttendanceDay::create([
-            'id'                => Str::uuid(),
-            'empresa_id'        => $empresa->id,
-            'empleado_id'       => $emp1->id,
-            'date'              => $date,
-            'status'            => 'open',
+            'id' => Str::uuid(),
+            'empresa_id' => $empresa->id,
+            'empleado_id' => $emp1->id,
+            'date' => $date,
+            'status' => 'open',
             'first_check_in_at' => now()->subHours(4),
         ]);
 
         // Empleado 2: en turno
         AttendanceDay::create([
-            'id'                => Str::uuid(),
-            'empresa_id'        => $empresa->id,
-            'empleado_id'       => $emp2->id,
-            'date'              => $date,
-            'status'            => 'open',
+            'id' => Str::uuid(),
+            'empresa_id' => $empresa->id,
+            'empleado_id' => $emp2->id,
+            'date' => $date,
+            'status' => 'open',
             'first_check_in_at' => now()->subHours(2),
         ]);
 
         $response = $this->actingAs($admin, 'sanctum')
             ->postJson('/api/v1/asistencia/cerrar-masivo', [
-                'date'   => $date,
+                'date' => $date,
                 'motivo' => 'Cierre de turno por fin de jornada laboral',
             ]);
 
@@ -126,16 +127,16 @@ class AttendanceReportTest extends TestCase
             ->assertJsonCount(2, 'employees');
 
         $this->assertDatabaseHas('attendance_days', [
-            'empleado_id'       => $emp1->id,
-            'status'            => 'closed',
-            'admin_closed'      => true,
-            'admin_closed_by'   => $admin->id,
+            'empleado_id' => $emp1->id,
+            'status' => 'closed',
+            'admin_closed' => true,
+            'admin_closed_by' => $admin->id,
         ]);
 
         $this->assertDatabaseHas('attendance_days', [
-            'empleado_id'       => $emp2->id,
-            'status'            => 'closed',
-            'admin_closed'      => true,
+            'empleado_id' => $emp2->id,
+            'status' => 'closed',
+            'admin_closed' => true,
         ]);
     }
 
@@ -148,16 +149,16 @@ class AttendanceReportTest extends TestCase
 
         // Empleado con día de descanso
         AttendanceDay::create([
-            'id'          => Str::uuid(),
-            'empresa_id'  => $empresa->id,
+            'id' => Str::uuid(),
+            'empresa_id' => $empresa->id,
             'empleado_id' => $emp1->id,
-            'date'        => $date,
-            'status'      => 'day_off',
+            'date' => $date,
+            'status' => 'day_off',
         ]);
 
         $response = $this->actingAs($admin, 'sanctum')
             ->postJson('/api/v1/asistencia/cerrar-masivo', [
-                'date'   => $date,
+                'date' => $date,
                 'motivo' => 'Cierre de turno',
             ]);
 
@@ -174,18 +175,18 @@ class AttendanceReportTest extends TestCase
         $horaCierre = '17:30';
 
         AttendanceDay::create([
-            'id'                => Str::uuid(),
-            'empresa_id'        => $empresa->id,
-            'empleado_id'       => $emp1->id,
-            'date'              => $date,
-            'status'            => 'open',
+            'id' => Str::uuid(),
+            'empresa_id' => $empresa->id,
+            'empleado_id' => $emp1->id,
+            'date' => $date,
+            'status' => 'open',
             'first_check_in_at' => now()->subHours(8),
         ]);
 
         $response = $this->actingAs($admin, 'sanctum')
             ->postJson('/api/v1/asistencia/cerrar-masivo', [
-                'date'   => $date,
-                'time'   => $horaCierre,
+                'date' => $date,
+                'time' => $horaCierre,
                 'motivo' => 'Cierre de turno por fin de jornada laboral',
             ]);
 
@@ -193,11 +194,11 @@ class AttendanceReportTest extends TestCase
             ->assertJsonPath('closed_count', 1);
 
         $this->assertDatabaseHas('attendance_days', [
-            'empleado_id'        => $emp1->id,
-            'status'             => 'closed',
-            'admin_closed'       => true,
-            'admin_closed_by'    => $admin->id,
-            'last_check_out_at'  => $date . ' ' . $horaCierre . ':00',
+            'empleado_id' => $emp1->id,
+            'status' => 'closed',
+            'admin_closed' => true,
+            'admin_closed_by' => $admin->id,
+            'last_check_out_at' => $date.' '.$horaCierre.':00',
         ]);
     }
 
@@ -260,7 +261,7 @@ class AttendanceReportTest extends TestCase
         [$empresa1, $admin] = $this->setupEmpresaYAdmin();
 
         $empresa2 = Empresa::create([
-            'id'   => Str::uuid(),
+            'id' => Str::uuid(),
             'name' => 'Otra Corp',
             'slug' => 'otra-corp',
         ]);
@@ -285,14 +286,14 @@ class AttendanceReportTest extends TestCase
         $date = now()->toDateString();
 
         AttendanceDay::create([
-            'id'                => Str::uuid(),
-            'empresa_id'        => $empresa->id,
-            'empleado_id'       => $emp->id,
-            'date'              => $date,
-            'status'            => 'closed',
+            'id' => Str::uuid(),
+            'empresa_id' => $empresa->id,
+            'empleado_id' => $emp->id,
+            'date' => $date,
+            'status' => 'closed',
             'first_check_in_at' => now()->subHours(8),
             'last_check_out_at' => now(),
-            'late_minutes'      => 15,
+            'late_minutes' => 15,
         ]);
 
         $response = $this->actingAs($admin, 'sanctum')

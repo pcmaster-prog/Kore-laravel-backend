@@ -3,12 +3,11 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\ModulePosition;
+use App\Models\Modulo;
+use App\Models\Position;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Gate;
-use App\Models\Position;
-use App\Models\Modulo;
-use App\Models\ModulePosition;
 
 class PositionModuleController extends Controller
 {
@@ -16,7 +15,7 @@ class PositionModuleController extends Controller
     public function index(Request $request)
     {
         $u = $request->user();
-        
+
         // Obtener módulos habilitados para la empresa
         $enabledKeys = DB::table('empresa_modules')
             ->where('empresa_id', $u->empresa_id)
@@ -40,7 +39,7 @@ class PositionModuleController extends Controller
         $position = Position::where('empresa_id', $u->empresa_id)->where('id', $id)->firstOrFail();
 
         $modules = $position->modules()->pluck('module_slug');
-        
+
         return response()->json(['data' => $modules]);
     }
 
@@ -59,7 +58,7 @@ class PositionModuleController extends Controller
         $position->modules()->delete();
 
         // Insertamos los nuevos
-        if (!empty($data['modulos'])) {
+        if (! empty($data['modulos'])) {
             $inserts = [];
             foreach ($data['modulos'] as $slug) {
                 $inserts[] = [
@@ -81,7 +80,7 @@ class PositionModuleController extends Controller
         $u = $request->user();
         $empleado = $u->empleado;
 
-        if (!$empleado || !$empleado->position_id) {
+        if (! $empleado || ! $empleado->position_id) {
             return response()->json(['data' => []]);
         }
 

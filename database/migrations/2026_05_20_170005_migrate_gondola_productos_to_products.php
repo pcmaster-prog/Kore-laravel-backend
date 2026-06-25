@@ -15,16 +15,16 @@ return new class extends Migration
                 $productId = (string) Str::uuid();
 
                 DB::table('products')->insert([
-                    'id'            => $productId,
-                    'empresa_id'    => $row->empresa_id,
-                    'sku'           => $row->clave,
-                    'name'          => $row->nombre,
-                    'description'   => $row->descripcion,
-                    'default_unit'  => $row->unidad ?? 'pz',
-                    'photo_url'     => $row->foto_url,
-                    'is_active'     => $row->activo ?? true,
-                    'created_at'    => now(),
-                    'updated_at'    => now(),
+                    'id' => $productId,
+                    'empresa_id' => $row->empresa_id,
+                    'sku' => $row->clave,
+                    'name' => $row->nombre,
+                    'description' => $row->descripcion,
+                    'default_unit' => $row->unidad ?? 'pz',
+                    'photo_url' => $row->foto_url,
+                    'is_active' => $row->activo ?? true,
+                    'created_at' => now(),
+                    'updated_at' => now(),
                 ]);
 
                 DB::table('gondola_productos')
