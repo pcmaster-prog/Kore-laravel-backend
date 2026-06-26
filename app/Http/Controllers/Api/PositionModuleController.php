@@ -12,8 +12,10 @@ class PositionModuleController extends Controller
     public function index()
     {
         return response()->json([
-            ['slug' => 'produccion_maderas', 'nombre' => 'Prod. Maderas'],
-            ['slug' => 'produccion_pesaje', 'nombre' => 'Pesaje'],
+            'data' => [
+                ['slug' => 'produccion_maderas', 'nombre' => 'Prod. Maderas'],
+                ['slug' => 'produccion_pesaje', 'nombre' => 'Pesaje'],
+            ],
         ]);
     }
 
