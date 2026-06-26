@@ -5,11 +5,8 @@ use App\Http\Controllers\Api\EnsamblajeController;
 use App\Http\Controllers\Api\InventarioController;
 use App\Http\Controllers\Api\MaderasDashboardController;
 use App\Http\Controllers\Api\PedidosController;
-use App\Http\Controllers\Api\PesajeController;
-use App\Http\Controllers\Api\PesajeDashboardController;
 use App\Http\Controllers\Api\PositionModuleController;
 use App\Http\Controllers\Api\ProduccionController;
-use App\Http\Controllers\Api\SaboresController;
 // Nuevos controladores para templates, rutinas y catálogo
 use App\Http\Controllers\Api\TemporadasController;
 use App\Http\Controllers\Api\V1\AbsenceRequestController;
@@ -277,16 +274,6 @@ Route::prefix('v1')->group(function () {
                     Route::get('/pedidos', [PedidosController::class, 'index']);
                     Route::get('/pedidos/calcular', [PedidosController::class, 'calcular']);
                     Route::get('/pedidos/{id}/pdf', [PedidosController::class, 'downloadPdf']);
-                });
-
-                // ── DecorArte Fase 3: Módulo Pesaje ──
-                Route::middleware([EnsurePositionModule::class.':produccion_pesaje'])->prefix('pesaje')->group(function () {
-                    Route::get('/dashboard', [PesajeDashboardController::class, 'index']);
-                    Route::get('/historial', [PesajeController::class, 'index']);
-                    Route::post('/', [PesajeController::class, 'store']);
-                    Route::get('/sabores', [SaboresController::class, 'index']);
-                    Route::post('/sabores', [SaboresController::class, 'store']);
-                    Route::put('/sabores/{id}', [SaboresController::class, 'update']);
                 });
 
                 // Tareas existentes (asignaciones, etc.)
@@ -692,18 +679,18 @@ Route::prefix('v1')->group(function () {
                     ->middleware('position.permission:produccion_pesaje,historial');
                 Route::get('pesaje/registros/{registro}', [PesajeRegistroController::class, 'show'])
                     ->middleware('position.permission:produccion_pesaje,historial')
-                    ->whereUuid('registro');
+                    ->whereNumber('registro');
                 Route::post('pesaje/registros', [PesajeRegistroController::class, 'store'])
                     ->middleware('position.permission:produccion_pesaje,registrar');
                 Route::put('pesaje/registros/{registro}', [PesajeRegistroController::class, 'update'])
                     ->middleware('position.permission:produccion_pesaje,registrar')
-                    ->whereUuid('registro');
+                    ->whereNumber('registro');
                 Route::patch('pesaje/registros/{registro}', [PesajeRegistroController::class, 'update'])
                     ->middleware('position.permission:produccion_pesaje,registrar')
-                    ->whereUuid('registro');
+                    ->whereNumber('registro');
                 Route::delete('pesaje/registros/{registro}', [PesajeRegistroController::class, 'destroy'])
                     ->middleware('position.permission:produccion_pesaje,registrar')
-                    ->whereUuid('registro');
+                    ->whereNumber('registro');
             });
 
             // Ruta de prueba

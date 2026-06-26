@@ -69,6 +69,7 @@ class AuthController extends Controller
     public function me(Request $request)
     {
         $u = $request->user();
+        $u->loadMissing('empleado');
 
         $empresa = null;
         $enabledKeys = [];
@@ -92,6 +93,10 @@ class AuthController extends Controller
                 'role' => $u->role,
                 'section' => $u->section,
                 'empresa_id' => $u->empresa_id,
+                'empleado' => $u->empleado ? [
+                    'id' => $u->empleado->id,
+                    'full_name' => $u->empleado->full_name,
+                ] : null,
             ],
             'empresa' => $empresa ? [
                 'id' => $empresa->id,
