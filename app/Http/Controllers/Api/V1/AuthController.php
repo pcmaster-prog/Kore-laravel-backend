@@ -53,6 +53,8 @@ class AuthController extends Controller
 
         $token = $user->createToken('kore-api')->plainTextToken;
 
+        $user->loadMissing('empleado');
+
         return response()->json([
             'token' => $token,
             'user' => [
@@ -62,6 +64,10 @@ class AuthController extends Controller
                 'role' => $user->role,
                 'section' => $user->section,
                 'empresa_id' => $user->empresa_id,
+                'empleado' => $user->empleado ? [
+                    'id' => $user->empleado->id,
+                    'full_name' => $user->empleado->full_name,
+                ] : null,
             ],
         ]);
     }
