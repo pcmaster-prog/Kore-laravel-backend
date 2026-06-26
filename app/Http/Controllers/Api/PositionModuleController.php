@@ -70,8 +70,15 @@ class PositionModuleController extends Controller
 
         $modulosEfectivos = $empleado->modulos_efectivos ?? [];
 
+        // Módulos de producción (Maderas/Pesaje) requieren asignación explícita
+        // por puesto u override individual. Si están habilitados a nivel empresa,
+        // no se heredan automáticamente por ser empleado.
+        $productionModules = ['produccion_maderas', 'produccion_pesaje'];
+        $baseModules = array_filter($companyModules, fn (string $slug) => ! in_array($slug, $productionModules, true) || in_array($slug, $modulosEfectivos, true)
+        );
+
         return response()->json([
-            'modulos' => array_unique(array_merge($companyModules, $modulosEfectivos)),
+            'modulos' => array_values(array_unique(array_merge($baseModules, $modulosEfectivos))),
         ]);
     }
 
