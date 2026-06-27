@@ -1290,6 +1290,87 @@ class AttendanceControllerV2 extends Controller
         ]);
     }
 
+    /**
+     * PATCH /asistencia/comida/ajustar/{empleadoId}/{fecha}
+     * Admin/Supervisor puede corregir la hora de inicio y/o fin de la comida.
+     */
+    public function ajustarComida(Request $request, string $empleadoId, string $fecha)
+    {
+        Gate::authorize('supervisor');
+        $u = $request->user();
+
+        $data = $request->validate([
+            'lunch_start_at' => ['nullable', 'date_format:H:i'],
+            'lunch_end_at' => ['nullable', 'date_format:H:i'],
+            'motivo' => ['required', 'string', 'max:300'],
+        ]);
+
+        if (empty($data['lunch_start_at']) && empty($data['lunch_end_at'])) {
+            return response()->json(['message' => 'Debes enviar al menos una hora de comida'], 422);
+        }
+
+        $emp = Empleado::where('empresa_id', $u->empresa_id)
+            ->where('id', $empleadoId)
+            ->firstOrFail();
+
+        $day = AttendanceDay::where('empresa_id', $u->empresa_id)
+            ->where('empleado_id', $emp->id)
+            ->where('date', $fecha)
+            ->first();
+
+        if (! $day) {
+            return response()->json(['message' => 'No se encontró registro de asistencia para este día'], 404);
+        }
+
+        // Si se ajusta fin pero no hay inicio, rechazar
+        if (! empty($data['lunch_end_at']) && ! $day->lunch_start_at && empty($data['lunch_start_at'])) {
+            return response()->json(['message' => 'No se puede ajustar la hora de fin sin una hora de inicio'], 422);
+        }
+
+        if (array_key_exists('lunch_start_at', $data) && $data['lunch_start_at']) {
+            $day->lunch_start_at = Carbon::parse($fecha.' '.$data['lunch_start_at']);
+        }
+
+        if (array_key_exists('lunch_end_at', $data) && $data['lunch_end_at']) {
+            $day->lunch_end_at = Carbon::parse($fecha.' '.$data['lunch_end_at']);
+        }
+
+        // Recalcular tiempo excedido si hay inicio y fin
+        if ($day->lunch_start_at && $day->lunch_end_at) {
+            $empresa = Empresa::find($u->empresa_id);
+            $settings = is_array($empresa?->settings) ? $empresa->settings : [];
+            $mealDuration = (int) ($settings['operativo']['meal_duration_minutes'] ?? 30);
+
+            $minutos = (int) round($day->lunch_start_at->diffInMinutes($day->lunch_end_at));
+            $day->meal_overtime_minutes = max(0, $minutos - $mealDuration);
+        }
+
+        $day->save();
+
+        ActivityLogger::log(
+            $u->empresa_id,
+            $u->id,
+            null,
+            'attendance.lunch_adjusted',
+            'attendance_day',
+            $day->id,
+            [
+                'empleado_name' => $emp->full_name,
+                'fecha' => $fecha,
+                'motivo' => $data['motivo'],
+                'adjusted_lunch_start' => $data['lunch_start_at'] ?? null,
+                'adjusted_lunch_end' => $data['lunch_end_at'] ?? null,
+                'adjusted_by' => $u->name,
+            ],
+            $request
+        );
+
+        return response()->json([
+            'message' => 'Horario de comida ajustado correctamente',
+            'day' => $this->presentDay($day),
+        ]);
+    }
+
     // ----------------- helpers -----------------
 
     private function authEmployee(Request $request): array

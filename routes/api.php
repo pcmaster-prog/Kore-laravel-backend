@@ -437,6 +437,7 @@ Route::prefix('v1')->group(function () {
 
                 // Ajuste de asistencia (Admin/Supervisor)
                 Route::patch('/asistencia/ajustar/{empleadoId}/{fecha}', [AttendanceControllerV2::class, 'ajustar']);
+                Route::patch('/asistencia/comida/ajustar/{empleadoId}/{fecha}', [AttendanceControllerV2::class, 'ajustarComida']);
                 Route::delete('/asistencia/eliminar/{empleadoId}/{fecha}', [AttendanceControllerV2::class, 'eliminarDia']);
 
                 // Retardos — empleado
