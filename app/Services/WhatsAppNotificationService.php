@@ -33,9 +33,7 @@ class WhatsAppNotificationService
                 'delay' => 1200,
                 'presence' => 'composing' // Muestra "escribiendo..." antes de enviar
             ],
-            'textMessage' => [
-                'text' => $message
-            ]
+            'text' => $message
         ];
 
         try {
