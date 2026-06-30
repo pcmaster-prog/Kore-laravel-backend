@@ -53,8 +53,9 @@ return [
     ],
 
     'whatsapp' => [
-        'api_key' => env('WHATSAPP_API_KEY'),
-        'phone' => env('WHATSAPP_PHONE'),
+        'api_url' => env('WHATSAPP_API_URL'),
+        'global_api_key' => env('WHATSAPP_GLOBAL_API_KEY'),
+        'instance_name' => env('WHATSAPP_INSTANCE_NAME'),
     ],
 
     'recaptcha' => [

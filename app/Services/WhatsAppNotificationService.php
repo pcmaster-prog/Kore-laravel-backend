@@ -9,10 +9,11 @@ class WhatsAppNotificationService
 {
     public static function send(string $toPhone, string $message): bool
     {
-        $apiKey = config('services.whatsapp.api_key');
-        $sourcePhone = config('services.whatsapp.phone');
+        $apiUrl = config('services.whatsapp.api_url');
+        $apiKey = config('services.whatsapp.global_api_key');
+        $instanceName = config('services.whatsapp.instance_name');
 
-        if (! $apiKey || ! $sourcePhone || ! $toPhone) {
+        if (! $apiUrl || ! $apiKey || ! $instanceName || ! $toPhone) {
             return false;
         }
 
@@ -22,18 +23,37 @@ class WhatsAppNotificationService
             return false;
         }
 
-        $url = 'https://api.callmebot.com/whatsapp.php'
-            .'?phone='.urlencode($toPhone)
-            .'&text='.urlencode($message)
-            .'&apikey='.urlencode($apiKey);
+        // Eliminar trailing slash si lo hay
+        $apiUrl = rtrim($apiUrl, '/');
+        $url = "{$apiUrl}/message/sendText/{$instanceName}";
+        
+        $payload = [
+            'number' => $toPhone,
+            'options' => [
+                'delay' => 1200,
+                'presence' => 'composing' // Muestra "escribiendo..." antes de enviar
+            ],
+            'textMessage' => [
+                'text' => $message
+            ]
+        ];
 
         try {
-            Http::timeout(15)->get($url);
+            $response = Http::timeout(15)
+                ->withHeaders([
+                    'apikey' => $apiKey,
+                    'Content-Type' => 'application/json',
+                ])
+                ->post($url, $payload);
 
-            return true;
+            if ($response->successful()) {
+                return true;
+            }
+
+            Log::error('Error enviando WhatsApp via Evolution API: '.$response->body());
+            return false;
         } catch (\Exception $e) {
-            Log::error('Error enviando WhatsApp via CallMeBot: '.$e->getMessage());
-
+            Log::error('Excepción enviando WhatsApp via Evolution API: '.$e->getMessage());
             return false;
         }
     }
@@ -42,6 +62,7 @@ class WhatsAppNotificationService
     {
         $phone = preg_replace('/[^0-9]/', '', $phone);
 
+        // Si es a 10 dígitos (ej. México local), agregar el código de país.
         if (strlen($phone) === 10) {
             $phone = '52'.$phone;
         }
