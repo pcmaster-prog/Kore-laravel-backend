@@ -174,6 +174,15 @@ Route::prefix('v1')->group(function () {
             Route::post('applications/{id}/interviews', [InterviewController::class, 'store']);
 
             Route::get('analytics/pipeline', [AtsAnalyticsController::class, 'pipeline']);
+            
+            Route::post('whatsapp/test', function (\Illuminate\Http\Request $request) {
+                $request->validate([
+                    'phone' => 'required|string',
+                    'message' => 'required|string'
+                ]);
+                $result = \App\Services\WhatsAppNotificationService::send($request->phone, $request->message);
+                return response()->json(['success' => $result]);
+            });
 
             Route::get('email-templates/types', [EmailTemplateController::class, 'types']);
             Route::apiResource('email-templates', EmailTemplateController::class);
