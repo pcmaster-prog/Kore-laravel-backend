@@ -332,6 +332,9 @@ class JobOpeningController extends Controller
             'screening_questions' => 'nullable|array',
             'screening_pass_score' => 'nullable|integer|min:1|max:10',
             'scorecard_template' => 'nullable|array',
+            'interview_guide_questions' => 'nullable|array',
+            'interview_guide_questions.*.category' => 'required_with:interview_guide_questions|string',
+            'interview_guide_questions.*.question' => 'required_with:interview_guide_questions|string',
         ];
     }
 

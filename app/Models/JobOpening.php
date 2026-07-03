@@ -42,6 +42,7 @@ class JobOpening extends Model
         'screening_questions',
         'screening_pass_score',
         'scorecard_template',
+        'interview_guide_questions',
     ];
 
     protected function casts(): array
@@ -57,6 +58,7 @@ class JobOpening extends Model
             'offer_details' => 'array',
             'screening_questions' => 'array',
             'scorecard_template' => 'array',
+            'interview_guide_questions' => 'array',
             'screening_pass_score' => 'integer',
             'vacancies_count' => 'integer',
             'benefits' => 'array',

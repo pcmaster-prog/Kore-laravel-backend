@@ -80,6 +80,10 @@ class InterviewController extends Controller
             'scorecard.*.score' => 'required_with:scorecard|integer|min:1|max:5',
             'scorecard.*.notes' => 'nullable|string',
             'result' => 'sometimes|in:pending,passed,failed',
+            'document_checklist' => 'nullable|array',
+            'document_checklist.*.type' => 'required_with:document_checklist|string',
+            'document_checklist.*.status' => 'required_with:document_checklist|in:presented,missing,pending',
+            'document_checklist.*.notes' => 'nullable|string',
         ]);
 
         if (isset($validated['scorecard'])) {

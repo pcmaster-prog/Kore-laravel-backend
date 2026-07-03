@@ -19,6 +19,7 @@ class Interview extends Model
         'meeting_url',
         'notes',
         'scorecard',
+        'document_checklist',
         'recommendation',
         'result',
         'reminder_sent_at',
@@ -30,6 +31,7 @@ class Interview extends Model
         return [
             'scheduled_at' => 'datetime',
             'scorecard' => 'array',
+            'document_checklist' => 'array',
         ];
     }
 
