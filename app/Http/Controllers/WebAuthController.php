@@ -159,10 +159,18 @@ class WebAuthController extends Controller
 
     public function resendVerificationEmail(Request $request)
     {
+        // Si hay sesión activa, usamos el usuario autenticado
         $user = $request->user();
 
+        // Si no hay sesión, buscamos por email en el body
         if (! $user) {
-            return response()->json(['message' => 'No autenticado'], 401);
+            $data = $request->validate(['email' => ['required', 'email']]);
+            $user = User::where('email', $data['email'])->first();
+
+            if (! $user) {
+                // No revelar si el email existe o no
+                return response()->json(['message' => 'Si el correo existe, recibirás un enlace de verificación.']);
+            }
         }
 
         if ($user->hasVerifiedEmail()) {
