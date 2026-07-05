@@ -612,12 +612,14 @@ class PayrollController extends Controller
 
             $dayMinutes = $day->first_check_in_at->diffInMinutes($day->last_check_out_at);
 
-            // Descontar tiempo de comida completado
+            // Se solicitó no descontar el tiempo de comida de las horas trabajadas
+            /* 
             if ($day->lunch_start_at && $day->lunch_end_at &&
                 $day->lunch_end_at > $day->lunch_start_at) {
                 $lunchMinutes = $day->lunch_start_at->diffInMinutes($day->lunch_end_at);
                 $dayMinutes -= min($lunchMinutes, 60); // máximo 1 hora de comida
             }
+            */
 
             // Sanitizar: máximo 14 horas por día (840 minutos)
             $dayMinutes = max(0, min($dayMinutes, 840));
