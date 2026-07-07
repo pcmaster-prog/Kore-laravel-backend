@@ -110,9 +110,15 @@ Route::prefix('v1')->group(function () {
     Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback']);
 
     Route::get('/auth/google/config', [GoogleAuthController::class, 'config']);
-    Route::get('/public/jobs', [JobOpeningController::class, 'publicIndex']);
-    Route::get('/public/jobs/filters', [JobOpeningController::class, 'publicFilters']);
-    Route::get('/public/jobs/{id}', [JobOpeningController::class, 'publicShow']);
+    // Portal de Vacantes — Rutas públicas
+    // El middleware resolve.public.tenant resuelve el tenant por Host header (empresas.domain)
+    // y lo almacena en $request->attributes. Cualquier endpoint nuevo en este grupo
+    // queda cubierto automáticamente sin código adicional en el controller.
+    Route::middleware(['resolve.public.tenant'])->group(function () {
+        Route::get('/public/jobs',         [JobOpeningController::class, 'publicIndex']);
+        Route::get('/public/jobs/filters', [JobOpeningController::class, 'publicFilters']);
+        Route::get('/public/jobs/{id}',    [JobOpeningController::class, 'publicShow']);
+    });
 
     // Auth del portal de vacantes vía cookie HttpOnly
     Route::middleware(['portal.cookie', 'throttle:api'])->group(function () {

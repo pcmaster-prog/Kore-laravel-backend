@@ -12,6 +12,7 @@ class Empresa extends Model
     protected $fillable = [
         'name',
         'slug',
+        'domain',
         'status',
         'palette_key',
         'plan_id',

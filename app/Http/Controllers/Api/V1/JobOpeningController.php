@@ -14,22 +14,32 @@ use Illuminate\Support\Str;
 class JobOpeningController extends Controller
 {
     // === PÚBLICO ===
+
+    /**
+     * Lee el empresa_id inyectado por el middleware ResolvePublicTenant.
+     * El middleware ya garantizó que el host es válido y pertenece a una empresa registrada.
+     */
     private function resolveEmpresaId(Request $request): ?string
     {
+        // Primero: atributo inyectado por ResolvePublicTenant (fuente de verdad en producción)
+        $fromMiddleware = $request->attributes->get('public_empresa_id');
+        if ($fromMiddleware) {
+            return $fromMiddleware;
+        }
+
+        // Fallback para compatibilidad con llamadas directas a la API (tests, Postman, etc.)
         if ($request->has('empresa_id')) {
             return $request->input('empresa_id');
         }
 
         if ($request->has('empresa_slug')) {
             $empresa = Empresa::where('slug', $request->input('empresa_slug'))->first();
-
             return $empresa?->id;
         }
 
         $defaultSlug = config('app.default_empresa_slug');
         if ($defaultSlug) {
             $empresa = Empresa::where('slug', $defaultSlug)->first();
-
             return $empresa?->id;
         }
 

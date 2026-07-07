@@ -29,11 +29,12 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->trustProxies(at: '*');
 
         $middleware->alias([
-            'tenant' => EnsureTenant::class,
-            'module' => EnsureModuleEnabled::class,
-            'role' => EnsureRole::class,
-            'portal.cookie' => PortalCookieAuth::class,
-            'position.permission' => EnsurePositionPermission::class,
+            'tenant'               => EnsureTenant::class,
+            'module'               => EnsureModuleEnabled::class,
+            'role'                 => EnsureRole::class,
+            'portal.cookie'        => PortalCookieAuth::class,
+            'position.permission'  => EnsurePositionPermission::class,
+            'resolve.public.tenant'=> \App\Http\Middleware\ResolvePublicTenant::class,
         ]);
         $middleware->api(prepend: [
             EnsureFrontendRequestsAreStateful::class,
