@@ -500,6 +500,8 @@ Route::prefix('v1')->group(function () {
                 Route::get('/nomina/periodos/{id}', [PayrollController::class, 'show']);
                 Route::patch('/nomina/periodos/{id}', [PayrollController::class, 'updateNotes']);
                 Route::patch('/nomina/periodos/{id}/entradas/{entryId}', [PayrollController::class, 'updateEntry']);
+                Route::post('/nomina/periodos/{id}/entradas/{entryId}/cerrar', [PayrollController::class, 'lockEntry']);
+                Route::post('/nomina/periodos/{id}/entradas/{entryId}/reabrir', [PayrollController::class, 'unlockEntry']);
                 Route::post('/nomina/periodos/{id}/aprobar', [PayrollController::class, 'approve']);
                 Route::patch('/nomina/periodos/{id}/reabrir', [PayrollController::class, 'reabrir']);
                 Route::get('/nomina/periodos/{id}/exportar', [PayrollController::class, 'export']);

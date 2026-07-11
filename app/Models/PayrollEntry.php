@@ -18,7 +18,7 @@ class PayrollEntry extends Model
         'tardiness_count', 'absences_count',
         'subtotal', 'adjustment_amount', 'adjustment_note',
         'bonus_amount', 'bonus_note',
-        'total',
+        'total', 'status', 'locked_at', 'locked_by',
     ];
 
     protected $casts = [
@@ -32,6 +32,7 @@ class PayrollEntry extends Model
         'adjustment_amount' => 'float',
         'bonus_amount' => 'float',
         'total' => 'float',
+        'locked_at' => 'datetime',
     ];
 
     public function empleado()

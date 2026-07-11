@@ -32,6 +32,9 @@ class PayrollEntryResource extends JsonResource
             'bonus_amount' => $this->bonus_amount,
             'bonus_note' => $this->bonus_note,
             'total' => $this->total,
+            'status' => $this->status ?? 'draft',
+            'locked_at' => $this->locked_at,
+            'locked_by' => $this->locked_by,
             'created_at' => $this->created_at,
         ];
     }

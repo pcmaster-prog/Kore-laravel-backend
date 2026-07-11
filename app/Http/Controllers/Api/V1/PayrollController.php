@@ -177,6 +177,11 @@ class PayrollController extends Controller
             ->where('empresa_id', $empresaId)
             ->findOrFail($entryId);
 
+        // Bloquear edición si la entry individual ya fue cerrada
+        if (($entry->status ?? 'draft') === 'locked') {
+            return response()->json(['message' => 'Esta entrada ya fue cerrada. Reabre la entrada del empleado para editarla.'], 409);
+        }
+
         $data = $request->validate([
             'adjustment_amount' => ['sometimes', 'numeric'],
             'adjustment_note' => ['sometimes', 'nullable', 'string', 'max:200'],
@@ -248,6 +253,147 @@ class PayrollController extends Controller
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // POST /nomina/periodos/{id}/entradas/{entryId}/cerrar
+    // Cierra (bloquea) la nómina de un empleado individual y genera su recibo
+    // ─────────────────────────────────────────────────────────────────────────
+    public function lockEntry(Request $request, string $periodId, string $entryId)
+    {
+        Gate::authorize('admin');
+        $u = $request->user();
+        $empresaId = $u->empresa_id;
+
+        $period = PayrollPeriod::where('empresa_id', $empresaId)->findOrFail($periodId);
+
+        $entry = PayrollEntry::where('payroll_period_id', $periodId)
+            ->where('empresa_id', $empresaId)
+            ->findOrFail($entryId);
+
+        if (($entry->status ?? 'draft') === 'locked') {
+            return response()->json(['message' => 'Esta entrada ya está cerrada'], 409);
+        }
+
+        return DB::transaction(function () use ($entry, $period, $u) {
+            $entry->update([
+                'status' => 'locked',
+                'locked_at' => now(),
+                'locked_by' => $u->id,
+            ]);
+
+            // Generar recibo individual
+            $emp = $entry->empleado;
+            if ($emp) {
+                $perceptions = [
+                    ['code' => '001', 'concept' => 'Sueldo', 'amount' => (float) $entry->subtotal],
+                ];
+
+                if ((float) $entry->bonus_amount > 0) {
+                    $perceptions[] = ['code' => '002', 'concept' => 'Bono', 'amount' => (float) $entry->bonus_amount];
+                }
+
+                if ((float) $entry->adjustment_amount != 0) {
+                    $perceptions[] = ['code' => '003', 'concept' => 'Ajuste', 'amount' => (float) $entry->adjustment_amount];
+                }
+
+                $totalPerceptions = (float) $entry->subtotal + (float) $entry->bonus_amount + (float) $entry->adjustment_amount;
+                $netPay = (float) $entry->total;
+
+                $dailySalary = $entry->payment_type === 'daily'
+                    ? (float) $entry->rate
+                    : (float) ($emp->daily_rate ?? ($entry->rate * 8));
+
+                $daysWorked = $entry->payment_type === 'daily'
+                    ? (int) $entry->units
+                    : (int) round($entry->units / 8);
+
+                PayrollReceipt::create([
+                    'payroll_period_id' => $period->id,
+                    'empleado_id' => $emp->id,
+                    'user_id' => $emp->user_id ?? $entry->locked_by,
+                    'folio' => null,
+                    'status' => 'pending',
+                    'period_start' => $period->week_start,
+                    'period_end' => $period->week_end,
+                    'payment_date' => $period->week_end,
+                    'employee_name' => $emp->full_name,
+                    'position_title' => $emp->position_title,
+                    'nss' => $emp->nss,
+                    'rfc' => $emp->rfc,
+                    'curp' => $emp->curp,
+                    'daily_salary' => $dailySalary,
+                    'sbc' => $dailySalary,
+                    'days_worked' => $daysWorked,
+                    'perceptions' => $perceptions,
+                    'total_perceptions' => $totalPerceptions,
+                    'deductions' => [],
+                    'total_deductions' => 0,
+                    'net_pay' => $netPay,
+                    'net_pay_words' => NumeroALetras::convertir($netPay),
+                    'payment_method' => 'Transferencia Electrónica',
+                    'bank_account' => null,
+                    'clabe' => null,
+                    'generated_at' => now(),
+                    'approved_at' => now(),
+                ]);
+            }
+
+            return response()->json([
+                'message' => 'Nómina del empleado cerrada correctamente',
+                'entry' => new PayrollEntryResource($entry->fresh()),
+            ]);
+        });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // POST /nomina/periodos/{id}/entradas/{entryId}/reabrir
+    // Reabre la nómina de un empleado individual
+    // ─────────────────────────────────────────────────────────────────────────
+    public function unlockEntry(Request $request, string $periodId, string $entryId)
+    {
+        Gate::authorize('admin');
+        $empresaId = $request->user()->empresa_id;
+
+        $period = PayrollPeriod::where('empresa_id', $empresaId)->findOrFail($periodId);
+
+        if ($period->status === 'approved') {
+            return response()->json(['message' => 'No se puede reabrir una entrada de un periodo ya aprobado'], 409);
+        }
+
+        $entry = PayrollEntry::where('payroll_period_id', $periodId)
+            ->where('empresa_id', $empresaId)
+            ->findOrFail($entryId);
+
+        if (($entry->status ?? 'draft') !== 'locked') {
+            return response()->json(['message' => 'Esta entrada no está cerrada'], 422);
+        }
+
+        return DB::transaction(function () use ($entry, $period) {
+            // Eliminar recibo generado por el cierre individual
+            $receiptIds = PayrollReceipt::where('payroll_period_id', $period->id)
+                ->where('empleado_id', $entry->empleado_id)
+                ->pluck('id');
+
+            if ($receiptIds->isNotEmpty()) {
+                ReceiptSignature::whereIn('receivable_id', $receiptIds)
+                    ->where('receivable_type', PayrollReceipt::class)
+                    ->delete();
+
+                PayrollReceipt::whereIn('id', $receiptIds)->delete();
+            }
+
+            $entry->update([
+                'status' => 'draft',
+                'locked_at' => null,
+                'locked_by' => null,
+            ]);
+
+            return response()->json([
+                'message' => 'Nómina del empleado reabierta',
+                'entry' => new PayrollEntryResource($entry->fresh()),
+            ]);
+        });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // POST /nomina/periodos/{id}/aprobar
     // Aprueba y cierra el periodo
     // ─────────────────────────────────────────────────────────────────────────
@@ -282,6 +428,19 @@ class PayrollController extends Controller
                 if (! $emp) {
                     continue;
                 }
+
+                // Skip receipt generation if the entry was already locked individually
+                // since lockEntry() already generated a receipt for it.
+                if (($entry->status ?? 'draft') === 'locked') {
+                    continue;
+                }
+                
+                // Mark as locked as part of the overall period approval
+                $entry->update([
+                    'status' => 'locked',
+                    'locked_at' => now(),
+                    'locked_by' => $u->id,
+                ]);
 
                 $perceptions = [
                     ['code' => '001', 'concept' => 'Sueldo', 'amount' => (float) $entry->subtotal],
