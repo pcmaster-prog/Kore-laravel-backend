@@ -28,8 +28,18 @@ class ResolvePublicTenant
                 ? Empresa::where('slug', $slug)->firstOrFail()
                 : Empresa::firstOrFail();
         } else {
-            // Producción: lookup por Host header → whitelist implícita en empresas.domain
-            $host = $request->getHost();
+            // Producción: lookup por X-Tenant-Host o parseando Origin / Referer
+            $host = $request->header('X-Tenant-Host');
+            if (!$host && $request->header('Origin')) {
+                $host = parse_url($request->header('Origin'), PHP_URL_HOST);
+            }
+            if (!$host && $request->header('Referer')) {
+                $host = parse_url($request->header('Referer'), PHP_URL_HOST);
+            }
+            if (!$host) {
+                $host = $request->getHost(); // Fallback
+            }
+
             $empresa = Empresa::where('domain', $host)->firstOrFail();
         }
 
