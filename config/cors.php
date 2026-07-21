@@ -37,7 +37,7 @@ return [
     // explícitamente mediante CORS_EXTRA_ORIGIN.
     'allowed_origins_patterns' => [],
 
-    'allowed_headers' => ['Content-Type', 'X-Requested-With', 'Authorization', 'X-XSRF-TOKEN', 'Accept', 'Origin'],
+    'allowed_headers' => ['Content-Type', 'X-Requested-With', 'Authorization', 'X-XSRF-TOKEN', 'Accept', 'Origin', 'X-Tenant-Host'],
 
     'exposed_headers' => [],
 
