@@ -166,9 +166,14 @@ class AtsFase4Test extends TestCase
             ->assertJsonPath('data.slug', 'cajero-zapopan-2026');
     }
 
-    public function test_interview_reminder_command_sends_emails()
+    public function test_interview_reminder_command_sends_whatsapp()
     {
-        Mail::fake();
+        Http::fake();
+        config([
+            'services.whatsapp.api_url' => 'http://evolution-api',
+            'services.whatsapp.global_api_key' => 'testkey',
+            'services.whatsapp.instance_name' => 'test-instance',
+        ]);
 
         $admin = $this->setupAdmin();
         $empresa = Empresa::find($admin->empresa_id);
@@ -181,20 +186,21 @@ class AtsFase4Test extends TestCase
             'job_opening_id' => $job->id,
             'user_id' => $candidate->id,
             'status' => 'interviewing',
+            'contact_info' => ['phone' => '5512345678'],
         ]);
 
         Interview::create([
             'id' => Str::uuid(),
             'application_id' => $application->id,
             'interviewer_id' => $interviewer->id,
-            'scheduled_at' => now()->addHours(24),
+            'scheduled_at' => now()->addHours(23), // Within the 24 hours window
             'method' => 'video',
             'result' => 'pending',
         ]);
 
-        $this->artisan('interviews:send-reminders')->assertSuccessful();
+        $this->artisan('ats:send-interview-reminders')->assertSuccessful();
 
-        Mail::assertQueued(InterviewReminderMail::class, 2);
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'evolution-api'));
     }
 
     public function test_screening_failure_sends_rejection_email()
@@ -270,7 +276,11 @@ class AtsFase4Test extends TestCase
     {
         Http::fake();
         Mail::fake();
-        config(['services.whatsapp.api_key' => 'testkey', 'services.whatsapp.phone' => '524626269090']);
+        config([
+            'services.whatsapp.api_url' => 'http://evolution-api',
+            'services.whatsapp.global_api_key' => 'testkey',
+            'services.whatsapp.instance_name' => 'test-instance',
+        ]);
 
         $admin = $this->setupAdmin();
         $empresa = Empresa::find($admin->empresa_id);
@@ -293,14 +303,18 @@ class AtsFase4Test extends TestCase
             ])
             ->assertOk();
 
-        Http::assertSent(fn ($request) => str_contains($request->url(), 'api.callmebot.com'));
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'evolution-api'));
     }
 
     public function test_offer_sent_sends_whatsapp_when_phone_present()
     {
         Http::fake();
         Mail::fake();
-        config(['services.whatsapp.api_key' => 'testkey', 'services.whatsapp.phone' => '524626269090']);
+        config([
+            'services.whatsapp.api_url' => 'http://evolution-api',
+            'services.whatsapp.global_api_key' => 'testkey',
+            'services.whatsapp.instance_name' => 'test-instance',
+        ]);
 
         $admin = $this->setupAdmin();
         $empresa = Empresa::find($admin->empresa_id);
@@ -322,7 +336,7 @@ class AtsFase4Test extends TestCase
             ])
             ->assertCreated();
 
-        Http::assertSent(fn ($request) => str_contains($request->url(), 'api.callmebot.com'));
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'evolution-api'));
     }
 
     public function test_offer_sent_uses_custom_template_when_active()
