@@ -600,13 +600,7 @@ class ApplicationController extends Controller
             'notes' => 'Entrevista agendada: '.$validated['interview_scheduled_at'].(($validated['notes'] ?? null) ? ' - '.$validated['notes'] : ''),
         ]);
 
-        AtsNotificationService::interviewScheduled($interview);
-
-        if ($request->boolean('notify_whatsapp') && isset($app->contact_info['phone'])) {
-            $msg = "Hola {$app->user->name}, tienes una entrevista programada para la vacante de {$app->jobOpening->title} el día {$validated['interview_scheduled_at']}. ¡Te esperamos!";
-            $phone = '52'.preg_replace('/[^0-9]/', '', $app->contact_info['phone']);
-            WhatsAppNotificationService::send($phone, $msg);
-        }
+        AtsNotificationService::interviewScheduled($interview, $request->boolean('notify_whatsapp'));
 
         return response()->json(['data' => $app->load('interviews')]);
     }

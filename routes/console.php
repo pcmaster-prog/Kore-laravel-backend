@@ -11,8 +11,7 @@ Artisan::command('inspire', function () {
 // Procesar reglas de asignación automática de tareas cada 5 minutos
 Schedule::command('tasks:process-assignment-rules')->everyFiveMinutes();
 
-// Enviar recordatorios de entrevista por WhatsApp cada hora
-Schedule::command('ats:send-interview-reminders')->hourly();
+// Recordatorios de entrevista: programados en bootstrap/app.php (withSchedule)
 
 // DEPRECATED: Rutinas ahora se manejan via TaskAssignmentRule con items
 // Schedule::command('tasks:process-routine-schedules')->everyFiveMinutes();
