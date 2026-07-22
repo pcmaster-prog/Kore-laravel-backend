@@ -13,7 +13,7 @@ return new class extends Migration
             $table->foreignUuid('empresa_id')->constrained('empresas')->cascadeOnDelete();
 
             $table->unsignedTinyInteger('grace_period_minutes')->default(10);
-            $table->unsignedTinyInteger('late_threshold_minutes')->default(1);
+            $table->unsignedSmallInteger('late_threshold_minutes')->default(60);
             $table->unsignedTinyInteger('lates_to_absence')->default(3);
             $table->enum('accumulation_period', ['week', 'biweek', 'month'])->default('month');
             $table->boolean('penalize_rest_day')->default(true);

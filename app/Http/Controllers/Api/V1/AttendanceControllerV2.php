@@ -72,7 +72,7 @@ class AttendanceControllerV2 extends Controller
                 ['empresa_id' => $empresaId],
                 [
                     'grace_period_minutes' => 10,
-                    'late_threshold_minutes' => 1,
+                    'late_threshold_minutes' => 60,
                     'lates_to_absence' => 3,
                     'accumulation_period' => 'month',
                     'penalize_rest_day' => true,
@@ -81,8 +81,9 @@ class AttendanceControllerV2 extends Controller
                 ]
             );
 
+            // Se bloquea el acceso completamente si han pasado `late_threshold_minutes` desde la hora de entrada.
+            // Esto equivale a "muy muy tarde". Ej: Si es 60, a las 9:30 se bloquea.
             $lateWindowClosesAt = $todayCheckIn->copy()
-                ->addMinutes($tardinessConfig->grace_period_minutes)
                 ->addMinutes($tardinessConfig->late_threshold_minutes);
 
             if ($now->greaterThan($lateWindowClosesAt)) {
@@ -196,7 +197,7 @@ class AttendanceControllerV2 extends Controller
             ['empresa_id' => $empresaId],
             [
                 'grace_period_minutes' => 10,
-                'late_threshold_minutes' => 1,
+                'late_threshold_minutes' => 60,
                 'lates_to_absence' => 3,
                 'accumulation_period' => 'month',
                 'penalize_rest_day' => true,
@@ -209,11 +210,12 @@ class AttendanceControllerV2 extends Controller
 
         if ($effectiveCheckInTimeForLate) {
             $scheduledTime = Carbon::parse($today.' '.$effectiveCheckInTimeForLate);
+            // El periodo de gracia son los minutos permitidos SIN retardo
             $graceLimit = $scheduledTime->copy()->addMinutes($tardinessConfig->grace_period_minutes);
-            $lateThreshold = $graceLimit->copy()->addMinutes($tardinessConfig->late_threshold_minutes);
             $nowTs = now();
 
-            if ($nowTs->greaterThan($lateThreshold)) {
+            // Si entra después del periodo de gracia, se cuenta TODO el tiempo desde la hora programada como retardo
+            if ($nowTs->greaterThan($graceLimit)) {
                 $lateMinutes = (int) ceil(abs($nowTs->diffInMinutes($scheduledTime)));
             }
         }
