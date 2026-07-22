@@ -46,7 +46,7 @@ class AtsNotificationService
         }
     }
 
-    public static function interviewScheduled(Interview $interview): void
+    public static function interviewScheduled(Interview $interview, bool $notifyWhatsApp = true): void
     {
         $candidate = $interview->application?->user;
         if (! $candidate?->email) {
@@ -64,7 +64,9 @@ class AtsNotificationService
         ];
 
         if (self::sendTemplated('interview_scheduled', $candidate->email, $variables, $interview->application?->empresa_id)) {
-            self::sendWhatsApp($interview->application, "Hola {$candidate->name}, tu entrevista para {$variables['jobTitle']} esta programada el {$variables['scheduledAt']}. Metodo: {$variables['method']}.");
+            if ($notifyWhatsApp) {
+                self::sendWhatsApp($interview->application, "Hola {$candidate->name}, tu entrevista para {$variables['jobTitle']} esta programada el {$variables['scheduledAt']}. Metodo: {$variables['method']}.");
+            }
 
             return;
         }
@@ -82,7 +84,9 @@ class AtsNotificationService
             Log::error('Error enviando correo de entrevista programada: '.$e->getMessage());
         }
 
-        self::sendWhatsApp($interview->application, "Hola {$candidate->name}, tu entrevista para {$variables['jobTitle']} esta programada el {$variables['scheduledAt']}. Metodo: {$variables['method']}.");
+        if ($notifyWhatsApp) {
+            self::sendWhatsApp($interview->application, "Hola {$candidate->name}, tu entrevista para {$variables['jobTitle']} esta programada el {$variables['scheduledAt']}. Metodo: {$variables['method']}.");
+        }
     }
 
     public static function interviewReminder(Interview $interview, string $recipientEmail, string $recipientName, string $role = 'candidate'): void

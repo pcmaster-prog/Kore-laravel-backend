@@ -110,7 +110,8 @@ return Application::configure(basePath: dirname(__DIR__))
         // Exceso de descanso en tiempo real
         $schedule->command('breaks:check-overtime')->everyMinute()->withoutOverlapping();
 
-        // Recordatorios de entrevista 24h antes
-        $schedule->command('interviews:send-reminders')->hourly()->withoutOverlapping();
+        // Recordatorios de entrevista 24h antes (el comando también está
+        // registrado en routes/console.php; aquí se usa la firma real)
+        $schedule->command('ats:send-interview-reminders')->hourly()->withoutOverlapping();
     })
     ->create();
