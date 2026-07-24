@@ -35,4 +35,30 @@ class TardinessConfig extends Model
     {
         return $this->belongsTo(Empresa::class, 'empresa_id');
     }
+
+    /**
+     * Única fuente de defaults. Antes había 7 firstOrCreate dispersos con
+     * valores contradictorios (late_threshold_minutes 60 vs 1) y ganaba el
+     * primero en ejecutarse — en la práctica myToday, dejando la ventana de
+     * bloqueo en 1 minuto.
+     *
+     * Semántica: sin retardo hasta entrada + grace_period_minutes; con
+     * retardo (sin autorización) hasta entrada + grace + late_threshold;
+     * después, bloqueado salvo oportunidad aprobada.
+     */
+    public static function forEmpresa(string $empresaId): self
+    {
+        return static::firstOrCreate(
+            ['empresa_id' => $empresaId],
+            [
+                'grace_period_minutes' => 5,
+                'late_threshold_minutes' => 60,
+                'lates_to_absence' => 3,
+                'accumulation_period' => 'month',
+                'penalize_rest_day' => true,
+                'notify_employee_on_late' => true,
+                'notify_manager_on_late' => true,
+            ]
+        );
+    }
 }

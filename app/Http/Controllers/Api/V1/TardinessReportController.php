@@ -28,18 +28,7 @@ class TardinessReportController extends Controller
         }
 
         // Get config (lazy init)
-        $config = TardinessConfig::firstOrCreate(
-            ['empresa_id' => $empresaId],
-            [
-                'grace_period_minutes' => 10,
-                'late_threshold_minutes' => 1,
-                'lates_to_absence' => 3,
-                'accumulation_period' => 'month',
-                'penalize_rest_day' => true,
-                'notify_employee_on_late' => true,
-                'notify_manager_on_late' => true,
-            ]
-        );
+        $config = TardinessConfig::forEmpresa($empresaId);
 
         // Get all employees for this empresa
         $empleados = Empleado::where('empresa_id', $empresaId)
@@ -123,18 +112,7 @@ class TardinessReportController extends Controller
             ->get();
 
         // Get config for absence threshold
-        $config = TardinessConfig::firstOrCreate(
-            ['empresa_id' => $empresaId],
-            [
-                'grace_period_minutes' => 10,
-                'late_threshold_minutes' => 1,
-                'lates_to_absence' => 3,
-                'accumulation_period' => 'month',
-                'penalize_rest_day' => true,
-                'notify_employee_on_late' => true,
-                'notify_manager_on_late' => true,
-            ]
-        );
+        $config = TardinessConfig::forEmpresa($empresaId);
 
         // Check which dates have had absences generated
         $absences = GeneratedAbsence::where('empleado_id', $emp->id)
