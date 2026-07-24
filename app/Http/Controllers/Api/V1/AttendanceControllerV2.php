@@ -55,7 +55,7 @@ class AttendanceControllerV2 extends Controller
 
         if ($effectiveCheckInTime) {
             $todayCheckIn = Carbon::parse($today.' '.$effectiveCheckInTime);
-            $todayEarliest = $todayCheckIn->copy()->subMinutes(15);
+            $todayEarliest = $todayCheckIn->copy()->subMinutes(10);
             $now = now();
 
             if ($now->lessThan($todayEarliest)) {
@@ -68,22 +68,14 @@ class AttendanceControllerV2 extends Controller
             }
 
             // Bloqueo por llegada tarde (sin oportunidad aprobada)
-            $tardinessConfig = TardinessConfig::firstOrCreate(
-                ['empresa_id' => $empresaId],
-                [
-                    'grace_period_minutes' => 10,
-                    'late_threshold_minutes' => 60,
-                    'lates_to_absence' => 3,
-                    'accumulation_period' => 'month',
-                    'penalize_rest_day' => true,
-                    'notify_employee_on_late' => true,
-                    'notify_manager_on_late' => true,
-                ]
-            );
+            $tardinessConfig = TardinessConfig::forEmpresa($empresaId);
 
-            // Se bloquea el acceso completamente si han pasado `late_threshold_minutes` desde la hora de entrada.
-            // Esto equivale a "muy muy tarde". Ej: Si es 60, a las 9:30 se bloquea.
+            // "Muy muy tarde": entrada + tolerancia + umbral. Misma fórmula que
+            // muestra myToday al empleado (late_window_closes_at) — antes el
+            // servidor bloqueaba sin sumar la tolerancia y el límite mostrado
+            // no coincidía con el aplicado.
             $lateWindowClosesAt = $todayCheckIn->copy()
+                ->addMinutes($tardinessConfig->grace_period_minutes)
                 ->addMinutes($tardinessConfig->late_threshold_minutes);
 
             if ($now->greaterThan($lateWindowClosesAt)) {
@@ -193,18 +185,7 @@ class AttendanceControllerV2 extends Controller
         $lateMinutes = 0;
         $tardCount = 0;
 
-        $tardinessConfig = TardinessConfig::firstOrCreate(
-            ['empresa_id' => $empresaId],
-            [
-                'grace_period_minutes' => 10,
-                'late_threshold_minutes' => 60,
-                'lates_to_absence' => 3,
-                'accumulation_period' => 'month',
-                'penalize_rest_day' => true,
-                'notify_employee_on_late' => true,
-                'notify_manager_on_late' => true,
-            ]
-        );
+        $tardinessConfig = TardinessConfig::forEmpresa($empresaId);
 
         $effectiveCheckInTimeForLate = AttendanceService::getEmployeeCheckInTime($empresaId, $emp->id, $today);
 
@@ -695,18 +676,7 @@ class AttendanceControllerV2 extends Controller
         $employeeCheckInTime = AttendanceService::getEmployeeCheckInTime($empresaId, $emp->id, $today);
         $lateWindowClosesAt = null;
         if ($employeeCheckInTime) {
-            $tardinessConfig = TardinessConfig::firstOrCreate(
-                ['empresa_id' => $empresaId],
-                [
-                    'grace_period_minutes' => 10,
-                    'late_threshold_minutes' => 1,
-                    'lates_to_absence' => 3,
-                    'accumulation_period' => 'month',
-                    'penalize_rest_day' => true,
-                    'notify_employee_on_late' => true,
-                    'notify_manager_on_late' => true,
-                ]
-            );
+            $tardinessConfig = TardinessConfig::forEmpresa($empresaId);
             $lateWindowClosesAt = Carbon::parse($today.' '.$employeeCheckInTime)
                 ->addMinutes($tardinessConfig->grace_period_minutes)
                 ->addMinutes($tardinessConfig->late_threshold_minutes)
@@ -1098,10 +1068,12 @@ class AttendanceControllerV2 extends Controller
 
         if (array_key_exists('first_check_in_at', $data) && $data['first_check_in_at']) {
             $day->first_check_in_at = Carbon::parse($fecha.' '.$data['first_check_in_at']);
+            $this->syncAdjustedEvent($u->empresa_id, $day->id, 'check_in', $day->first_check_in_at, $request);
         }
 
         if (array_key_exists('last_check_out_at', $data) && $data['last_check_out_at']) {
             $day->last_check_out_at = Carbon::parse($fecha.' '.$data['last_check_out_at']);
+            $this->syncAdjustedEvent($u->empresa_id, $day->id, 'check_out', $day->last_check_out_at, $request);
         }
 
         // 🔒 Si tiene salida ajustada → cerrar el día para que el empleado no pueda seguir marcando
@@ -1422,6 +1394,39 @@ class AttendanceControllerV2 extends Controller
         ]);
     }
 
+    /**
+     * Al ajustar entrada/salida como admin, el evento correspondiente debe
+     * existir con la hora ajustada: currentState() se deriva de los eventos,
+     * y sin esto el empleado seguía viendo "Marcar entrada" (y sin poder
+     * marcar salida) después de que el admin registrara su entrada.
+     */
+    private function syncAdjustedEvent(string $empresaId, string $dayId, string $type, Carbon $occurredAt, Request $request): void
+    {
+        $query = AttendanceEvent::where('attendance_day_id', $dayId)->where('type', $type);
+        $event = $type === 'check_in'
+            ? $query->orderBy('occurred_at')->first()
+            : $query->orderByDesc('occurred_at')->first();
+
+        if ($event) {
+            $event->occurred_at = $occurredAt;
+            $event->save();
+
+            return;
+        }
+
+        AttendanceEvent::create([
+            'empresa_id' => $empresaId,
+            'attendance_day_id' => $dayId,
+            'type' => $type,
+            'occurred_at' => $occurredAt,
+            'meta' => [
+                'adjusted_by_admin' => true,
+                'ip' => $request->ip(),
+                'ua' => substr((string) $request->userAgent(), 0, 250),
+            ],
+        ]);
+    }
+
     // out|working|break|closed
     private function currentState(AttendanceDay $day): string
     {
@@ -1432,7 +1437,9 @@ class AttendanceControllerV2 extends Controller
 
         $events = AttendanceEvent::where('attendance_day_id', $day->id)->orderBy('occurred_at')->get();
         if ($events->isEmpty()) {
-            return 'out';
+            // Días ajustados por admin antes de que syncAdjustedEvent existiera:
+            // tienen entrada registrada pero ningún evento.
+            return $day->first_check_in_at !== null ? 'working' : 'out';
         }
 
         $last = $events->last()->type;
