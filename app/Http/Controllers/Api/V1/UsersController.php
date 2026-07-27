@@ -112,6 +112,9 @@ class UsersController extends Controller
                 'payment_type' => $data['payment_type'] ?? 'hourly',
                 'hourly_rate' => $data['hourly_rate'] ?? 0,
                 'daily_rate' => $data['daily_rate'] ?? 0,
+                'attendance_bonus' => $data['attendance_bonus'] ?? null,
+                'punctuality_bonus' => $data['punctuality_bonus'] ?? null,
+                'results_bonus' => $data['results_bonus'] ?? null,
                 'rfc' => $data['rfc'] ?? null,
                 'nss' => $data['nss'] ?? null,
                 'curp' => $data['curp'] ?? null,
@@ -204,6 +207,15 @@ class UsersController extends Controller
                 }
                 if (isset($data['daily_rate'])) {
                     $emp->daily_rate = $data['daily_rate'];
+                }
+                if (array_key_exists('attendance_bonus', $data)) {
+                    $emp->attendance_bonus = $data['attendance_bonus'];
+                }
+                if (array_key_exists('punctuality_bonus', $data)) {
+                    $emp->punctuality_bonus = $data['punctuality_bonus'];
+                }
+                if (array_key_exists('results_bonus', $data)) {
+                    $emp->results_bonus = $data['results_bonus'];
                 }
                 if (isset($data['rfc'])) {
                     $emp->rfc = $data['rfc'];
@@ -350,6 +362,9 @@ class UsersController extends Controller
             'payment_type' => $emp?->payment_type ?? 'hourly',
             'hourly_rate' => $emp?->hourly_rate ?? 0,
             'daily_rate' => $emp?->daily_rate ?? 0,
+            'attendance_bonus' => $emp?->attendance_bonus,
+            'punctuality_bonus' => $emp?->punctuality_bonus,
+            'results_bonus' => $emp?->results_bonus,
             'rfc' => $emp?->rfc,
             'nss' => $emp?->nss,
             'curp' => $emp?->curp,
