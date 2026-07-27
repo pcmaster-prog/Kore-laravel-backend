@@ -42,16 +42,16 @@ class TardinessConfig extends Model
      * primero en ejecutarse — en la práctica myToday, dejando la ventana de
      * bloqueo en 1 minuto.
      *
-     * Semántica: sin retardo hasta entrada + grace_period_minutes; con
-     * retardo (sin autorización) hasta entrada + grace + late_threshold;
-     * después, bloqueado salvo oportunidad aprobada.
+     * Semántica: sin retardo hasta entrada + grace_period_minutes; después
+     * la entrada se permite siempre, solo se registra el retardo. Llegar
+     * tarde no bloquea ni requiere autorización del admin.
      */
     public static function forEmpresa(string $empresaId): self
     {
         return static::firstOrCreate(
             ['empresa_id' => $empresaId],
             [
-                'grace_period_minutes' => 5,
+                'grace_period_minutes' => 10,
                 'late_threshold_minutes' => 60,
                 'lates_to_absence' => 3,
                 'accumulation_period' => 'month',
