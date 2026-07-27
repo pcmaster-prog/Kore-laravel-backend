@@ -67,64 +67,9 @@ class AttendanceControllerV2 extends Controller
                 ], 409);
             }
 
-            // Bloqueo por llegada tarde (sin oportunidad aprobada)
-            $tardinessConfig = TardinessConfig::forEmpresa($empresaId);
-
-            // "Muy muy tarde": entrada + tolerancia + umbral. Misma fórmula que
-            // muestra myToday al empleado (late_window_closes_at) — antes el
-            // servidor bloqueaba sin sumar la tolerancia y el límite mostrado
-            // no coincidía con el aplicado.
-            $lateWindowClosesAt = $todayCheckIn->copy()
-                ->addMinutes($tardinessConfig->grace_period_minutes)
-                ->addMinutes($tardinessConfig->late_threshold_minutes);
-
-            if ($now->greaterThan($lateWindowClosesAt)) {
-                $hasApproved = LateArrivalRequest::where('empresa_id', $empresaId)
-                    ->where('empleado_id', $emp->id)
-                    ->whereDate('date', $today)
-                    ->where('status', 'approved')
-                    ->exists();
-
-                if (! $hasApproved) {
-                    ActivityLogger::log(
-                        $empresaId,
-                        $u->id,
-                        $emp->id,
-                        'attendance.check_in_blocked',
-                        'attendance_day',
-                        null,
-                        [
-                            'employee_name' => $emp->full_name ?? $u->name,
-                            'scheduled_time' => $effectiveCheckInTime,
-                            'late_window_closes_at' => $lateWindowClosesAt->toTimeString(),
-                            'current_server_time' => $now->toTimeString(),
-                        ],
-                        $request
-                    );
-
-                    try {
-                        SendPushNotificationToManagers::dispatch(
-                            $empresaId,
-                            '🚫 Entrada bloqueada por retardo',
-                            ($emp->full_name ?? $u->name).' intentó marcar entrada a las '.$now->format('H:i').' (hora límite: '.$lateWindowClosesAt->format('H:i').').',
-                            [
-                                'type' => 'attendance.check_in_blocked',
-                                'empleado_id' => $emp->id,
-                            ]
-                        );
-                    } catch (\Throwable $e) {
-                        Log::error('Error notificando bloqueo de entrada: '.$e->getMessage());
-                    }
-
-                    return response()->json([
-                        'message' => 'Llegaste tarde. No puedes registrar tu entrada. Debes regresar, ya no tienes permitido trabajar hoy. Solicita una oportunidad a tu administrador.',
-                        'code' => 'CHECK_IN_LATE_BLOCKED',
-                        'scheduled_time' => $effectiveCheckInTime,
-                        'late_window_closes_at' => $lateWindowClosesAt->toTimeString(),
-                        'current_server_time' => $now->toTimeString(),
-                    ], 409);
-                }
-            }
+            // Llegar tarde NUNCA bloquea la entrada ni requiere autorización:
+            // pasada la tolerancia solo se registra el retardo (late_minutes,
+            // más abajo). El único límite duro es la hora de salida del turno.
         }
 
         // Validación de hora de salida (horario de empresa)
@@ -672,16 +617,11 @@ class AttendanceControllerV2 extends Controller
 
         $canMarkRest = ($emp->payment_type === 'daily' && ! $hasCheckIn && ! $restUsedThisWeek && ! $isBlocked && ! $adminClosed);
 
-        // Información de hora de llegada y oportunidades
+        // Información de hora de llegada. late_window_closes_at se envía null
+        // desde que llegar tarde ya no bloquea la entrada (solo se registra el
+        // retardo); la app oculta el aviso "tienes hasta las X" cuando es null.
         $employeeCheckInTime = AttendanceService::getEmployeeCheckInTime($empresaId, $emp->id, $today);
         $lateWindowClosesAt = null;
-        if ($employeeCheckInTime) {
-            $tardinessConfig = TardinessConfig::forEmpresa($empresaId);
-            $lateWindowClosesAt = Carbon::parse($today.' '.$employeeCheckInTime)
-                ->addMinutes($tardinessConfig->grace_period_minutes)
-                ->addMinutes($tardinessConfig->late_threshold_minutes)
-                ->format('H:i');
-        }
 
         $approvedLateRequest = LateArrivalRequest::where('empresa_id', $empresaId)
             ->where('empleado_id', $emp->id)
