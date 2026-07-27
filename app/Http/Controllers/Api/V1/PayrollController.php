@@ -190,7 +190,8 @@ class PayrollController extends Controller
         ]);
 
         $entry->fill($data);
-        $entry->total = $entry->subtotal + ($entry->adjustment_amount ?? 0) + ($entry->bonus_amount ?? 0);
+        $entry->total = $entry->subtotal + ($entry->adjustment_amount ?? 0) + ($entry->bonus_amount ?? 0)
+            + ($entry->attendance_bonus_amount ?? 0) + ($entry->punctuality_bonus_amount ?? 0);
         $entry->save();
 
         $this->recalcPeriodTotals($period);
@@ -287,14 +288,23 @@ class PayrollController extends Controller
                 ];
 
                 if ((float) $entry->bonus_amount > 0) {
-                    $perceptions[] = ['code' => '002', 'concept' => 'Bono', 'amount' => (float) $entry->bonus_amount];
+                    $perceptions[] = ['code' => '002', 'concept' => 'Bono de resultados', 'amount' => (float) $entry->bonus_amount];
+                }
+
+                if ((float) $entry->attendance_bonus_amount > 0) {
+                    $perceptions[] = ['code' => '004', 'concept' => 'Bono de asistencia', 'amount' => (float) $entry->attendance_bonus_amount];
+                }
+
+                if ((float) $entry->punctuality_bonus_amount > 0) {
+                    $perceptions[] = ['code' => '005', 'concept' => 'Bono de puntualidad', 'amount' => (float) $entry->punctuality_bonus_amount];
                 }
 
                 if ((float) $entry->adjustment_amount != 0) {
                     $perceptions[] = ['code' => '003', 'concept' => 'Ajuste', 'amount' => (float) $entry->adjustment_amount];
                 }
 
-                $totalPerceptions = (float) $entry->subtotal + (float) $entry->bonus_amount + (float) $entry->adjustment_amount;
+                $totalPerceptions = (float) $entry->subtotal + (float) $entry->bonus_amount + (float) $entry->adjustment_amount
+                    + (float) $entry->attendance_bonus_amount + (float) $entry->punctuality_bonus_amount;
                 $netPay = (float) $entry->total;
 
                 $dailySalary = $entry->payment_type === 'daily'
@@ -447,14 +457,23 @@ class PayrollController extends Controller
                 ];
 
                 if ((float) $entry->bonus_amount > 0) {
-                    $perceptions[] = ['code' => '002', 'concept' => 'Bono', 'amount' => (float) $entry->bonus_amount];
+                    $perceptions[] = ['code' => '002', 'concept' => 'Bono de resultados', 'amount' => (float) $entry->bonus_amount];
+                }
+
+                if ((float) $entry->attendance_bonus_amount > 0) {
+                    $perceptions[] = ['code' => '004', 'concept' => 'Bono de asistencia', 'amount' => (float) $entry->attendance_bonus_amount];
+                }
+
+                if ((float) $entry->punctuality_bonus_amount > 0) {
+                    $perceptions[] = ['code' => '005', 'concept' => 'Bono de puntualidad', 'amount' => (float) $entry->punctuality_bonus_amount];
                 }
 
                 if ((float) $entry->adjustment_amount != 0) {
                     $perceptions[] = ['code' => '003', 'concept' => 'Ajuste', 'amount' => (float) $entry->adjustment_amount];
                 }
 
-                $totalPerceptions = (float) $entry->subtotal + (float) $entry->bonus_amount + (float) $entry->adjustment_amount;
+                $totalPerceptions = (float) $entry->subtotal + (float) $entry->bonus_amount + (float) $entry->adjustment_amount
+                    + (float) $entry->attendance_bonus_amount + (float) $entry->punctuality_bonus_amount;
                 $deductions = [];
                 $totalDeductions = 0;
                 $netPay = (float) $entry->total;
@@ -715,7 +734,25 @@ class PayrollController extends Controller
         $bonusAmount = $entry?->bonus_amount ?? 0;
         $bonusNote = $entry?->bonus_note ?? null;
 
-        $total = $subtotal + $adjustmentAmount + $bonusAmount;
+        // 💰 Bonos semanales (matriz DecorArte): aplican solo a empleados con
+        // monto configurado en su ficha. Regla todo-o-nada por semana:
+        // 1 falta pierde el bono de asistencia; 1 retardo EN LA SEMANA pierde
+        // el de puntualidad ($tardiness es mensual, sirve para el descanso).
+        // El bono de resultados se captura manualmente en bonus_amount.
+        $weekTardiness = AttendanceDay::where('empresa_id', $empresaId)
+            ->where('empleado_id', $emp->id)
+            ->whereBetween('date', [$weekStart, $weekEnd])
+            ->where('late_minutes', '>', 0)
+            ->count();
+
+        $attendanceBonus = ((float) ($emp->attendance_bonus ?? 0) > 0 && $absences === 0)
+            ? (float) $emp->attendance_bonus
+            : 0.0;
+        $punctualityBonus = ((float) ($emp->punctuality_bonus ?? 0) > 0 && $weekTardiness === 0)
+            ? (float) $emp->punctuality_bonus
+            : 0.0;
+
+        $total = $subtotal + $adjustmentAmount + $bonusAmount + $attendanceBonus + $punctualityBonus;
 
         $data = [
             'empresa_id' => $empresaId,
@@ -733,6 +770,8 @@ class PayrollController extends Controller
             'adjustment_note' => $adjustmentNote,
             'bonus_amount' => $bonusAmount,
             'bonus_note' => $bonusNote,
+            'attendance_bonus_amount' => $attendanceBonus,
+            'punctuality_bonus_amount' => $punctualityBonus,
             'total' => $total,
         ];
 
@@ -813,7 +852,9 @@ class PayrollController extends Controller
         $period->update([
             'total_amount' => $entries->sum('total'),
             'total_adjustments' => $entries->sum('adjustment_amount'),
-            'total_bonuses' => $entries->sum('bonus_amount'),
+            'total_bonuses' => $entries->sum('bonus_amount')
+                + $entries->sum('attendance_bonus_amount')
+                + $entries->sum('punctuality_bonus_amount'),
         ]);
     }
 

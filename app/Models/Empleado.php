@@ -25,6 +25,9 @@ class Empleado extends Model
         'payment_type',
         'hourly_rate',
         'daily_rate',
+        'attendance_bonus',
+        'punctuality_bonus',
+        'results_bonus',
         'rfc',
         'nss',
         'curp',
@@ -34,6 +37,9 @@ class Empleado extends Model
     protected $casts = [
         'hired_at' => 'date',
         'check_in_time' => 'datetime:H:i',
+        'attendance_bonus' => 'float',
+        'punctuality_bonus' => 'float',
+        'results_bonus' => 'float',
     ];
 
     public function user()

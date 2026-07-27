@@ -18,6 +18,7 @@ class PayrollEntry extends Model
         'tardiness_count', 'absences_count',
         'subtotal', 'adjustment_amount', 'adjustment_note',
         'bonus_amount', 'bonus_note',
+        'attendance_bonus_amount', 'punctuality_bonus_amount',
         'total', 'status', 'locked_at', 'locked_by',
     ];
 
@@ -31,6 +32,8 @@ class PayrollEntry extends Model
         'subtotal' => 'float',
         'adjustment_amount' => 'float',
         'bonus_amount' => 'float',
+        'attendance_bonus_amount' => 'float',
+        'punctuality_bonus_amount' => 'float',
         'total' => 'float',
         'locked_at' => 'datetime',
     ];
