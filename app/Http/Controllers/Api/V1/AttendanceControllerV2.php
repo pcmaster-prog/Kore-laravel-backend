@@ -997,33 +997,14 @@ class AttendanceControllerV2 extends Controller
             ->where('id', $empleadoId)
             ->firstOrFail();
 
-        $day = AttendanceDay::firstOrCreate(
-            [
-                'empresa_id' => $u->empresa_id,
-                'empleado_id' => $emp->id,
-                'date' => $fecha,
-            ],
-            ['status' => 'present']
+        $day = AttendanceService::applyManualTimes(
+            $u->empresa_id,
+            $emp->id,
+            $fecha,
+            $data['first_check_in_at'] ?? null,
+            $data['last_check_out_at'] ?? null,
+            ['ip' => $request->ip(), 'ua' => substr((string) $request->userAgent(), 0, 250)]
         );
-
-        if (array_key_exists('first_check_in_at', $data) && $data['first_check_in_at']) {
-            $day->first_check_in_at = Carbon::parse($fecha.' '.$data['first_check_in_at']);
-            $this->syncAdjustedEvent($u->empresa_id, $day->id, 'check_in', $day->first_check_in_at, $request);
-        }
-
-        if (array_key_exists('last_check_out_at', $data) && $data['last_check_out_at']) {
-            $day->last_check_out_at = Carbon::parse($fecha.' '.$data['last_check_out_at']);
-            $this->syncAdjustedEvent($u->empresa_id, $day->id, 'check_out', $day->last_check_out_at, $request);
-        }
-
-        // 🔒 Si tiene salida ajustada → cerrar el día para que el empleado no pueda seguir marcando
-        if ($day->last_check_out_at) {
-            $day->status = 'closed';
-        } elseif ($day->first_check_in_at) {
-            $day->status = 'open';
-        }
-
-        $day->save();
 
         ActivityLogger::log(
             $u->empresa_id,
@@ -1046,6 +1027,75 @@ class AttendanceControllerV2 extends Controller
         return response()->json([
             'message' => 'Asistencia ajustada correctamente',
             'day' => $this->presentDay($day),
+        ]);
+    }
+
+    /**
+     * PATCH /asistencia/ajustar-masivo
+     * Ajusta entrada/salida de varios empleados/días en una sola llamada
+     * (edición en la matriz del reporte semanal).
+     */
+    public function ajustarMasivo(Request $request)
+    {
+        Gate::authorize('supervisor');
+        $u = $request->user();
+
+        $data = $request->validate([
+            'motivo' => ['required', 'string', 'max:300'],
+            'items' => ['required', 'array', 'min:1', 'max:500'],
+            'items.*.empleado_id' => ['required', 'uuid'],
+            'items.*.fecha' => ['required', 'date_format:Y-m-d', 'before_or_equal:today'],
+            'items.*.first_check_in_at' => ['nullable', 'date_format:H:i'],
+            'items.*.last_check_out_at' => ['nullable', 'date_format:H:i'],
+        ]);
+
+        $empleadoIds = collect($data['items'])->pluck('empleado_id')->unique()->values();
+        $validIds = Empleado::where('empresa_id', $u->empresa_id)
+            ->whereIn('id', $empleadoIds)
+            ->pluck('id')
+            ->all();
+
+        if (count($validIds) !== $empleadoIds->count()) {
+            return response()->json(['message' => 'Uno o más empleados no pertenecen a tu empresa'], 403);
+        }
+
+        $meta = ['ip' => $request->ip(), 'ua' => substr((string) $request->userAgent(), 0, 250), 'bulk' => true];
+        $applied = 0;
+
+        foreach ($data['items'] as $item) {
+            if (empty($item['first_check_in_at']) && empty($item['last_check_out_at'])) {
+                continue;
+            }
+
+            AttendanceService::applyManualTimes(
+                $u->empresa_id,
+                $item['empleado_id'],
+                $item['fecha'],
+                $item['first_check_in_at'] ?? null,
+                $item['last_check_out_at'] ?? null,
+                $meta
+            );
+            $applied++;
+        }
+
+        ActivityLogger::log(
+            $u->empresa_id,
+            $u->id,
+            null,
+            'attendance.bulk_adjusted',
+            'attendance_day',
+            null,
+            [
+                'motivo' => $data['motivo'],
+                'count' => $applied,
+                'adjusted_by' => $u->name,
+            ],
+            $request
+        );
+
+        return response()->json([
+            'message' => "Se ajustaron {$applied} registro(s) de asistencia",
+            'applied' => $applied,
         ]);
     }
 
@@ -1328,39 +1378,6 @@ class AttendanceControllerV2 extends Controller
             'type' => $type,
             'occurred_at' => now(),
             'meta' => [
-                'ip' => $request->ip(),
-                'ua' => substr((string) $request->userAgent(), 0, 250),
-            ],
-        ]);
-    }
-
-    /**
-     * Al ajustar entrada/salida como admin, el evento correspondiente debe
-     * existir con la hora ajustada: currentState() se deriva de los eventos,
-     * y sin esto el empleado seguía viendo "Marcar entrada" (y sin poder
-     * marcar salida) después de que el admin registrara su entrada.
-     */
-    private function syncAdjustedEvent(string $empresaId, string $dayId, string $type, Carbon $occurredAt, Request $request): void
-    {
-        $query = AttendanceEvent::where('attendance_day_id', $dayId)->where('type', $type);
-        $event = $type === 'check_in'
-            ? $query->orderBy('occurred_at')->first()
-            : $query->orderByDesc('occurred_at')->first();
-
-        if ($event) {
-            $event->occurred_at = $occurredAt;
-            $event->save();
-
-            return;
-        }
-
-        AttendanceEvent::create([
-            'empresa_id' => $empresaId,
-            'attendance_day_id' => $dayId,
-            'type' => $type,
-            'occurred_at' => $occurredAt,
-            'meta' => [
-                'adjusted_by_admin' => true,
                 'ip' => $request->ip(),
                 'ua' => substr((string) $request->userAgent(), 0, 250),
             ],

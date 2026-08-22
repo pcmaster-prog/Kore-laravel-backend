@@ -7,6 +7,7 @@ use App\Models\AttendanceEvent;
 use App\Models\Empleado;
 use App\Models\EmployeeCalendarOverride;
 use App\Models\Empresa;
+use App\Models\TardinessConfig;
 use Carbon\Carbon;
 
 class AttendanceService
@@ -331,5 +332,92 @@ class AttendanceService
         }
 
         return $paid;
+    }
+
+    /**
+     * Aplica horas de entrada/salida manuales a un día (ajuste de admin,
+     * aprobación de una solicitud de corrección o ajuste masivo).
+     *
+     * Crea el AttendanceDay si no existe, sincroniza los AttendanceEvent
+     * (currentState() se deriva de ellos) y fija el status del día.
+     */
+    public static function applyManualTimes(
+        string $empresaId,
+        string $empleadoId,
+        string $fecha,
+        ?string $checkIn,
+        ?string $checkOut,
+        array $eventMeta = []
+    ): AttendanceDay {
+        $day = AttendanceDay::firstOrCreate(
+            [
+                'empresa_id' => $empresaId,
+                'empleado_id' => $empleadoId,
+                'date' => $fecha,
+            ],
+            ['status' => 'present']
+        );
+
+        if ($checkIn) {
+            $day->first_check_in_at = Carbon::parse($fecha.' '.$checkIn);
+            self::syncAdjustedEvent($empresaId, $day->id, 'check_in', $day->first_check_in_at, $eventMeta);
+
+            // Mantener el retardo coherente con la nueva hora de entrada
+            // (misma regla que checkIn(): minutos desde la hora programada si
+            // se paso la tolerancia; 0 si entro a tiempo).
+            $day->late_minutes = 0;
+            $scheduledStr = self::getEmployeeCheckInTime($empresaId, $empleadoId, $fecha);
+            if ($scheduledStr) {
+                $scheduled = Carbon::parse($fecha.' '.$scheduledStr);
+                $grace = TardinessConfig::forEmpresa($empresaId)->grace_period_minutes;
+                if ($day->first_check_in_at->greaterThan($scheduled->copy()->addMinutes($grace))) {
+                    $day->late_minutes = (int) ceil(abs($day->first_check_in_at->diffInMinutes($scheduled)));
+                }
+            }
+        }
+
+        if ($checkOut) {
+            $day->last_check_out_at = Carbon::parse($fecha.' '.$checkOut);
+            self::syncAdjustedEvent($empresaId, $day->id, 'check_out', $day->last_check_out_at, $eventMeta);
+        }
+
+        // Con salida → cerrado (el empleado ya no puede seguir marcando); con solo entrada → abierto
+        if ($day->last_check_out_at) {
+            $day->status = 'closed';
+        } elseif ($day->first_check_in_at) {
+            $day->status = ((int) $day->late_minutes) > 0 ? 'late' : 'open';
+        }
+
+        $day->save();
+
+        return $day;
+    }
+
+    /**
+     * El evento correspondiente a una hora ajustada debe existir con esa hora:
+     * currentState() se deriva de los eventos, y sin esto el empleado seguía
+     * viendo "Marcar entrada" después de que el admin registrara su entrada.
+     */
+    public static function syncAdjustedEvent(string $empresaId, string $dayId, string $type, Carbon $occurredAt, array $meta = []): void
+    {
+        $query = AttendanceEvent::where('attendance_day_id', $dayId)->where('type', $type);
+        $event = $type === 'check_in'
+            ? $query->orderBy('occurred_at')->first()
+            : $query->orderByDesc('occurred_at')->first();
+
+        if ($event) {
+            $event->occurred_at = $occurredAt;
+            $event->save();
+
+            return;
+        }
+
+        AttendanceEvent::create([
+            'empresa_id' => $empresaId,
+            'attendance_day_id' => $dayId,
+            'type' => $type,
+            'occurred_at' => $occurredAt,
+            'meta' => array_merge(['adjusted_by_admin' => true], $meta),
+        ]);
     }
 }

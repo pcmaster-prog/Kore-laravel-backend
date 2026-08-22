@@ -107,6 +107,9 @@ return Application::configure(basePath: dirname(__DIR__))
         // Recordatorios de salida (5 min antes + disponible)
         $schedule->command('attendance:reminders')->everyMinute()->withoutOverlapping();
 
+        // Recordatorio de entrada olvidada (10 min después de la hora de entrada)
+        $schedule->command('attendance:check-in-reminders')->everyMinute()->withoutOverlapping();
+
         // Exceso de descanso en tiempo real
         $schedule->command('breaks:check-overtime')->everyMinute()->withoutOverlapping();
 

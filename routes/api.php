@@ -48,6 +48,7 @@ use App\Http\Controllers\Api\V1\InterviewController;
 // Maderas Fase 2
 use App\Http\Controllers\Api\V1\JobOpeningController;
 use App\Http\Controllers\Api\V1\JobOpeningTemplateController;
+use App\Http\Controllers\Api\V1\AttendanceCorrectionRequestController;
 use App\Http\Controllers\Api\V1\LateArrivalRequestController;
 use App\Http\Controllers\Api\V1\MaderasCatalogoController;
 use App\Http\Controllers\Api\V1\MaderasEnsambleController;
@@ -452,6 +453,7 @@ Route::prefix('v1')->group(function () {
 
                 // Ajuste de asistencia (Admin/Supervisor)
                 Route::patch('/asistencia/ajustar/{empleadoId}/{fecha}', [AttendanceControllerV2::class, 'ajustar']);
+                Route::patch('/asistencia/ajustar-masivo', [AttendanceControllerV2::class, 'ajustarMasivo'])->middleware('role:admin,supervisor');
                 Route::patch('/asistencia/comida/ajustar/{empleadoId}/{fecha}', [AttendanceControllerV2::class, 'ajustarComida']);
                 Route::delete('/asistencia/eliminar/{empleadoId}/{fecha}', [AttendanceControllerV2::class, 'eliminarDia']);
 
@@ -477,6 +479,13 @@ Route::prefix('v1')->group(function () {
                 Route::get('/late-arrival-requests/mis-solicitudes', [LateArrivalRequestController::class, 'myRequests']);
                 Route::get('/late-arrival-requests/pendientes', [LateArrivalRequestController::class, 'pending'])->middleware('role:admin,supervisor');
                 Route::patch('/late-arrival-requests/{id}', [LateArrivalRequestController::class, 'review'])->middleware('role:admin,supervisor')->whereUuid('id');
+
+                // Solicitudes de correccion de asistencia (olvide marcar entrada/salida)
+                Route::post('/asistencia/correcciones', [AttendanceCorrectionRequestController::class, 'store']);
+                Route::get('/asistencia/correcciones/mis-solicitudes', [AttendanceCorrectionRequestController::class, 'myRequests']);
+                Route::get('/asistencia/correcciones/pendientes', [AttendanceCorrectionRequestController::class, 'pending'])->middleware('role:admin,supervisor');
+                Route::post('/asistencia/correcciones/aprobar-todas', [AttendanceCorrectionRequestController::class, 'approveAll'])->middleware('role:admin,supervisor');
+                Route::patch('/asistencia/correcciones/{id}', [AttendanceCorrectionRequestController::class, 'review'])->middleware('role:admin,supervisor')->whereUuid('id');
             });
 
             // ── Módulo Retardos ──────────────────────────────────────────────────────
