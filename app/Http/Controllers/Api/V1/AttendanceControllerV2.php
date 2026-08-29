@@ -879,9 +879,42 @@ class AttendanceControllerV2 extends Controller
 
         $days = AttendanceDay::where('empresa_id', $empresaId)->where('date', $date)->with(['events'])->get();
 
+        // Descansos del día. La vista diaria debe coincidir con el reporte
+        // semanal, que sí mira employee_calendar_overrides y rest_weekday;
+        // sin esto un empleado con descanso marcado aparecía como "Ausente".
+        $overrides = EmployeeCalendarOverride::where('empresa_id', $empresaId)
+            ->where('date', $date)
+            ->get()
+            ->keyBy('empleado_id');
+
+        $weekStartIndex = AttendanceService::weekStartIndex($empresaId);
+        $relativeWeekday = ((int) Carbon::parse($date)->dayOfWeek - $weekStartIndex + 7) % 7;
+
+        $restEmployeeIds = [];
+        foreach (Empleado::where('empresa_id', $empresaId)->get(['id', 'rest_weekday']) as $emp) {
+            $ov = $overrides->get($emp->id);
+            if ($ov) {
+                if ($ov->type === 'rest') {
+                    $restEmployeeIds[] = $emp->id;
+                }
+
+                continue;
+            }
+
+            if ($emp->rest_weekday !== null && (int) $emp->rest_weekday === $relativeWeekday) {
+                $restEmployeeIds[] = $emp->id;
+            }
+        }
+
+        $holiday = Holiday::where('empresa_id', $empresaId)->whereDate('date', $date)->first();
+        $schedule = AttendanceService::getDaySchedule($empresaId, $date);
+
         return response()->json([
             'date' => $date,
             'items' => AttendanceDayResource::collection($days),
+            'rest_employee_ids' => $restEmployeeIds,
+            'holiday_name' => $holiday?->name,
+            'is_working_day' => $schedule['is_working_day'] ?? true,
         ]);
     }
 
