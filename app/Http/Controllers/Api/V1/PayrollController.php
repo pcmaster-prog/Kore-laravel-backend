@@ -17,6 +17,7 @@ use App\Models\PayrollEntry;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollReceipt;
 use App\Models\ReceiptSignature;
+use App\Models\TardinessConfig;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -683,8 +684,12 @@ class PayrollController extends Controller
             ->where('late_minutes', '>', 0)
             ->count();
 
-        // 3 o más retardos en el mes → no se paga el descanso semanal
-        if ($tardiness >= 3) {
+        // Penalización por acumulación de retardos: respeta la configuración de
+        // la empresa (Configuración → Retardos). Antes estaba fija en "3 o más"
+        // e ignoraba penalize_rest_day, así que quitaba el descanso pagado
+        // incluso a empresas que tienen la penalización desactivada.
+        $tardinessConfig = TardinessConfig::forEmpresa($empresaId);
+        if ($tardinessConfig->penalize_rest_day && $tardiness >= $tardinessConfig->lates_to_absence) {
             $restDaysPaid = 0;
         }
 
