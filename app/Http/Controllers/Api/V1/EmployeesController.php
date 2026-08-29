@@ -42,8 +42,14 @@ class EmployeesController extends Controller
             });
         }
 
+        // per_page configurable: los consumidores que necesitan la plantilla
+        // completa (asistencia, tareas, reportes) piden todo de una vez en
+        // lugar de quedarse con los primeros 20 empleados.
+        $perPage = (int) $request->input('per_page', 20);
+        $perPage = max(1, min($perPage, 200));
+
         $items = $q->orderBy('full_name')
-            ->paginate(20);
+            ->paginate($perPage);
 
         return EmpleadoResource::collection($items);
     }
