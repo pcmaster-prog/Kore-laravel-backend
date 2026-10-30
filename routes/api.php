@@ -504,6 +504,7 @@ Route::prefix('v1')->group(function () {
             // ── Módulo Nómina ────────────────────────────────────────────────────────
             Route::middleware(['module:nomina', 'role:admin'])->group(function () {
                 Route::get('/nomina/periodos', [PayrollController::class, 'index']);
+                Route::get('/nomina/periodos/exportar-todos', [PayrollController::class, 'exportAll']);
                 Route::get('/nomina/periodos/semana', [PayrollController::class, 'showByWeekDate']);
                 Route::post('/nomina/periodos/generar', [PayrollController::class, 'generate']);
                 Route::get('/nomina/periodos/{id}', [PayrollController::class, 'show']);

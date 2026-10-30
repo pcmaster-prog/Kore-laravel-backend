@@ -606,6 +606,29 @@ class PayrollController extends Controller
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // GET /nomina/periodos/exportar-todos
+    // Devuelve todos los periodos generados con sus entradas para descarga masiva
+    // ─────────────────────────────────────────────────────────────────────────
+    public function exportAll(Request $request)
+    {
+        Gate::authorize('admin');
+        $empresaId = $request->user()->empresa_id;
+
+        $query = PayrollPeriod::where('empresa_id', $empresaId)
+            ->with(['entries.empleado', 'approvedBy']);
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->input('status'));
+        }
+
+        $periods = $query->orderBy('week_start', 'asc')->get();
+
+        return response()->json([
+            'data' => $periods->map(fn (PayrollPeriod $p) => $this->presentPeriod($p))->values(),
+        ]);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // Helpers internos
     // ─────────────────────────────────────────────────────────────────────────
 
